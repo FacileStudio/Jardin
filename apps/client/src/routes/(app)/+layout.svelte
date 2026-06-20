@@ -9,7 +9,7 @@
 	let status: RucheStatus | null = $state(null);
 
 	const nav = [
-		{ label: 'Brain', href: '/brain', icon: 'solar:brain-linear' },
+		{ label: 'Brain', href: '/brain', icon: 'solar:notebook-linear' },
 		{ label: 'Rules', href: '/rules', icon: 'solar:ruler-angular-linear' },
 		{ label: 'Skills', href: '/skills', icon: 'solar:bolt-circle-linear' },
 		{ label: 'Settings', href: '/settings', icon: 'solar:settings-linear' }

@@ -154,7 +154,7 @@
 				<div use:reveal={{ delay: 0 }} class="{card}">
 					<div class={glow}></div>
 					<div class="mb-4 {ico}">
-						<Icon icon="solar:brain-bold-duotone" class="size-6 text-zinc-900" />
+						<Icon icon="solar:notebook-bold-duotone" class="size-6 text-zinc-900" />
 					</div>
 					<h3 class="text-lg font-bold tracking-tight">Brain</h3>
 					<p class="mt-2 text-sm leading-relaxed text-zinc-500">
