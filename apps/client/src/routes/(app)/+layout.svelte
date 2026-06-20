@@ -8,7 +8,7 @@
 	let status: RucheStatus | null = $state(null);
 
 	const nav = [
-		{ label: 'Brain', href: '/', icon: '🧠' },
+		{ label: 'Brain', href: '/brain', icon: '🧠' },
 		{ label: 'Rules', href: '/rules', icon: '📏' },
 		{ label: 'Skills', href: '/skills', icon: '⚡' },
 		{ label: 'Cells', href: '/cells', icon: '🔷' },
