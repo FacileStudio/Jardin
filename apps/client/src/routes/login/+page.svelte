@@ -1,50 +1,135 @@
 <script lang="ts">
-	import { backend } from '$lib/backend';
+	import Icon from '@iconify/svelte';
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { backend } from '$lib/backend';
+
+	const TOKEN_KEY = 'ruche.token';
 
 	let password = $state('');
 	let error = $state('');
-	let loading = $state(false);
+	let busy = $state(false);
+	let ssoOnly = $state(false);
+	let oidcEnabled = $state(false);
+	let configLoaded = $state(false);
 
-	async function handleLogin(e: Event) {
+	onMount(async () => {
+		if (localStorage.getItem(TOKEN_KEY)) {
+			goto('/brain');
+			return;
+		}
+		try {
+			const cfg = await backend.getAuthConfig();
+			ssoOnly = cfg.sso_only ?? false;
+			oidcEnabled = cfg.oidc_enabled ?? false;
+		} catch {}
+		configLoaded = true;
+	});
+
+	async function submit(e: Event) {
 		e.preventDefault();
-		loading = true;
+		busy = true;
 		error = '';
 		try {
 			const { token } = await backend.login(password);
-			localStorage.setItem('ruche.token', token);
-			goto('/');
+			localStorage.setItem(TOKEN_KEY, token);
+			goto('/brain');
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Login failed';
+			error = err instanceof Error ? err.message : 'Something went wrong';
 		} finally {
-			loading = false;
+			busy = false;
 		}
 	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-bg">
-	<form onsubmit={handleLogin} class="w-full max-w-sm space-y-4 rounded-xl border border-border bg-surface p-8">
-		<h1 class="text-xl font-semibold text-fg">Ruche</h1>
-		<p class="text-sm text-muted">Enter your admin password to continue.</p>
+<svelte:head>
+	<title>Log in — Ruche</title>
+</svelte:head>
 
-		{#if error}
-			<p class="text-sm text-danger">{error}</p>
-		{/if}
+<div class="flex min-h-screen">
+	<div class="hidden lg:flex lg:w-1/2 flex-col bg-black px-12 py-10">
+		<a href="/" class="flex items-center gap-3 mb-auto">
+			<Icon icon="solar:graph-new-bold-duotone" class="size-7 text-white" />
+			<span class="text-xl font-bold tracking-tight text-white">Ruche</span>
+		</a>
 
-		<input
-			type="password"
-			bind:value={password}
-			placeholder="Password"
-			class="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-primary"
-			autofocus
-		/>
+		<div class="mb-auto">
+			<h2 class="text-4xl font-bold text-white leading-tight tracking-tight">
+				Un cerveau.<br />Tous vos agents.
+			</h2>
+			<p class="mt-4 text-sm text-white/50 max-w-xs leading-relaxed">
+				Mémoire, règles et compétences partagées entre vos agents IA.
+			</p>
+		</div>
 
-		<button
-			type="submit"
-			disabled={loading || !password}
-			class="w-full rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-fg disabled:opacity-50"
-		>
-			{loading ? 'Signing in...' : 'Sign in'}
-		</button>
-	</form>
+		<p class="text-xs text-white/30">
+			&copy; {new Date().getFullYear()} Ruche by Facile.
+		</p>
+	</div>
+
+	<div class="flex w-full lg:w-1/2 flex-col items-center justify-center px-8 py-12 bg-background">
+		<div class="w-full max-w-sm">
+			<div class="mb-8">
+				<h1 class="text-2xl font-bold tracking-tight text-foreground">
+					Bon retour
+				</h1>
+				<p class="mt-1.5 text-sm text-muted-foreground">
+					{ssoOnly
+						? 'Connectez-vous avec votre compte organisation.'
+						: 'Connectez-vous pour accéder à Ruche.'}
+				</p>
+			</div>
+
+			{#if !configLoaded}
+				<div class="h-40"></div>
+			{:else}
+				{#if !ssoOnly}
+					<form onsubmit={submit} class="space-y-4">
+						<div class="space-y-1.5">
+							<label for="password" class="text-sm font-medium leading-none">Mot de passe</label>
+							<input
+								id="password"
+								type="password"
+								bind:value={password}
+								placeholder="••••••••"
+								required
+								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							/>
+						</div>
+
+						{#if error}
+							<p class="text-sm text-destructive">{error}</p>
+						{/if}
+
+						<button
+							type="submit"
+							disabled={busy}
+							class="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+						>
+							{busy ? 'Connexion...' : 'Se connecter'}
+						</button>
+					</form>
+				{/if}
+
+				{#if oidcEnabled}
+					{#if !ssoOnly}
+						<div class="my-5 flex items-center gap-3">
+							<div class="h-px flex-1 bg-border"></div>
+							<span class="text-xs text-muted-foreground">ou</span>
+							<div class="h-px flex-1 bg-border"></div>
+						</div>
+					{/if}
+
+					<a href="/api/auth/oidc" class="block">
+						<button
+							type="button"
+							class="inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+						>
+							Continuer avec SSO
+						</button>
+					</a>
+				{/if}
+			{/if}
+		</div>
+	</div>
 </div>

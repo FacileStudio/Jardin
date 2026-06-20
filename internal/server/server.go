@@ -59,6 +59,7 @@ func New(dataDir, password string) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /api/auth/config", s.authConfig)
 	mux.HandleFunc("POST /api/auth/login", s.login)
 
 	mux.HandleFunc("GET /api/status", s.auth(s.status))
@@ -114,6 +115,15 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+func (s *Server) authConfig(w http.ResponseWriter, r *http.Request) {
+	ssoOnly := os.Getenv("RUCHE_SSO_ONLY") == "true"
+	oidcEnabled := os.Getenv("RUCHE_OIDC_ENABLED") == "true"
+	jsonReply(w, map[string]bool{
+		"sso_only":     ssoOnly,
+		"oidc_enabled": oidcEnabled,
+	})
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {

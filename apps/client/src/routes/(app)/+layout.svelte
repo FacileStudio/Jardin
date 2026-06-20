@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '@iconify/svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { backend, type RucheStatus } from '$lib/backend';
@@ -8,11 +9,11 @@
 	let status: RucheStatus | null = $state(null);
 
 	const nav = [
-		{ label: 'Brain', href: '/brain', icon: '🧠' },
-		{ label: 'Rules', href: '/rules', icon: '📏' },
-		{ label: 'Skills', href: '/skills', icon: '⚡' },
-		{ label: 'Cells', href: '/cells', icon: '🔷' },
-		{ label: 'Settings', href: '/settings', icon: '⚙️' }
+		{ label: 'Brain', href: '/brain', icon: 'solar:brain-bold-duotone' },
+		{ label: 'Rules', href: '/rules', icon: 'solar:ruler-angular-bold-duotone' },
+		{ label: 'Skills', href: '/skills', icon: 'solar:bolt-circle-bold-duotone' },
+		{ label: 'Cells', href: '/cells', icon: 'solar:widget-5-bold-duotone' },
+		{ label: 'Settings', href: '/settings', icon: 'solar:settings-bold-duotone' }
 	];
 
 	$effect(() => {
@@ -37,35 +38,42 @@
 
 {#if status}
 	<div class="flex min-h-screen">
-		<aside class="sticky top-0 hidden h-screen w-60 flex-shrink-0 flex-col border-r border-border bg-surface md:flex">
+		<aside class="sticky top-0 hidden h-screen w-60 flex-shrink-0 flex-col border-r border-border bg-background md:flex">
 			<div class="p-4">
-				<h1 class="text-lg font-semibold">Ruche</h1>
-				<p class="text-xs text-muted">
+				<a href="/brain" class="flex items-center gap-2.5">
+					<Icon icon="solar:graph-new-bold-duotone" class="size-6 text-foreground" />
+					<span class="text-lg font-bold tracking-tight">Ruche</span>
+				</a>
+				<p class="mt-1 text-xs text-muted-foreground">
 					{status.active_cell || 'no cell'}
 					{#if status.machine}
-						<span class="text-muted">· {status.machine}</span>
+						<span>· {status.machine}</span>
 					{/if}
 				</p>
 			</div>
 
 			<nav class="flex-1 space-y-0.5 px-2">
 				{#each nav as item}
-					{@const active = item.href === '/' ? $page.url.pathname === '/' : $page.url.pathname.startsWith(item.href)}
+					{@const active = $page.url.pathname.startsWith(item.href)}
 					<a
 						href={item.href}
-						class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors {active
-							? 'bg-primary/10 font-medium text-primary'
-							: 'text-muted hover:bg-bg hover:text-fg'}"
+						class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors {active
+							? 'bg-accent font-medium text-foreground'
+							: 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'}"
 					>
-						<span class="text-base">{item.icon}</span>
+						<Icon icon={item.icon} class="size-[18px]" />
 						{item.label}
 					</a>
 				{/each}
 			</nav>
 
 			<div class="border-t border-border p-3">
-				<button onclick={logout} class="w-full rounded-lg px-3 py-2 text-left text-sm text-muted hover:bg-bg hover:text-fg">
-					Logout
+				<button
+					onclick={logout}
+					class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+				>
+					<Icon icon="solar:logout-2-bold-duotone" class="size-[18px]" />
+					Déconnexion
 				</button>
 			</div>
 		</aside>

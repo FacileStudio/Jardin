@@ -90,5 +90,6 @@ export const backend = {
 	tokensList: () => request<TokenInfo[]>('GET', '/tokens'),
 	tokensDelete: (name: string) => request<void>('DELETE', `/tokens/${name}`),
 
-	login: (password: string) => request<{ token: string }>('POST', '/auth/login', { password })
+	login: (password: string) => request<{ token: string }>('POST', '/auth/login', { password }),
+	getAuthConfig: () => request<{ sso_only: boolean; oidc_enabled: boolean }>('GET', '/auth/config')
 };

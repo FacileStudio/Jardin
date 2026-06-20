@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import type { Action } from 'svelte/action';
@@ -47,6 +48,7 @@
 
 	const card = 'group relative overflow-hidden rounded-2xl border border-zinc-200 p-6 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:border-zinc-300 hover:shadow-xl motion-reduce:transition-none';
 	const glow = 'pointer-events-none absolute -right-20 -top-20 size-40 rounded-full bg-zinc-100 opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-70';
+	const ico = 'transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-110';
 </script>
 
 <svelte:head>
@@ -59,7 +61,7 @@
 	<header class="fixed top-0 z-50 w-full border-b border-zinc-200 bg-white/90 backdrop-blur-sm">
 		<div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
 			<a href="/" class="flex items-center gap-2.5">
-				<span class="text-2xl">🐝</span>
+				<Icon icon="solar:graph-new-bold-duotone" class="size-7 text-zinc-900" />
 				<span class="text-xl font-bold tracking-tight">Ruche</span>
 			</a>
 			<a
@@ -67,6 +69,7 @@
 				class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
 			>
 				Se connecter
+				<Icon icon="solar:arrow-right-linear" class="size-3.5" />
 			</a>
 		</div>
 	</header>
@@ -75,6 +78,7 @@
 		<section class="mx-auto max-w-5xl px-6 pt-36 pb-28 md:pt-44 md:pb-36">
 			<div class="transition-all duration-700 ease-out {visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}">
 				<p class="mb-6 inline-flex items-center gap-2 rounded-full border border-zinc-200 px-3.5 py-1 text-xs text-zinc-500">
+					<Icon icon="solar:server-bold-duotone" class="size-3.5" />
 					Local-first &middot; Multi-agent &middot; Open source
 				</p>
 				<h1 class="max-w-3xl text-5xl leading-[1.08] font-black tracking-tight md:text-7xl">
@@ -90,6 +94,7 @@
 						class="inline-flex items-center gap-2 rounded-md bg-zinc-900 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-zinc-800"
 					>
 						Commencer
+						<Icon icon="solar:arrow-right-linear" class="size-4" />
 					</a>
 					<a
 						href="https://github.com/FacileStudio/Ruche"
@@ -98,7 +103,7 @@
 						class="inline-flex items-center gap-2 rounded-md border border-zinc-200 px-6 py-3 text-base font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900"
 					>
 						GitHub
-						<svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" /></svg>
+						<Icon icon="solar:arrow-right-up-linear" class="size-3.5" />
 					</a>
 				</div>
 			</div>
@@ -106,26 +111,33 @@
 
 		<section class="border-y border-zinc-200 bg-zinc-950 text-white">
 			<div class="mx-auto max-w-5xl px-6 py-28 md:py-36">
-				<h2 use:reveal={{ delay: 0 }} class="max-w-2xl text-4xl leading-[1.1] font-black tracking-tight md:text-6xl">
+				<div use:reveal={{ delay: 0 }} class="mb-10 flex items-center gap-3">
+					<Icon icon="solar:code-square-bold-duotone" class="size-8" />
+					<span class="text-2xl font-semibold tracking-tight">Adapters</span>
+				</div>
+				<h2 use:reveal={{ delay: 100 }} class="max-w-2xl text-4xl leading-[1.1] font-black tracking-tight md:text-6xl">
 					Écrivez une fois.<br />
 					<span class="text-zinc-500">Déployez partout.</span>
 				</h2>
-				<p use:reveal={{ delay: 100 }} class="mt-8 max-w-xl text-lg leading-relaxed text-zinc-400">
-					Vos règles et compétences sont écrites en markdown. Ruche génère automatiquement les fichiers de configuration pour chaque agent — CLAUDE.md, GEMINI.md, AGENTS.md, .cursor/rules, SOUL.md.
+				<p use:reveal={{ delay: 200 }} class="mt-8 max-w-xl text-lg leading-relaxed text-zinc-400">
+					Vos règles et compétences sont écrites en markdown. Ruche génère automatiquement les fichiers de configuration pour chaque agent.
 				</p>
 
-				<div use:reveal={{ delay: 200 }} class="mt-16 grid gap-4 sm:grid-cols-3">
+				<div use:reveal={{ delay: 300 }} class="mt-16 grid gap-4 sm:grid-cols-3">
 					{#each [
-						{ agent: 'Claude Code', file: 'CLAUDE.md', color: 'text-orange-400' },
-						{ agent: 'Gemini CLI', file: 'GEMINI.md', color: 'text-blue-400' },
-						{ agent: 'Codex', file: 'AGENTS.md', color: 'text-green-400' },
-						{ agent: 'Cursor', file: '.cursor/rules/', color: 'text-purple-400' },
-						{ agent: 'Copilot', file: 'copilot-instructions.md', color: 'text-sky-400' },
-						{ agent: 'Hermes', file: 'SOUL.md', color: 'text-red-400' },
+						{ agent: 'Claude Code', file: 'CLAUDE.md', icon: 'solar:chat-square-code-bold-duotone', color: 'text-orange-400' },
+						{ agent: 'Gemini CLI', file: 'GEMINI.md', icon: 'solar:stars-bold-duotone', color: 'text-blue-400' },
+						{ agent: 'Codex', file: 'AGENTS.md', icon: 'solar:programming-bold-duotone', color: 'text-green-400' },
+						{ agent: 'Cursor', file: '.cursor/rules/', icon: 'solar:cursor-bold-duotone', color: 'text-purple-400' },
+						{ agent: 'Copilot', file: 'copilot-instructions.md', icon: 'solar:ghost-bold-duotone', color: 'text-sky-400' },
+						{ agent: 'Hermes', file: 'SOUL.md', icon: 'solar:bolt-circle-bold-duotone', color: 'text-red-400' },
 					] as item}
 						<div class="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3">
-							<p class="text-sm font-medium {item.color}">{item.agent}</p>
-							<p class="text-xs text-zinc-500 font-mono">{item.file}</p>
+							<div class="flex items-center gap-2">
+								<Icon icon={item.icon} class="size-4 {item.color}" />
+								<p class="text-sm font-medium {item.color}">{item.agent}</p>
+							</div>
+							<p class="mt-1 text-xs text-zinc-500 font-mono">{item.file}</p>
 						</div>
 					{/each}
 				</div>
@@ -141,7 +153,9 @@
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 				<div use:reveal={{ delay: 0 }} class="{card}">
 					<div class={glow}></div>
-					<div class="mb-4 text-3xl">🧠</div>
+					<div class="mb-4 {ico}">
+						<Icon icon="solar:brain-bold-duotone" class="size-6 text-zinc-900" />
+					</div>
 					<h3 class="text-lg font-bold tracking-tight">Brain</h3>
 					<p class="mt-2 text-sm leading-relaxed text-zinc-500">
 						Wiki partagé en markdown. Bugs, outils, projets, conventions — vos agents apprennent de chaque session et partagent ce savoir entre eux.
@@ -150,7 +164,9 @@
 
 				<div use:reveal={{ delay: 100 }} class="{card}">
 					<div class={glow}></div>
-					<div class="mb-4 text-3xl">📏</div>
+					<div class="mb-4 {ico}">
+						<Icon icon="solar:ruler-angular-bold-duotone" class="size-6 text-zinc-900" />
+					</div>
 					<h3 class="text-lg font-bold tracking-tight">Rules</h3>
 					<p class="mt-2 text-sm leading-relaxed text-zinc-500">
 						Règles modulaires pour vos agents. Style de code, conventions git, engineering ladder — écrivez-les une fois, tous vos agents les suivent.
@@ -159,7 +175,9 @@
 
 				<div use:reveal={{ delay: 200 }} class="{card}">
 					<div class={glow}></div>
-					<div class="mb-4 text-3xl">⚡</div>
+					<div class="mb-4 {ico}">
+						<Icon icon="solar:bolt-circle-bold-duotone" class="size-6 text-zinc-900" />
+					</div>
 					<h3 class="text-lg font-bold tracking-tight">Skills</h3>
 					<p class="mt-2 text-sm leading-relaxed text-zinc-500">
 						Compétences agent-agnostiques avec des définitions portables. Un skill, six agents. Pas de vendor lock-in.
@@ -172,22 +190,28 @@
 			<div class="mx-auto max-w-5xl px-6 py-28 md:py-36">
 				<div class="grid items-center gap-16 md:grid-cols-2">
 					<div>
-						<h2 use:reveal={{ delay: 0 }} class="text-4xl font-black tracking-tight md:text-5xl">
-							Cells.<br />
-							<span class="text-zinc-400">Perso vs. équipe.</span>
+						<div use:reveal={{ delay: 0 }} class="mb-10 flex items-center gap-3">
+							<Icon icon="solar:widget-5-bold-duotone" class="size-8 text-zinc-900" />
+							<span class="text-2xl font-semibold tracking-tight">Cells</span>
+						</div>
+						<h2 use:reveal={{ delay: 100 }} class="text-4xl font-black tracking-tight md:text-5xl">
+							Perso vs. équipe.
 						</h2>
-						<p use:reveal={{ delay: 100 }} class="mt-8 max-w-lg text-lg leading-relaxed text-zinc-500">
+						<p use:reveal={{ delay: 200 }} class="mt-8 max-w-lg text-lg leading-relaxed text-zinc-500">
 							Un profil personnel, un profil équipe, un profil client — chaque cell a son propre brain, ses règles et ses skills. Superposez-les : les règles perso gagnent, le brain s'additionne.
 						</p>
 					</div>
-					<div use:reveal={{ delay: 200 }} class="grid gap-4">
+					<div use:reveal={{ delay: 300 }} class="grid gap-4">
 						{#each [
 							{ name: 'personal', desc: 'Votre mémoire, vos préférences, vos raccourcis', active: true },
 							{ name: 'facile', desc: 'Conventions d\'équipe, stack technique, projets partagés', active: false },
 							{ name: 'client-x', desc: 'Contexte spécifique au projet, règles du client', active: false },
 						] as cell}
-							<div class="rounded-xl border px-5 py-4 transition-all {cell.active ? 'border-zinc-900 bg-zinc-950 text-white' : 'border-zinc-200 bg-white'}">
-								<p class="text-sm font-semibold">{cell.name}</p>
+							<div class="rounded-xl border px-5 py-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg {cell.active ? 'border-zinc-900 bg-zinc-950 text-white' : 'border-zinc-200 bg-white'}">
+								<div class="flex items-center gap-2">
+									<Icon icon={cell.active ? 'solar:check-circle-bold-duotone' : 'solar:circle-bold-duotone'} class="size-4 {cell.active ? 'text-white' : 'text-zinc-300'}" />
+									<p class="text-sm font-semibold">{cell.name}</p>
+								</div>
 								<p class="mt-1 text-xs {cell.active ? 'text-zinc-400' : 'text-zinc-500'}">{cell.desc}</p>
 							</div>
 						{/each}
@@ -198,22 +222,26 @@
 
 		<section class="bg-zinc-950 text-white">
 			<div class="mx-auto max-w-5xl px-6 py-28 md:py-36">
-				<h2 use:reveal={{ delay: 0 }} class="text-4xl font-black tracking-tight md:text-5xl">
+				<div use:reveal={{ delay: 0 }} class="mb-10 flex items-center gap-3">
+					<Icon icon="solar:refresh-circle-bold-duotone" class="size-8" />
+					<span class="text-2xl font-semibold tracking-tight">Sync</span>
+				</div>
+				<h2 use:reveal={{ delay: 100 }} class="text-4xl font-black tracking-tight md:text-5xl">
 					Sync intégré.<br />
 					<span class="text-zinc-500">Même binaire.</span>
 				</h2>
-				<p use:reveal={{ delay: 100 }} class="mt-8 max-w-xl text-lg leading-relaxed text-zinc-400">
-					<code class="rounded bg-zinc-800 px-2 py-0.5 text-sm">ruche serve</code> lance un serveur de sync HTTP. Déployez-le sur votre VPS, connectez vos machines avec un token. Pas de git, pas de rsync — juste Ruche qui parle à Ruche.
+				<p use:reveal={{ delay: 200 }} class="mt-8 max-w-xl text-lg leading-relaxed text-zinc-400">
+					<code class="rounded bg-zinc-800 px-2 py-0.5 text-sm font-mono">ruche serve</code> lance un serveur de sync HTTP. Déployez-le sur votre VPS, connectez vos machines avec un token.
 				</p>
 
-				<div use:reveal={{ delay: 200 }} class="mt-12 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 font-mono text-sm">
+				<div use:reveal={{ delay: 300 }} class="mt-12 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 font-mono text-sm">
 					<p class="text-zinc-500"># sur le serveur</p>
 					<p class="text-green-400">$ ruche serve --port 8420</p>
 					<p class="mt-4 text-zinc-500"># sur votre machine</p>
 					<p class="text-green-400">$ ruche sync</p>
-					<p class="text-zinc-600 mt-1">  ↓ brain/tools/dokploy.md</p>
-					<p class="text-zinc-600">  ↑ rules/engineering-ladder.md</p>
-					<p class="text-zinc-600">  Synced 2 file(s).</p>
+					<p class="text-zinc-600 mt-1">&nbsp; ↓ brain/tools/dokploy.md</p>
+					<p class="text-zinc-600">&nbsp; ↑ rules/engineering-ladder.md</p>
+					<p class="text-zinc-600">&nbsp; Synced 2 file(s).</p>
 				</div>
 			</div>
 		</section>
@@ -240,6 +268,7 @@
 						class="inline-flex h-11 items-center justify-center rounded-md border border-zinc-200 px-6 text-sm font-medium transition-colors hover:bg-zinc-50"
 					>
 						Voir le code
+						<Icon icon="solar:arrow-right-up-linear" class="ml-2 size-3.5" />
 					</a>
 				</div>
 			</div>
