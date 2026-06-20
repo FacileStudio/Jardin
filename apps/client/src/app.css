@@ -1,0 +1,45 @@
+@import 'tailwindcss';
+
+@font-face {
+	font-family: 'Inter';
+	src: url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2');
+	font-weight: 400;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Inter';
+	src: url('https://fonts.bunny.net/inter/files/inter-latin-500-normal.woff2') format('woff2');
+	font-weight: 500;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Inter';
+	src: url('https://fonts.bunny.net/inter/files/inter-latin-600-normal.woff2') format('woff2');
+	font-weight: 600;
+	font-display: swap;
+}
+
+@theme inline {
+	--font-sans: 'Inter', system-ui, sans-serif;
+	--color-bg: oklch(0.99 0 0);
+	--color-fg: oklch(0.15 0 0);
+	--color-muted: oklch(0.55 0 0);
+	--color-border: oklch(0.9 0 0);
+	--color-surface: oklch(0.97 0 0);
+	--color-primary: oklch(0.55 0.15 270);
+	--color-primary-fg: oklch(0.99 0 0);
+	--color-accent: oklch(0.45 0.12 270);
+	--color-danger: oklch(0.55 0.2 25);
+	--color-success: oklch(0.55 0.15 145);
+}
+
+@layer base {
+	body {
+		font-family: var(--font-sans);
+		background: var(--color-bg);
+		color: var(--color-fg);
+		-webkit-font-smoothing: antialiased;
+	}
+}

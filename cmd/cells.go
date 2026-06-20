@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/FacileStudio/Hive/internal/config"
+	"github.com/FacileStudio/Ruche/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -12,7 +12,7 @@ var cellsCmd = &cobra.Command{
 	Use:   "cells",
 	Short: "List all cells",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}

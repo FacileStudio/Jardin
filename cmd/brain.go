@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/FacileStudio/Hive/internal/brain"
-	"github.com/FacileStudio/Hive/internal/config"
+	"github.com/FacileStudio/Ruche/internal/brain"
+	"github.com/FacileStudio/Ruche/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -20,7 +20,7 @@ var brainSearchCmd = &cobra.Command{
 	Short: "Search brain for a query",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}
@@ -51,7 +51,7 @@ var brainIndexCmd = &cobra.Command{
 	Use:   "index",
 	Short: "Show brain index",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}

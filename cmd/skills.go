@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/FacileStudio/Hive/internal/cell"
-	"github.com/FacileStudio/Hive/internal/config"
+	"github.com/FacileStudio/Ruche/internal/cell"
+	"github.com/FacileStudio/Ruche/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -20,7 +20,7 @@ var skillsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List skill files",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}
@@ -51,7 +51,7 @@ var skillsAddCmd = &cobra.Command{
 	Short: "Scaffold a new skill",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}

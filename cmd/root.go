@@ -9,9 +9,9 @@ import (
 var version = "dev"
 
 var rootCmd = &cobra.Command{
-	Use:   "hive",
+	Use:   "ruche",
 	Short: "Shared agent brain across AI coding agents and machines",
-	Long:  "Hive manages a canonical source of truth for agent memory, rules, and skills. It generates per-agent configs via thin adapters and syncs across machines via git.",
+	Long:  "Ruche manages a canonical source of truth for agent memory, rules, and skills. It generates per-agent configs via thin adapters and syncs across machines.",
 }
 
 func init() {

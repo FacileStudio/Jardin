@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/FacileStudio/Hive/internal/adapter"
-	"github.com/FacileStudio/Hive/internal/cell"
-	"github.com/FacileStudio/Hive/internal/config"
+	"github.com/FacileStudio/Ruche/internal/adapter"
+	"github.com/FacileStudio/Ruche/internal/cell"
+	"github.com/FacileStudio/Ruche/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -24,7 +24,7 @@ var installCmd = &cobra.Command{
 			return cmd.Help()
 		}
 
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}
@@ -51,7 +51,7 @@ var installCmd = &cobra.Command{
 	},
 }
 
-func buildInput(cfg *config.HiveConfig) (*adapter.Input, error) {
+func buildInput(cfg *config.RucheConfig) (*adapter.Input, error) {
 	cellPath, err := cfg.ActiveCellPath()
 	if err != nil {
 		return nil, err

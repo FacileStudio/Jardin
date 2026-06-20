@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/FacileStudio/Hive/internal/config"
-	"github.com/FacileStudio/Hive/internal/server"
+	"github.com/FacileStudio/Ruche/internal/config"
+	"github.com/FacileStudio/Ruche/internal/server"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -15,24 +15,24 @@ var servePort int
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Run sync server",
+	Short: "Run sync server with web UI API",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dataDir, _ := cmd.Flags().GetString("data")
 		if dataDir == "" {
 			dataDir = config.CellsDir()
 		}
 
-		token := os.Getenv("HIVE_TOKEN")
+		password := os.Getenv("RUCHE_PASSWORD")
 
-		srv := server.New(dataDir, token)
+		srv := server.New(dataDir, password)
 
 		addr := fmt.Sprintf(":%d", servePort)
-		color.Green("Hive sync server listening on %s", addr)
+		color.Green("Hive server listening on %s", addr)
 		color.Green("Data: %s", dataDir)
-		if token != "" {
-			fmt.Println("Auth: bearer token required")
+		if password != "" {
+			fmt.Println("Auth: password required (login via /api/auth/login)")
 		} else {
-			color.Yellow("Auth: none (set HIVE_TOKEN to enable)")
+			color.Yellow("Auth: none (set RUCHE_PASSWORD to enable)")
 		}
 
 		return http.ListenAndServe(addr, srv.Handler())

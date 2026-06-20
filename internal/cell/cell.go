@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/FacileStudio/Hive/internal/config"
+	"github.com/FacileStudio/Ruche/internal/config"
 )
 
 var brainDirs = []string{

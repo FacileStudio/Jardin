@@ -1,4 +1,4 @@
-# Hive
+# Ruche
 
 Shared agent brain — manage wiki, rules, and skills across AI coding agents and machines.
 
@@ -13,7 +13,7 @@ Shared agent brain — manage wiki, rules, and skills across AI coding agents an
 ## Key Commands
 
 ```bash
-go build -o hive .
+go build -o ruche .
 go run .
 go install .
 go test ./...
@@ -55,6 +55,6 @@ git tag v0.x.x && git push --tags
 ## Conventions
 
 - No inline comments in code
-- TOML for config files (hive.toml, cell.toml)
+- TOML for config files (ruche.toml, cell.toml)
 - All storage is plain markdown files in git repos
 - Each adapter is a pure function: (rules + skills + machine) -> agent config

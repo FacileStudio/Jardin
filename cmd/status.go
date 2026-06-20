@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/FacileStudio/Hive/internal/cell"
-	"github.com/FacileStudio/Hive/internal/config"
+	"github.com/FacileStudio/Ruche/internal/cell"
+	"github.com/FacileStudio/Ruche/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -13,7 +13,7 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show active cell, machine, and sync state",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}

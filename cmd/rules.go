@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/FacileStudio/Hive/internal/cell"
-	"github.com/FacileStudio/Hive/internal/config"
+	"github.com/FacileStudio/Ruche/internal/cell"
+	"github.com/FacileStudio/Ruche/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +20,7 @@ var rulesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List rule files",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}
@@ -51,7 +51,7 @@ var rulesEditCmd = &cobra.Command{
 	Short: "Open a rule in $EDITOR",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}

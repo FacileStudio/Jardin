@@ -2,7 +2,7 @@ version: 2
 
 builds:
   - main: .
-    binary: hive
+    binary: ruche
     env:
       - CGO_ENABLED=0
     goos:
@@ -12,9 +12,9 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w -X github.com/FacileStudio/Hive/cmd.version={{.Version}}
+      - -s -w -X github.com/FacileStudio/Ruche/cmd.version={{.Version}}
 
-archives:
+arcruches:
   - format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
@@ -22,8 +22,8 @@ brews:
   - repository:
       owner: FacileStudio
       name: homebrew-tap
-    name: hive
-    homepage: https://github.com/FacileStudio/Hive
+    name: ruche
+    homepage: https://github.com/FacileStudio/Ruche
     description: Shared agent brain across AI coding agents and machines
 
 checksum:

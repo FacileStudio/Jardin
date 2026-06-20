@@ -1,0 +1,48 @@
+services:
+  ruche-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - RUCHE_DIR=/data
+      - RUCHE_PASSWORD=${RUCHE_PASSWORD}
+    volumes:
+      - ruche-data:/data
+    networks:
+      - internal
+      - dokploy-network
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ruche-api.rule=Host(`ruche.facile.studio`) && PathPrefix(`/api`)
+      - traefik.http.routers.ruche-api.entrypoints=websecure
+      - traefik.http.routers.ruche-api.tls.certResolver=letsencrypt
+      - traefik.http.services.ruche-api.loadbalancer.server.port=8420
+    restart: unless-stopped
+
+  ruche-client:
+    build:
+      context: ./apps/client
+      dockerfile: Dockerfile
+    environment:
+      - ORIGIN=https://ruche.facile.studio
+      - BODY_SIZE_LIMIT=Infinity
+    networks:
+      - internal
+      - dokploy-network
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ruche-client.rule=Host(`ruche.facile.studio`)
+      - traefik.http.routers.ruche-client.entrypoints=websecure
+      - traefik.http.routers.ruche-client.tls.certResolver=letsencrypt
+      - traefik.http.services.ruche-client.loadbalancer.server.port=3000
+      - traefik.http.routers.ruche-client.priority=1
+      - traefik.http.routers.ruche-api.priority=2
+    restart: unless-stopped
+
+volumes:
+  ruche-data:
+
+networks:
+  internal:
+  dokploy-network:
+    external: true

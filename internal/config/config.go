@@ -8,7 +8,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-type HiveConfig struct {
+type RucheConfig struct {
 	ActiveCell string    `toml:"active_cell"`
 	Machine    string    `toml:"machine"`
 	SyncURL    string    `toml:"sync_url,omitempty"`
@@ -30,25 +30,25 @@ type CellConfig struct {
 	WorkspaceID        string   `toml:"perception_workspace_id,omitempty"`
 }
 
-func HiveDir() string {
-	if dir := os.Getenv("HIVE_DIR"); dir != "" {
+func RucheDir() string {
+	if dir := os.Getenv("RUCHE_DIR"); dir != "" {
 		return dir
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".hive")
+	return filepath.Join(home, ".ruche")
 }
 
-func HiveConfigPath() string {
-	return filepath.Join(HiveDir(), "hive.toml")
+func RucheConfigPath() string {
+	return filepath.Join(RucheDir(), "ruche.toml")
 }
 
 func CellsDir() string {
-	return filepath.Join(HiveDir(), "cells")
+	return filepath.Join(RucheDir(), "cells")
 }
 
-func LoadHiveConfig() (*HiveConfig, error) {
-	path := HiveConfigPath()
-	cfg := &HiveConfig{}
+func LoadRucheConfig() (*RucheConfig, error) {
+	path := RucheConfigPath()
+	cfg := &RucheConfig{}
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return cfg, nil
 	}
@@ -59,8 +59,8 @@ func LoadHiveConfig() (*HiveConfig, error) {
 	return cfg, nil
 }
 
-func SaveHiveConfig(cfg *HiveConfig) error {
-	path := HiveConfigPath()
+func SaveRucheConfig(cfg *RucheConfig) error {
+	path := RucheConfigPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func SaveCellConfig(cellPath string, cfg *CellConfig) error {
 	return toml.NewEncoder(f).Encode(cfg)
 }
 
-func (h *HiveConfig) FindCell(name string) *CellRef {
+func (h *RucheConfig) FindCell(name string) *CellRef {
 	for i := range h.Cells {
 		if h.Cells[i].Name == name {
 			return &h.Cells[i]
@@ -104,7 +104,7 @@ func (h *HiveConfig) FindCell(name string) *CellRef {
 	return nil
 }
 
-func (h *HiveConfig) ActiveCellPath() (string, error) {
+func (h *RucheConfig) ActiveCellPath() (string, error) {
 	if h.ActiveCell == "" {
 		return "", fmt.Errorf("no active cell — run 'hive use <cell>' first")
 	}
@@ -115,7 +115,7 @@ func (h *HiveConfig) ActiveCellPath() (string, error) {
 	return ref.Path, nil
 }
 
-func (h *HiveConfig) AddCell(name, path string) {
+func (h *RucheConfig) AddCell(name, path string) {
 	if h.FindCell(name) != nil {
 		return
 	}

@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/FacileStudio/Hive/internal/config"
+	"github.com/FacileStudio/Ruche/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -13,7 +13,7 @@ var useCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}
@@ -24,7 +24,7 @@ var useCmd = &cobra.Command{
 		}
 
 		cfg.ActiveCell = name
-		if err := config.SaveHiveConfig(cfg); err != nil {
+		if err := config.SaveRucheConfig(cfg); err != nil {
 			return err
 		}
 

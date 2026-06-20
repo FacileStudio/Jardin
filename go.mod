@@ -1,4 +1,4 @@
-module github.com/FacileStudio/Hive
+module github.com/FacileStudio/Ruche
 
 go 1.26.1
 

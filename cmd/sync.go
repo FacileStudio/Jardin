@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/FacileStudio/Hive/internal/config"
-	hsync "github.com/FacileStudio/Hive/internal/sync"
+	"github.com/FacileStudio/Ruche/internal/config"
+	hsync "github.com/FacileStudio/Ruche/internal/sync"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -13,12 +13,12 @@ var syncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Push and pull changes to sync server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}
 		if cfg.SyncURL == "" {
-			return fmt.Errorf("sync not configured — set sync_url in ~/.hive/hive.toml")
+			return fmt.Errorf("sync not configured — set sync_url in ~/.hive/ruche.toml")
 		}
 		cellPath, err := cfg.ActiveCellPath()
 		if err != nil {
@@ -57,12 +57,12 @@ var pushCmd = &cobra.Command{
 	Use:   "push",
 	Short: "Push local changes to sync server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}
 		if cfg.SyncURL == "" {
-			return fmt.Errorf("sync not configured — set sync_url in ~/.hive/hive.toml")
+			return fmt.Errorf("sync not configured — set sync_url in ~/.hive/ruche.toml")
 		}
 		cellPath, err := cfg.ActiveCellPath()
 		if err != nil {
@@ -88,12 +88,12 @@ var pullCmd = &cobra.Command{
 	Use:   "pull",
 	Short: "Pull changes from sync server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadHiveConfig()
+		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}
 		if cfg.SyncURL == "" {
-			return fmt.Errorf("sync not configured — set sync_url in ~/.hive/hive.toml")
+			return fmt.Errorf("sync not configured — set sync_url in ~/.hive/ruche.toml")
 		}
 		cellPath, err := cfg.ActiveCellPath()
 		if err != nil {

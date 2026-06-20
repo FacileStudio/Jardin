@@ -3,7 +3,7 @@ package adapter
 import (
 	"fmt"
 
-	"github.com/FacileStudio/Hive/internal/cell"
+	"github.com/FacileStudio/Ruche/internal/cell"
 )
 
 type Input struct {
