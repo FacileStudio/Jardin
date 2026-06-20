@@ -16,6 +16,7 @@ services:
       - traefik.http.routers.ruche-api.rule=Host(`ruche.facile.studio`) && PathPrefix(`/api`)
       - traefik.http.routers.ruche-api.entrypoints=websecure
       - traefik.http.routers.ruche-api.tls.certResolver=letsencrypt
+      - traefik.http.routers.ruche-api.priority=10
       - traefik.http.services.ruche-api.loadbalancer.server.port=8420
     restart: unless-stopped
 
@@ -34,9 +35,8 @@ services:
       - traefik.http.routers.ruche-client.rule=Host(`ruche.facile.studio`)
       - traefik.http.routers.ruche-client.entrypoints=websecure
       - traefik.http.routers.ruche-client.tls.certResolver=letsencrypt
-      - traefik.http.services.ruche-client.loadbalancer.server.port=3000
       - traefik.http.routers.ruche-client.priority=1
-      - traefik.http.routers.ruche-api.priority=2
+      - traefik.http.services.ruche-client.loadbalancer.server.port=3000
     restart: unless-stopped
 
 volumes:
