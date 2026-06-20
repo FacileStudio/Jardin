@@ -11,8 +11,8 @@ import (
 type RucheConfig struct {
 	ActiveCell string    `yaml:"active_cell,omitempty"`
 	Machine    string    `yaml:"machine,omitempty"`
-	SyncURL    string    `yaml:"sync_url,omitempty"`
-	SyncToken  string    `yaml:"sync_token,omitempty"`
+	URL    string    `yaml:"url,omitempty"`
+	Token  string    `yaml:"token,omitempty"`
 	Cells      []CellRef `yaml:"cells,omitempty"`
 }
 

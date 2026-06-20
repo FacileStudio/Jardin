@@ -42,7 +42,7 @@ type TokenInfo struct {
 type StatusResponse struct {
 	ActiveCell string           `json:"active_cell"`
 	Machine    string           `json:"machine"`
-	SyncURL    string           `json:"sync_url"`
+	URL    string           `json:"url"`
 	Cells      []config.CellRef `json:"cells"`
 	Rules      []string         `json:"rules"`
 	Skills     []string         `json:"skills"`
@@ -204,7 +204,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	resp := StatusResponse{
 		ActiveCell: cfg.ActiveCell,
 		Machine:    cfg.Machine,
-		SyncURL:    cfg.SyncURL,
+		URL:    cfg.URL,
 		Cells:      cfg.Cells,
 		Rules:      rules,
 		Skills:     skills,

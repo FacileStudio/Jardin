@@ -53,8 +53,8 @@ var loginCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfg.SyncURL = serverURL
-		cfg.SyncToken = result.Token
+		cfg.URL = serverURL
+		cfg.Token = result.Token
 		if err := config.SaveRucheConfig(cfg); err != nil {
 			return err
 		}

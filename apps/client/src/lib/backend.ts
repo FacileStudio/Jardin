@@ -40,7 +40,7 @@ export interface CellInfo {
 export interface RucheStatus {
 	active_cell: string;
 	machine: string;
-	sync_url: string;
+	url: string;
 	cells: CellInfo[];
 	rules: string[];
 	skills: string[];

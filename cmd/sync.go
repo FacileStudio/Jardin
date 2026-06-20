@@ -17,15 +17,15 @@ var syncCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if cfg.SyncURL == "" {
-			return fmt.Errorf("sync not configured — set sync_url in ~/.ruche/ruche.toml")
+		if cfg.URL == "" {
+			return fmt.Errorf("sync not configured — set url in ~/.ruche/ruche.toml")
 		}
 		cellPath, err := cfg.ActiveCellPath()
 		if err != nil {
 			return err
 		}
 
-		client := hsync.NewClient(cfg.SyncURL, cfg.SyncToken)
+		client := hsync.NewClient(cfg.URL, cfg.Token)
 
 		pullPlan, err := client.Pull(cfg.ActiveCell, cellPath)
 		if err != nil {
@@ -61,15 +61,15 @@ var pushCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if cfg.SyncURL == "" {
-			return fmt.Errorf("sync not configured — set sync_url in ~/.ruche/ruche.toml")
+		if cfg.URL == "" {
+			return fmt.Errorf("sync not configured — set url in ~/.ruche/ruche.toml")
 		}
 		cellPath, err := cfg.ActiveCellPath()
 		if err != nil {
 			return err
 		}
 
-		client := hsync.NewClient(cfg.SyncURL, cfg.SyncToken)
+		client := hsync.NewClient(cfg.URL, cfg.Token)
 		plan, err := client.Push(cfg.ActiveCell, cellPath)
 		if err != nil {
 			return err
@@ -92,15 +92,15 @@ var pullCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if cfg.SyncURL == "" {
-			return fmt.Errorf("sync not configured — set sync_url in ~/.ruche/ruche.toml")
+		if cfg.URL == "" {
+			return fmt.Errorf("sync not configured — set url in ~/.ruche/ruche.toml")
 		}
 		cellPath, err := cfg.ActiveCellPath()
 		if err != nil {
 			return err
 		}
 
-		client := hsync.NewClient(cfg.SyncURL, cfg.SyncToken)
+		client := hsync.NewClient(cfg.URL, cfg.Token)
 		plan, err := client.Pull(cfg.ActiveCell, cellPath)
 		if err != nil {
 			return err

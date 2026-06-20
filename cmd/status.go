@@ -35,8 +35,8 @@ var statusCmd = &cobra.Command{
 		}
 
 		color.New(color.Bold).Printf("Sync:    ")
-		if cfg.SyncURL != "" {
-			fmt.Println(cfg.SyncURL)
+		if cfg.URL != "" {
+			fmt.Println(cfg.URL)
 		} else {
 			fmt.Println("not configured")
 		}

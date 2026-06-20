@@ -41,7 +41,7 @@
 		<h3 class="text-sm font-semibold uppercase tracking-wide text-muted">Sync Configuration</h3>
 		<div class="rounded-lg border border-border bg-surface p-4 text-sm">
 			<p><span class="font-medium">Machine:</span> {status?.machine || 'not set'}</p>
-			<p><span class="font-medium">Sync URL:</span> {status?.sync_url || 'not configured'}</p>
+			<p><span class="font-medium">Sync URL:</span> {status?.url || 'not configured'}</p>
 		</div>
 
 		{#if createdToken}
@@ -59,8 +59,8 @@
 				<p class="mt-3 text-xs text-muted">
 					To sync from another machine, add this to <code>~/.ruche/ruche.toml</code>:
 				</p>
-				<pre class="mt-1 rounded bg-bg p-2 text-xs">sync_url = "{status?.sync_url || 'https://ruche.yourdomain.com'}"
-sync_token = "{createdToken}"</pre>
+				<pre class="mt-1 rounded bg-bg p-2 text-xs">url = "{status?.url || 'https://ruche.yourdomain.com'}"
+token = "{createdToken}"</pre>
 			</div>
 		{/if}
 	</section>
