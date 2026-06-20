@@ -1,0 +1,33 @@
+version: 2
+
+builds:
+  - main: .
+    binary: hive
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/FacileStudio/Hive/cmd.version={{.Version}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+brews:
+  - repository:
+      owner: FacileStudio
+      name: homebrew-tap
+    name: hive
+    homepage: https://github.com/FacileStudio/Hive
+    description: Shared agent brain across AI coding agents and machines
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
