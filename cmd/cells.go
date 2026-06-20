@@ -18,7 +18,7 @@ var cellsCmd = &cobra.Command{
 		}
 
 		if len(cfg.Cells) == 0 {
-			fmt.Println("No cells. Run 'hive init <name>' to create one.")
+			fmt.Println("No cells. Run 'ruche init <name>' to create one.")
 			return nil
 		}
 

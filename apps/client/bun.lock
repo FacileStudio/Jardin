@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "hive-client",
+      "name": "ruche-client",
       "devDependencies": {
         "@sveltejs/adapter-node": "^5.2.0",
         "@sveltejs/kit": "^2.21.0",

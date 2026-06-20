@@ -18,7 +18,7 @@ var syncCmd = &cobra.Command{
 			return err
 		}
 		if cfg.SyncURL == "" {
-			return fmt.Errorf("sync not configured — set sync_url in ~/.hive/ruche.toml")
+			return fmt.Errorf("sync not configured — set sync_url in ~/.ruche/ruche.toml")
 		}
 		cellPath, err := cfg.ActiveCellPath()
 		if err != nil {
@@ -62,7 +62,7 @@ var pushCmd = &cobra.Command{
 			return err
 		}
 		if cfg.SyncURL == "" {
-			return fmt.Errorf("sync not configured — set sync_url in ~/.hive/ruche.toml")
+			return fmt.Errorf("sync not configured — set sync_url in ~/.ruche/ruche.toml")
 		}
 		cellPath, err := cfg.ActiveCellPath()
 		if err != nil {
@@ -93,7 +93,7 @@ var pullCmd = &cobra.Command{
 			return err
 		}
 		if cfg.SyncURL == "" {
-			return fmt.Errorf("sync not configured — set sync_url in ~/.hive/ruche.toml")
+			return fmt.Errorf("sync not configured — set sync_url in ~/.ruche/ruche.toml")
 		}
 		cellPath, err := cfg.ActiveCellPath()
 		if err != nil {

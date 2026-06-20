@@ -106,7 +106,7 @@ func (h *RucheConfig) FindCell(name string) *CellRef {
 
 func (h *RucheConfig) ActiveCellPath() (string, error) {
 	if h.ActiveCell == "" {
-		return "", fmt.Errorf("no active cell — run 'hive use <cell>' first")
+		return "", fmt.Errorf("no active cell — run 'ruche use <cell>' first")
 	}
 	ref := h.FindCell(h.ActiveCell)
 	if ref == nil {

@@ -19,7 +19,7 @@ var statusCmd = &cobra.Command{
 		}
 
 		if cfg.ActiveCell == "" {
-			fmt.Println("No active cell. Run 'hive init <name>' to get started.")
+			fmt.Println("No active cell. Run 'ruche init <name>' to get started.")
 			return nil
 		}
 
@@ -30,7 +30,7 @@ var statusCmd = &cobra.Command{
 		if cfg.Machine != "" {
 			fmt.Println(cfg.Machine)
 		} else {
-			color.Yellow("not set (run 'hive config machine <name>')")
+			color.Yellow("not set (run 'ruche config machine <name>')")
 			fmt.Println()
 		}
 

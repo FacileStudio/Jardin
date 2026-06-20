@@ -26,7 +26,6 @@ go.work.sum
 
 # Binary
 ruche
-hive
 dist/
 apps/client/node_modules/
 apps/client/.svelte-kit/

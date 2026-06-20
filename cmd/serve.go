@@ -27,7 +27,7 @@ var serveCmd = &cobra.Command{
 		srv := server.New(dataDir, password)
 
 		addr := fmt.Sprintf(":%d", servePort)
-		color.Green("Hive server listening on %s", addr)
+		color.Green("Ruche server listening on %s", addr)
 		color.Green("Data: %s", dataDir)
 		if password != "" {
 			fmt.Println("Auth: password required (login via /api/auth/login)")
@@ -41,6 +41,6 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	serveCmd.Flags().IntVar(&servePort, "port", 8420, "port to listen on")
-	serveCmd.Flags().String("data", "", "data directory (default: ~/.hive/cells/)")
+	serveCmd.Flags().String("data", "", "data directory (default: ~/.ruche/cells/)")
 	rootCmd.AddCommand(serveCmd)
 }
