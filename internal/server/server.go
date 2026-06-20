@@ -118,8 +118,8 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) authConfig(w http.ResponseWriter, r *http.Request) {
-	ssoOnly := os.Getenv("RUCHE_SSO_ONLY") == "true"
-	oidcEnabled := os.Getenv("RUCHE_OIDC_ENABLED") == "true"
+	ssoOnly := os.Getenv("SSO_ONLY") == "true"
+	oidcEnabled := os.Getenv("OIDC_ENABLED") == "true"
 	jsonReply(w, map[string]bool{
 		"sso_only":     ssoOnly,
 		"oidc_enabled": oidcEnabled,

@@ -31,7 +31,7 @@ type CellConfig struct {
 }
 
 func RucheDir() string {
-	if dir := os.Getenv("RUCHE_DIR"); dir != "" {
+	if dir := os.Getenv("DATA_DIR"); dir != "" {
 		return dir
 	}
 	home, _ := os.UserHomeDir()

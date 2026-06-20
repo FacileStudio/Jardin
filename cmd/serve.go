@@ -22,7 +22,7 @@ var serveCmd = &cobra.Command{
 			dataDir = config.CellsDir()
 		}
 
-		password := os.Getenv("RUCHE_PASSWORD")
+		password := os.Getenv("PASSWORD")
 
 		srv := server.New(dataDir, password)
 
@@ -32,7 +32,7 @@ var serveCmd = &cobra.Command{
 		if password != "" {
 			fmt.Println("Auth: password required (login via /api/auth/login)")
 		} else {
-			color.Yellow("Auth: none (set RUCHE_PASSWORD to enable)")
+			color.Yellow("Auth: none (set PASSWORD to enable)")
 		}
 
 		return http.ListenAndServe(addr, srv.Handler())

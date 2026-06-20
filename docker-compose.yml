@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - RUCHE_DIR=/data
-      - RUCHE_PASSWORD=${RUCHE_PASSWORD}
+      - DATA_DIR=/data
+      - PASSWORD=${PASSWORD}
     volumes:
       - ruche-data:/data
     networks:
