@@ -49,11 +49,34 @@ type StatusResponse struct {
 }
 
 func New(dataDir, password string) *Server {
-	return &Server{
+	s := &Server{
 		DataDir:  dataDir,
 		Password: password,
 		tokens:   make(map[string]TokenInfo),
 	}
+	s.loadTokens()
+	return s
+}
+
+func (s *Server) tokensPath() string {
+	return filepath.Join(s.DataDir, "tokens.json")
+}
+
+func (s *Server) loadTokens() {
+	data, err := os.ReadFile(s.tokensPath())
+	if err != nil {
+		return
+	}
+	var tokens map[string]TokenInfo
+	if err := json.Unmarshal(data, &tokens); err == nil {
+		s.tokens = tokens
+	}
+}
+
+func (s *Server) saveTokens() {
+	data, _ := json.MarshalIndent(s.tokens, "", "  ")
+	os.MkdirAll(s.DataDir, 0755)
+	os.WriteFile(s.tokensPath(), data, 0600)
 }
 
 func (s *Server) Handler() http.Handler {
@@ -146,6 +169,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		Name:      "session",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
+	s.saveTokens()
 	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -486,6 +510,7 @@ func (s *Server) tokensCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	s.tokens[token] = info
+	s.saveTokens()
 	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -500,6 +525,7 @@ func (s *Server) tokensDelete(w http.ResponseWriter, r *http.Request) {
 			delete(s.tokens, k)
 		}
 	}
+	s.saveTokens()
 	s.mu.Unlock()
 	w.WriteHeader(http.StatusNoContent)
 }

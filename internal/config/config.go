@@ -5,32 +5,32 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/BurntSushi/toml"
+	"gopkg.in/yaml.v3"
 )
 
 type RucheConfig struct {
-	ActiveCell string    `toml:"active_cell"`
-	Machine    string    `toml:"machine"`
-	SyncURL    string    `toml:"sync_url,omitempty"`
-	SyncToken  string    `toml:"sync_token,omitempty"`
-	Cells      []CellRef `toml:"cells"`
+	ActiveCell string    `yaml:"active_cell,omitempty"`
+	Machine    string    `yaml:"machine,omitempty"`
+	SyncURL    string    `yaml:"sync_url,omitempty"`
+	SyncToken  string    `yaml:"sync_token,omitempty"`
+	Cells      []CellRef `yaml:"cells,omitempty"`
 }
 
 type CellRef struct {
-	Name string `toml:"name"`
-	Path string `toml:"path"`
+	Name string `yaml:"name"`
+	Path string `yaml:"path"`
 }
 
 type CellConfig struct {
-	Name               string   `toml:"name"`
-	Description        string   `toml:"description,omitempty"`
-	RuleOrder          []string `toml:"rule_order,omitempty"`
-	LayerCells         []string `toml:"layer_cells,omitempty"`
-	PerceptionEndpoint string   `toml:"perception_endpoint,omitempty"`
-	WorkspaceID        string   `toml:"perception_workspace_id,omitempty"`
+	Name               string   `yaml:"name"`
+	Description        string   `yaml:"description,omitempty"`
+	RuleOrder          []string `yaml:"rule_order,omitempty"`
+	LayerCells         []string `yaml:"layer_cells,omitempty"`
+	PerceptionEndpoint string   `yaml:"perception_endpoint,omitempty"`
+	WorkspaceID        string   `yaml:"perception_workspace_id,omitempty"`
 }
 
-func RucheDir() string {
+func DataDir() string {
 	if dir := os.Getenv("DATA_DIR"); dir != "" {
 		return dir
 	}
@@ -38,61 +38,63 @@ func RucheDir() string {
 	return filepath.Join(home, ".ruche")
 }
 
-func RucheConfigPath() string {
-	return filepath.Join(RucheDir(), "ruche.toml")
+func ConfigPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".ruche.yml")
 }
 
 func CellsDir() string {
-	return filepath.Join(RucheDir(), "cells")
+	return filepath.Join(DataDir(), "cells")
 }
 
 func LoadRucheConfig() (*RucheConfig, error) {
-	path := RucheConfigPath()
+	path := ConfigPath()
 	cfg := &RucheConfig{}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return cfg, nil
-	}
-	_, err := toml.DecodeFile(path, cfg)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load %s: %w", path, err)
+		if os.IsNotExist(err) {
+			return cfg, nil
+		}
+		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", path, err)
 	}
 	return cfg, nil
 }
 
 func SaveRucheConfig(cfg *RucheConfig) error {
-	path := RucheConfigPath()
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	f, err := os.Create(path)
+	path := ConfigPath()
+	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	return toml.NewEncoder(f).Encode(cfg)
+	return os.WriteFile(path, data, 0644)
 }
 
 func LoadCellConfig(cellPath string) (*CellConfig, error) {
-	path := filepath.Join(cellPath, "cell.toml")
+	path := filepath.Join(cellPath, "cell.yml")
 	cfg := &CellConfig{}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil, fmt.Errorf("cell.toml not found in %s", cellPath)
-	}
-	_, err := toml.DecodeFile(path, cfg)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load %s: %w", path, err)
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("cell.yml not found in %s", cellPath)
+		}
+		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", path, err)
 	}
 	return cfg, nil
 }
 
 func SaveCellConfig(cellPath string, cfg *CellConfig) error {
-	path := filepath.Join(cellPath, "cell.toml")
-	f, err := os.Create(path)
+	path := filepath.Join(cellPath, "cell.yml")
+	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	return toml.NewEncoder(f).Encode(cfg)
+	return os.WriteFile(path, data, 0644)
 }
 
 func (h *RucheConfig) FindCell(name string) *CellRef {
