@@ -9,10 +9,10 @@
 	let status: RucheStatus | null = $state(null);
 
 	const nav = [
-		{ label: 'Brain', href: '/brain', icon: 'solar:brain-bold-duotone' },
-		{ label: 'Rules', href: '/rules', icon: 'solar:ruler-angular-bold-duotone' },
-		{ label: 'Skills', href: '/skills', icon: 'solar:bolt-circle-bold-duotone' },
-		{ label: 'Settings', href: '/settings', icon: 'solar:settings-bold-duotone' }
+		{ label: 'Brain', href: '/brain', icon: 'solar:brain-linear' },
+		{ label: 'Rules', href: '/rules', icon: 'solar:ruler-angular-linear' },
+		{ label: 'Skills', href: '/skills', icon: 'solar:bolt-circle-linear' },
+		{ label: 'Settings', href: '/settings', icon: 'solar:settings-linear' }
 	];
 
 	$effect(() => {
@@ -62,7 +62,7 @@
 					onclick={logout}
 					class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
 				>
-					<Icon icon="solar:logout-2-bold-duotone" class="size-[18px]" />
+					<Icon icon="solar:logout-2-linear" class="size-[18px]" />
 					Déconnexion
 				</button>
 			</div>

@@ -12,37 +12,25 @@
 @font-face { font-family: 'Goga'; src: url('/fonts/GogaTest-Extrabold-BF6646d5d7d0a2b.otf') format('opentype'); font-weight: 800; font-style: normal; }
 @font-face { font-family: 'Goga'; src: url('/fonts/GogaTest-Black-BF6646d5d78e551.otf') format('opentype'); font-weight: 900; font-style: normal; }
 
-:root {
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
-	--primary: oklch(0.145 0 0);
-	--primary-foreground: oklch(1 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--border: oklch(0.9 0 0);
-	--input: oklch(0.9 0 0);
-	--ring: oklch(0.4 0 0);
-	--destructive: oklch(0.55 0.22 29);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-}
-
 @theme inline {
 	--font-sans: 'Goga', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 	--font-heading: 'Goga', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 	--font-mono: 'Inter', ui-monospace, monospace;
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
-	--color-primary: var(--primary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-muted: var(--muted);
-	--color-muted-foreground: var(--muted-foreground);
-	--color-border: var(--border);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
-	--color-destructive: var(--destructive);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
+	--color-background: oklch(1 0 0);
+	--color-foreground: oklch(0.145 0 0);
+	--color-primary: oklch(0.145 0 0);
+	--color-primary-foreground: oklch(1 0 0);
+	--color-secondary: oklch(0.97 0 0);
+	--color-secondary-foreground: oklch(0.205 0 0);
+	--color-muted: oklch(0.97 0 0);
+	--color-muted-foreground: oklch(0.556 0 0);
+	--color-border: oklch(0.9 0 0);
+	--color-input: oklch(0.9 0 0);
+	--color-ring: oklch(0.4 0 0);
+	--color-destructive: oklch(0.55 0.22 29);
+	--color-destructive-foreground: oklch(1 0 0);
+	--color-accent: oklch(0.97 0 0);
+	--color-accent-foreground: oklch(0.205 0 0);
 }
 
 @layer base {
