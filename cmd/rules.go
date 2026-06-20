@@ -13,32 +13,21 @@ import (
 
 var rulesCmd = &cobra.Command{
 	Use:   "rules",
-	Short: "Manage cell rules",
+	Short: "Manage rules",
 }
 
 var rulesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List rule files",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadRucheConfig()
+		rules, err := cell.ListRules()
 		if err != nil {
 			return err
 		}
-		cellPath, err := cfg.ActiveCellPath()
-		if err != nil {
-			return err
-		}
-
-		rules, err := cell.ListRules(cellPath)
-		if err != nil {
-			return err
-		}
-
 		if len(rules) == 0 {
 			fmt.Println("No rules.")
 			return nil
 		}
-
 		for _, r := range rules {
 			fmt.Println(r)
 		}
@@ -51,17 +40,9 @@ var rulesEditCmd = &cobra.Command{
 	Short: "Open a rule in $EDITOR",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadRucheConfig()
-		if err != nil {
-			return err
-		}
-		cellPath, err := cfg.ActiveCellPath()
-		if err != nil {
-			return err
-		}
-
-		path := filepath.Join(cellPath, "rules", args[0]+".md")
+		path := filepath.Join(config.RulesDir(), args[0]+".md")
 		if _, err := os.Stat(path); os.IsNotExist(err) {
+			os.MkdirAll(config.RulesDir(), 0755)
 			os.WriteFile(path, []byte(fmt.Sprintf("# %s\n", args[0])), 0644)
 		}
 

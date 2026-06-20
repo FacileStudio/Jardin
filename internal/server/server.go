@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/FacileStudio/Ruche/internal/brain"
-	"github.com/FacileStudio/Ruche/internal/config"
 )
 
 type Server struct {
@@ -40,12 +39,9 @@ type TokenInfo struct {
 }
 
 type StatusResponse struct {
-	ActiveCell string           `json:"active_cell"`
-	Machine    string           `json:"machine"`
-	URL    string           `json:"url"`
-	Cells      []config.CellRef `json:"cells"`
-	Rules      []string         `json:"rules"`
-	Skills     []string         `json:"skills"`
+	Machine string   `json:"machine"`
+	Rules   []string `json:"rules"`
+	Skills  []string `json:"skills"`
 }
 
 func New(dataDir, password string) *Server {
@@ -79,6 +75,10 @@ func (s *Server) saveTokens() {
 	os.WriteFile(s.tokensPath(), data, 0600)
 }
 
+func (s *Server) brainDir() string    { return filepath.Join(s.DataDir, "brain") }
+func (s *Server) rulesDir() string    { return filepath.Join(s.DataDir, "rules") }
+func (s *Server) skillsDir() string   { return filepath.Join(s.DataDir, "skills") }
+
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
@@ -86,14 +86,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/auth/login", s.login)
 
 	mux.HandleFunc("GET /api/status", s.auth(s.status))
-
-	mux.HandleFunc("GET /api/cells", s.auth(s.listCells))
-	mux.HandleFunc("POST /api/cells", s.auth(s.createCell))
-	mux.HandleFunc("POST /api/cells/use", s.auth(s.useCell))
-	mux.HandleFunc("GET /api/cells/{cell}/tree", s.auth(s.tree))
-	mux.HandleFunc("GET /api/cells/{cell}/files/{path...}", s.auth(s.getFile))
-	mux.HandleFunc("PUT /api/cells/{cell}/files/{path...}", s.auth(s.putFile))
-	mux.HandleFunc("DELETE /api/cells/{cell}/files/{path...}", s.auth(s.deleteFile))
 
 	mux.HandleFunc("GET /api/brain/search", s.auth(s.brainSearch))
 	mux.HandleFunc("GET /api/brain/index", s.auth(s.brainIndex))
@@ -111,6 +103,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/tokens", s.auth(s.tokensList))
 	mux.HandleFunc("POST /api/tokens", s.auth(s.tokensCreate))
 	mux.HandleFunc("DELETE /api/tokens/{name}", s.auth(s.tokensDelete))
+
+	mux.HandleFunc("GET /api/sync/tree", s.auth(s.syncTree))
+	mux.HandleFunc("GET /api/sync/files/{path...}", s.auth(s.syncGetFile))
+	mux.HandleFunc("PUT /api/sync/files/{path...}", s.auth(s.syncPutFile))
 
 	return mux
 }
@@ -176,123 +172,105 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"token": token})
 }
 
-func (s *Server) activeCellPath() (string, string, error) {
-	cfg, err := config.LoadRucheConfig()
-	if err != nil {
-		return "", "", err
-	}
-	if cfg.ActiveCell == "" {
-		return "", "", fmt.Errorf("no active cell")
-	}
-	path, err := cfg.ActiveCellPath()
-	return cfg.ActiveCell, path, err
-}
-
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
-	cfg, err := config.LoadRucheConfig()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	var rules, skills []string
-	if cellPath, err := cfg.ActiveCellPath(); err == nil {
-		rules = listMdNames(filepath.Join(cellPath, "rules"))
-		skills = listMdNames(filepath.Join(cellPath, "skills"))
-	}
-
 	resp := StatusResponse{
-		ActiveCell: cfg.ActiveCell,
-		Machine:    cfg.Machine,
-		URL:    cfg.URL,
-		Cells:      cfg.Cells,
-		Rules:      rules,
-		Skills:     skills,
+		Rules:  listMdNames(s.rulesDir()),
+		Skills: listMdNames(s.skillsDir()),
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	jsonReply(w, resp)
 }
 
-func (s *Server) listCells(w http.ResponseWriter, r *http.Request) {
-	cfg, err := config.LoadRucheConfig()
-	if err != nil {
-		jsonReply(w, []string{})
+func (s *Server) brainSearch(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		jsonReply(w, []brain.SearchResult{})
 		return
 	}
-	var names []string
-	for _, c := range cfg.Cells {
-		names = append(names, c.Name)
-	}
-	jsonReply(w, names)
-}
-
-func (s *Server) createCell(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		http.Error(w, "name required", http.StatusBadRequest)
-		return
-	}
-
-	cellPath := filepath.Join(config.CellsDir(), req.Name)
-	dirs := []string{
-		"brain", "brain/bugs", "brain/tools", "brain/projects",
-		"brain/conventions", "brain/syntheses", "rules", "skills", "machines",
-	}
-	for _, d := range dirs {
-		os.MkdirAll(filepath.Join(cellPath, d), 0755)
-	}
-
-	cellCfg := &config.CellConfig{Name: req.Name}
-	config.SaveCellConfig(cellPath, cellCfg)
-
-	os.WriteFile(filepath.Join(cellPath, "brain", "index.md"), []byte("# Brain Index\n"), 0644)
-	os.WriteFile(filepath.Join(cellPath, "brain", "overview.md"), []byte("# Overview\n"), 0644)
-	os.WriteFile(filepath.Join(cellPath, "brain", "log.md"), []byte("# Log\n\nAppend-only.\n"), 0644)
-
-	cfg, _ := config.LoadRucheConfig()
-	cfg.AddCell(req.Name, cellPath)
-	if cfg.ActiveCell == "" {
-		cfg.ActiveCell = req.Name
-	}
-	config.SaveRucheConfig(cfg)
-
-	w.WriteHeader(http.StatusCreated)
-}
-
-func (s *Server) useCell(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		http.Error(w, "name required", http.StatusBadRequest)
-		return
-	}
-	cfg, err := config.LoadRucheConfig()
+	results, err := brain.Search(s.brainDir(), query)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if cfg.FindCell(req.Name) == nil {
-		http.Error(w, "cell not found", http.StatusNotFound)
+	if results == nil {
+		results = []brain.SearchResult{}
+	}
+	jsonReply(w, results)
+}
+
+func (s *Server) brainIndex(w http.ResponseWriter, r *http.Request) {
+	content, err := brain.ReadIndex(s.brainDir())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	cfg.ActiveCell = req.Name
-	config.SaveRucheConfig(cfg)
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(content))
+}
+
+func (s *Server) rulesList(w http.ResponseWriter, r *http.Request) {
+	jsonReply(w, listMdNames(s.rulesDir()))
+}
+
+func (s *Server) ruleGet(w http.ResponseWriter, r *http.Request) {
+	data, err := os.ReadFile(filepath.Join(s.rulesDir(), r.PathValue("name")+".md"))
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write(data)
+}
+
+func (s *Server) ruleSave(w http.ResponseWriter, r *http.Request) {
+	data, _ := io.ReadAll(r.Body)
+	dir := s.rulesDir()
+	os.MkdirAll(dir, 0755)
+	os.WriteFile(filepath.Join(dir, r.PathValue("name")+".md"), data, 0644)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) tree(w http.ResponseWriter, r *http.Request) {
-	cellName := r.PathValue("cell")
-	cellDir := filepath.Join(s.DataDir, cellName)
+func (s *Server) ruleDelete(w http.ResponseWriter, r *http.Request) {
+	os.Remove(filepath.Join(s.rulesDir(), r.PathValue("name")+".md"))
+	w.WriteHeader(http.StatusNoContent)
+}
 
+func (s *Server) skillsList(w http.ResponseWriter, r *http.Request) {
+	jsonReply(w, listMdNames(s.skillsDir()))
+}
+
+func (s *Server) skillGet(w http.ResponseWriter, r *http.Request) {
+	data, err := os.ReadFile(filepath.Join(s.skillsDir(), r.PathValue("name")+".md"))
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write(data)
+}
+
+func (s *Server) skillSave(w http.ResponseWriter, r *http.Request) {
+	data, _ := io.ReadAll(r.Body)
+	dir := s.skillsDir()
+	os.MkdirAll(dir, 0755)
+	os.WriteFile(filepath.Join(dir, r.PathValue("name")+".md"), data, 0644)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) skillDelete(w http.ResponseWriter, r *http.Request) {
+	os.Remove(filepath.Join(s.skillsDir(), r.PathValue("name")+".md"))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) syncTree(w http.ResponseWriter, r *http.Request) {
 	var files []FileEntry
-	filepath.Walk(cellDir, func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(s.DataDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
-		rel, _ := filepath.Rel(cellDir, path)
+		rel, _ := filepath.Rel(s.DataDir, path)
+		if rel == "tokens.json" || strings.HasPrefix(rel, ".") {
+			return nil
+		}
 		data, _ := os.ReadFile(path)
 		checksum := fmt.Sprintf("%x", sha256.Sum256(data))
 		files = append(files, FileEntry{
@@ -309,177 +287,26 @@ func (s *Server) tree(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, files)
 }
 
-func (s *Server) getFile(w http.ResponseWriter, r *http.Request) {
-	cellName := r.PathValue("cell")
+func (s *Server) syncGetFile(w http.ResponseWriter, r *http.Request) {
 	filePath := r.PathValue("path")
-	fullPath := filepath.Join(s.DataDir, cellName, filePath)
-	if !strings.HasPrefix(fullPath, filepath.Join(s.DataDir, cellName)) {
+	fullPath := filepath.Join(s.DataDir, filePath)
+	if !strings.HasPrefix(fullPath, s.DataDir) {
 		http.Error(w, "invalid path", http.StatusBadRequest)
 		return
 	}
 	http.ServeFile(w, r, fullPath)
 }
 
-func (s *Server) putFile(w http.ResponseWriter, r *http.Request) {
-	cellName := r.PathValue("cell")
+func (s *Server) syncPutFile(w http.ResponseWriter, r *http.Request) {
 	filePath := r.PathValue("path")
-	fullPath := filepath.Join(s.DataDir, cellName, filePath)
-	if !strings.HasPrefix(fullPath, filepath.Join(s.DataDir, cellName)) {
+	fullPath := filepath.Join(s.DataDir, filePath)
+	if !strings.HasPrefix(fullPath, s.DataDir) {
 		http.Error(w, "invalid path", http.StatusBadRequest)
 		return
 	}
 	os.MkdirAll(filepath.Dir(fullPath), 0755)
 	data, _ := io.ReadAll(r.Body)
 	os.WriteFile(fullPath, data, 0644)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) deleteFile(w http.ResponseWriter, r *http.Request) {
-	cellName := r.PathValue("cell")
-	filePath := r.PathValue("path")
-	fullPath := filepath.Join(s.DataDir, cellName, filePath)
-	if !strings.HasPrefix(fullPath, filepath.Join(s.DataDir, cellName)) {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
-	}
-	os.Remove(fullPath)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) brainSearch(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("q")
-	if query == "" {
-		jsonReply(w, []brain.SearchResult{})
-		return
-	}
-	_, cellPath, err := s.activeCellPath()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	results, err := brain.Search(filepath.Join(cellPath, "brain"), query)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if results == nil {
-		results = []brain.SearchResult{}
-	}
-	jsonReply(w, results)
-}
-
-func (s *Server) brainIndex(w http.ResponseWriter, r *http.Request) {
-	_, cellPath, err := s.activeCellPath()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	content, err := brain.ReadIndex(filepath.Join(cellPath, "brain"))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(content))
-}
-
-func (s *Server) rulesList(w http.ResponseWriter, r *http.Request) {
-	_, cellPath, err := s.activeCellPath()
-	if err != nil {
-		jsonReply(w, []string{})
-		return
-	}
-	jsonReply(w, listMdNames(filepath.Join(cellPath, "rules")))
-}
-
-func (s *Server) ruleGet(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	_, cellPath, err := s.activeCellPath()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	data, err := os.ReadFile(filepath.Join(cellPath, "rules", name+".md"))
-	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write(data)
-}
-
-func (s *Server) ruleSave(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	_, cellPath, err := s.activeCellPath()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	data, _ := io.ReadAll(r.Body)
-	path := filepath.Join(cellPath, "rules", name+".md")
-	os.MkdirAll(filepath.Dir(path), 0755)
-	os.WriteFile(path, data, 0644)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) ruleDelete(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	_, cellPath, err := s.activeCellPath()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	os.Remove(filepath.Join(cellPath, "rules", name+".md"))
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) skillsList(w http.ResponseWriter, r *http.Request) {
-	_, cellPath, err := s.activeCellPath()
-	if err != nil {
-		jsonReply(w, []string{})
-		return
-	}
-	jsonReply(w, listMdNames(filepath.Join(cellPath, "skills")))
-}
-
-func (s *Server) skillGet(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	_, cellPath, err := s.activeCellPath()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	data, err := os.ReadFile(filepath.Join(cellPath, "skills", name+".md"))
-	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write(data)
-}
-
-func (s *Server) skillSave(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	_, cellPath, err := s.activeCellPath()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	data, _ := io.ReadAll(r.Body)
-	path := filepath.Join(cellPath, "skills", name+".md")
-	os.MkdirAll(filepath.Dir(path), 0755)
-	os.WriteFile(path, data, 0644)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) skillDelete(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	_, cellPath, err := s.activeCellPath()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	os.Remove(filepath.Join(cellPath, "skills", name+".md"))
 	w.WriteHeader(http.StatusNoContent)
 }
 

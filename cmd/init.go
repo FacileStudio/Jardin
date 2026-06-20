@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/FacileStudio/Ruche/internal/cell"
 	"github.com/FacileStudio/Ruche/internal/config"
 	"github.com/fatih/color"
@@ -10,33 +8,13 @@ import (
 )
 
 var initCmd = &cobra.Command{
-	Use:   "init <name>",
-	Short: "Create a new cell",
-	Args:  cobra.ExactArgs(1),
+	Use:   "init",
+	Short: "Initialize ruche data directory",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
-
-		cellPath, err := cell.Init(name)
-		if err != nil {
+		if err := cell.Init(); err != nil {
 			return err
 		}
-
-		cfg, err := config.LoadRucheConfig()
-		if err != nil {
-			return err
-		}
-		cfg.AddCell(name, cellPath)
-		if cfg.ActiveCell == "" {
-			cfg.ActiveCell = name
-		}
-		if err := config.SaveRucheConfig(cfg); err != nil {
-			return err
-		}
-
-		color.Green("Cell %q created at %s", name, cellPath)
-		if cfg.ActiveCell == name {
-			fmt.Println("Set as active cell.")
-		}
+		color.Green("Initialized at %s", config.DataDir())
 		return nil
 	},
 }

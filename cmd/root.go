@@ -16,7 +16,6 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Version = version
-	rootCmd.PersistentFlags().String("cell", "", "override active cell for this command")
 }
 
 func Execute() {

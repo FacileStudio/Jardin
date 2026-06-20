@@ -10,7 +10,6 @@ type Input struct {
 	Rules       []cell.NamedFile
 	Skills      []cell.NamedFile
 	Machine     string
-	CellName    string
 	MachineName string
 }
 

@@ -12,7 +12,6 @@
 		{ label: 'Brain', href: '/brain', icon: 'solar:brain-bold-duotone' },
 		{ label: 'Rules', href: '/rules', icon: 'solar:ruler-angular-bold-duotone' },
 		{ label: 'Skills', href: '/skills', icon: 'solar:bolt-circle-bold-duotone' },
-		{ label: 'Cells', href: '/cells', icon: 'solar:widget-5-bold-duotone' },
 		{ label: 'Settings', href: '/settings', icon: 'solar:settings-bold-duotone' }
 	];
 
@@ -31,9 +30,6 @@
 	}
 
 	setContext('status', () => status);
-	setContext('refreshStatus', async () => {
-		status = await backend.status();
-	});
 </script>
 
 {#if status}
@@ -44,12 +40,6 @@
 					<Icon icon="solar:graph-new-bold-duotone" class="size-6 text-foreground" />
 					<span class="text-lg font-bold tracking-tight">Ruche</span>
 				</a>
-				<p class="mt-1 text-xs text-muted-foreground">
-					{status.active_cell || 'no cell'}
-					{#if status.machine}
-						<span>· {status.machine}</span>
-					{/if}
-				</p>
 			</div>
 
 			<nav class="flex-1 space-y-0.5 px-2">

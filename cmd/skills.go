@@ -13,32 +13,21 @@ import (
 
 var skillsCmd = &cobra.Command{
 	Use:   "skills",
-	Short: "Manage cell skills",
+	Short: "Manage skills",
 }
 
 var skillsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List skill files",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadRucheConfig()
+		skills, err := cell.ListSkills()
 		if err != nil {
 			return err
 		}
-		cellPath, err := cfg.ActiveCellPath()
-		if err != nil {
-			return err
-		}
-
-		skills, err := cell.ListSkills(cellPath)
-		if err != nil {
-			return err
-		}
-
 		if len(skills) == 0 {
 			fmt.Println("No skills.")
 			return nil
 		}
-
 		for _, s := range skills {
 			fmt.Println(s)
 		}
@@ -51,29 +40,14 @@ var skillsAddCmd = &cobra.Command{
 	Short: "Scaffold a new skill",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadRucheConfig()
-		if err != nil {
-			return err
-		}
-		cellPath, err := cfg.ActiveCellPath()
-		if err != nil {
-			return err
-		}
-
 		name := args[0]
-		path := filepath.Join(cellPath, "skills", name+".md")
+		path := filepath.Join(config.SkillsDir(), name+".md")
 		if _, err := os.Stat(path); err == nil {
 			return fmt.Errorf("skill %q already exists", name)
 		}
 
-		content := fmt.Sprintf(`---
-name: %s
-description: ""
-triggers: ["/%s"]
----
-
-# %s
-`, name, name, name)
+		os.MkdirAll(config.SkillsDir(), 0755)
+		content := fmt.Sprintf("---\nname: %s\ndescription: \"\"\ntriggers: [\"/%s\"]\n---\n\n# %s\n", name, name, name)
 
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			return err

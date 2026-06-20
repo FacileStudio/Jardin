@@ -43,8 +43,8 @@ func (c *Client) do(method, path string, body io.Reader) (*http.Response, error)
 	return c.HTTPClient.Do(req)
 }
 
-func (c *Client) Tree(cellName string) ([]FileEntry, error) {
-	resp, err := c.do("GET", fmt.Sprintf("/api/cells/%s/tree", cellName), nil)
+func (c *Client) Tree() ([]FileEntry, error) {
+	resp, err := c.do("GET", "/api/sync/tree", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -53,8 +53,8 @@ func (c *Client) Tree(cellName string) ([]FileEntry, error) {
 	return entries, json.NewDecoder(resp.Body).Decode(&entries)
 }
 
-func (c *Client) Download(cellName, filePath string) ([]byte, error) {
-	resp, err := c.do("GET", fmt.Sprintf("/api/cells/%s/files/%s", cellName, filePath), nil)
+func (c *Client) Download(filePath string) ([]byte, error) {
+	resp, err := c.do("GET", "/api/sync/files/"+filePath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +65,8 @@ func (c *Client) Download(cellName, filePath string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func (c *Client) Upload(cellName, filePath string, data []byte) error {
-	resp, err := c.do("PUT", fmt.Sprintf("/api/cells/%s/files/%s", cellName, filePath), strings.NewReader(string(data)))
+func (c *Client) Upload(filePath string, data []byte) error {
+	resp, err := c.do("PUT", "/api/sync/files/"+filePath, strings.NewReader(string(data)))
 	if err != nil {
 		return err
 	}
@@ -77,23 +77,14 @@ func (c *Client) Upload(cellName, filePath string, data []byte) error {
 	return nil
 }
 
-func (c *Client) Delete(cellName, filePath string) error {
-	resp, err := c.do("DELETE", fmt.Sprintf("/api/cells/%s/files/%s", cellName, filePath), nil)
-	if err != nil {
-		return err
-	}
-	resp.Body.Close()
-	return nil
-}
-
-func LocalTree(cellPath string) ([]FileEntry, error) {
+func LocalTree(dataDir string) ([]FileEntry, error) {
 	var entries []FileEntry
-	err := filepath.Walk(cellPath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
-		rel, _ := filepath.Rel(cellPath, path)
-		if strings.HasPrefix(rel, ".") {
+		rel, _ := filepath.Rel(dataDir, path)
+		if strings.HasPrefix(rel, ".") || rel == "tokens.json" {
 			return nil
 		}
 		data, err := os.ReadFile(path)
@@ -114,54 +105,14 @@ func LocalTree(cellPath string) ([]FileEntry, error) {
 type SyncPlan struct {
 	Upload   []string
 	Download []string
-	Delete   []string
 }
 
-func Diff(local, remote []FileEntry) *SyncPlan {
-	plan := &SyncPlan{}
-
-	remoteMap := make(map[string]FileEntry)
-	for _, e := range remote {
-		remoteMap[e.Path] = e
-	}
-
-	localMap := make(map[string]FileEntry)
-	for _, e := range local {
-		localMap[e.Path] = e
-	}
-
-	for _, l := range local {
-		r, exists := remoteMap[l.Path]
-		if !exists || l.Checksum != r.Checksum {
-			plan.Upload = append(plan.Upload, l.Path)
-		}
-	}
-
-	for _, r := range remote {
-		l, exists := localMap[r.Path]
-		if !exists || r.Checksum != l.Checksum {
-			alreadyUploading := false
-			for _, u := range plan.Upload {
-				if u == r.Path {
-					alreadyUploading = true
-					break
-				}
-			}
-			if !alreadyUploading {
-				plan.Download = append(plan.Download, r.Path)
-			}
-		}
-	}
-
-	return plan
-}
-
-func (c *Client) Push(cellName, cellPath string) (*SyncPlan, error) {
-	local, err := LocalTree(cellPath)
+func (c *Client) Push(dataDir string) (*SyncPlan, error) {
+	local, err := LocalTree(dataDir)
 	if err != nil {
 		return nil, err
 	}
-	remote, err := c.Tree(cellName)
+	remote, err := c.Tree()
 	if err != nil {
 		return nil, err
 	}
@@ -175,11 +126,11 @@ func (c *Client) Push(cellName, cellPath string) (*SyncPlan, error) {
 	for _, l := range local {
 		r, exists := remoteMap[l.Path]
 		if !exists || l.Checksum != r.Checksum {
-			data, err := os.ReadFile(filepath.Join(cellPath, l.Path))
+			data, err := os.ReadFile(filepath.Join(dataDir, l.Path))
 			if err != nil {
 				return nil, err
 			}
-			if err := c.Upload(cellName, l.Path, data); err != nil {
+			if err := c.Upload(l.Path, data); err != nil {
 				return nil, err
 			}
 			plan.Upload = append(plan.Upload, l.Path)
@@ -188,12 +139,12 @@ func (c *Client) Push(cellName, cellPath string) (*SyncPlan, error) {
 	return plan, nil
 }
 
-func (c *Client) Pull(cellName, cellPath string) (*SyncPlan, error) {
-	local, err := LocalTree(cellPath)
+func (c *Client) Pull(dataDir string) (*SyncPlan, error) {
+	local, err := LocalTree(dataDir)
 	if err != nil {
 		return nil, err
 	}
-	remote, err := c.Tree(cellName)
+	remote, err := c.Tree()
 	if err != nil {
 		return nil, err
 	}
@@ -207,11 +158,11 @@ func (c *Client) Pull(cellName, cellPath string) (*SyncPlan, error) {
 	for _, r := range remote {
 		l, exists := localMap[r.Path]
 		if !exists || r.Checksum != l.Checksum {
-			data, err := c.Download(cellName, r.Path)
+			data, err := c.Download(r.Path)
 			if err != nil {
 				return nil, err
 			}
-			fullPath := filepath.Join(cellPath, r.Path)
+			fullPath := filepath.Join(dataDir, r.Path)
 			os.MkdirAll(filepath.Dir(fullPath), 0755)
 			if err := os.WriteFile(fullPath, data, 0644); err != nil {
 				return nil, err

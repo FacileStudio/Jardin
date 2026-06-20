@@ -19,7 +19,7 @@ var serveCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dataDir, _ := cmd.Flags().GetString("data")
 		if dataDir == "" {
-			dataDir = config.CellsDir()
+			dataDir = config.DataDir()
 		}
 
 		password := os.Getenv("PASSWORD")
@@ -41,6 +41,6 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	serveCmd.Flags().IntVar(&servePort, "port", 8420, "port to listen on")
-	serveCmd.Flags().String("data", "", "data directory (default: ~/.ruche/cells/)")
+	serveCmd.Flags().String("data", "", "data directory (default: ~/.ruche/)")
 	rootCmd.AddCommand(serveCmd)
 }

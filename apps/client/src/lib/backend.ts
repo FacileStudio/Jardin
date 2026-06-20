@@ -32,25 +32,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 	return res.text() as unknown as T;
 }
 
-export interface CellInfo {
-	name: string;
-	path: string;
-}
-
 export interface RucheStatus {
-	active_cell: string;
 	machine: string;
-	url: string;
-	cells: CellInfo[];
 	rules: string[];
 	skills: string[];
-}
-
-export interface FileEntry {
-	path: string;
-	checksum: string;
-	size: number;
-	mod_time: string;
 }
 
 export interface TokenInfo {
@@ -61,16 +46,6 @@ export interface TokenInfo {
 
 export const backend = {
 	status: () => request<RucheStatus>('GET', '/status'),
-
-	cells: () => request<string[]>('GET', '/cells'),
-	createCell: (name: string) => request<void>('POST', '/cells', { name }),
-	useCell: (name: string) => request<void>('POST', '/cells/use', { name }),
-
-	tree: (cell: string) => request<FileEntry[]>('GET', `/cells/${cell}/tree`),
-	getFile: (cell: string, path: string) => request<string>('GET', `/cells/${cell}/files/${path}`),
-	putFile: (cell: string, path: string, content: string) =>
-		request<void>('PUT', `/cells/${cell}/files/${path}`, content),
-	deleteFile: (cell: string, path: string) => request<void>('DELETE', `/cells/${cell}/files/${path}`),
 
 	brainSearch: (query: string) =>
 		request<{ path: string; line: number; content: string }[]>('GET', `/brain/search?q=${encodeURIComponent(query)}`),

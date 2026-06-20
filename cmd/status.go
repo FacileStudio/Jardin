@@ -11,27 +11,18 @@ import (
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Show active cell, machine, and sync state",
+	Short: "Show machine, sync state, and content summary",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.LoadRucheConfig()
 		if err != nil {
 			return err
 		}
 
-		if cfg.ActiveCell == "" {
-			fmt.Println("No active cell. Run 'ruche init <name>' to get started.")
-			return nil
-		}
-
-		color.New(color.Bold).Printf("Cell:    ")
-		fmt.Println(cfg.ActiveCell)
-
 		color.New(color.Bold).Printf("Machine: ")
 		if cfg.Machine != "" {
 			fmt.Println(cfg.Machine)
 		} else {
-			color.Yellow("not set (run 'ruche config machine <name>')")
-			fmt.Println()
+			fmt.Println("not set")
 		}
 
 		color.New(color.Bold).Printf("Sync:    ")
@@ -41,23 +32,8 @@ var statusCmd = &cobra.Command{
 			fmt.Println("not configured")
 		}
 
-		cellPath, err := cfg.ActiveCellPath()
-		if err != nil {
-			return err
-		}
-
-		cellCfg, err := config.LoadCellConfig(cellPath)
-		if err != nil {
-			return err
-		}
-
-		if cellCfg.PerceptionEndpoint != "" {
-			color.New(color.Bold).Printf("Perception: ")
-			fmt.Println(cellCfg.PerceptionEndpoint)
-		}
-
-		rules, _ := cell.ListRules(cellPath)
-		skills, _ := cell.ListSkills(cellPath)
+		rules, _ := cell.ListRules()
+		skills, _ := cell.ListSkills()
 
 		fmt.Println()
 		color.New(color.Bold).Printf("Rules:   ")

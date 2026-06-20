@@ -17,7 +17,7 @@ var installAll bool
 var installCmd = &cobra.Command{
 	Use:   "install [agent]",
 	Short: "Generate config for an agent",
-	Long:  "Generate agent-specific config from cell rules and skills.\nAvailable agents: claude, gemini, codex, cursor, copilot, hermes",
+	Long:  "Generate agent-specific config from rules and skills.\nAvailable agents: claude, gemini, codex, cursor, copilot, hermes",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !installAll && len(args) == 0 {
@@ -52,33 +52,22 @@ var installCmd = &cobra.Command{
 }
 
 func buildInput(cfg *config.RucheConfig) (*adapter.Input, error) {
-	cellPath, err := cfg.ActiveCellPath()
-	if err != nil {
-		return nil, err
-	}
-
-	cellCfg, err := config.LoadCellConfig(cellPath)
-	if err != nil {
-		return nil, err
-	}
-
-	rules, err := cell.ReadRules(cellPath, cellCfg.RuleOrder)
+	rules, err := cell.ReadRules(cfg.RuleOrder)
 	if err != nil {
 		return nil, fmt.Errorf("reading rules: %w", err)
 	}
 
-	skills, err := cell.ReadSkills(cellPath)
+	skills, err := cell.ReadSkills()
 	if err != nil {
 		return nil, fmt.Errorf("reading skills: %w", err)
 	}
 
-	machine, _ := cell.ReadMachine(cellPath, cfg.Machine)
+	machine, _ := cell.ReadMachine(cfg.Machine)
 
 	return &adapter.Input{
 		Rules:       rules,
 		Skills:      skills,
 		Machine:     machine,
-		CellName:    cfg.ActiveCell,
 		MachineName: cfg.Machine,
 	}, nil
 }
