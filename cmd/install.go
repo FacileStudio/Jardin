@@ -93,12 +93,36 @@ func runAdapter(a adapter.Adapter, input *adapter.Input) error {
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return err
 		}
+
+		target, isSymlink := resolveSymlink(path)
+		if isSymlink {
+			color.Yellow("  %s → %s (symlink → %s)", a.Name(), path, target)
+			path = target
+		}
+
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			return err
 		}
-		color.Green("  %s → %s", a.Name(), path)
+		if !isSymlink {
+			color.Green("  %s → %s", a.Name(), path)
+		}
 	}
 	return nil
+}
+
+func resolveSymlink(path string) (string, bool) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return path, false
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return path, false
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path, false
+	}
+	return resolved, true
 }
 
 func init() {
