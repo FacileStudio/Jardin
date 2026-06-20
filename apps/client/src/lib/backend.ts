@@ -47,9 +47,9 @@ export interface TokenInfo {
 export const backend = {
 	status: () => request<RucheStatus>('GET', '/status'),
 
-	brainSearch: (query: string) =>
-		request<{ path: string; line: number; content: string }[]>('GET', `/brain/search?q=${encodeURIComponent(query)}`),
-	brainIndex: () => request<string>('GET', '/brain/index'),
+	memorySearch: (query: string) =>
+		request<{ path: string; line: number; content: string }[]>('GET', `/memory/search?q=${encodeURIComponent(query)}`),
+	memoryIndex: () => request<string>('GET', '/memory/index'),
 
 	rulesList: () => request<string[]>('GET', '/rules'),
 	ruleGet: (name: string) => request<string>('GET', `/rules/${name}`),

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/FacileStudio/Ruche/internal/brain"
+	"github.com/FacileStudio/Ruche/internal/memory"
 )
 
 type Server struct {
@@ -75,7 +75,7 @@ func (s *Server) saveTokens() {
 	os.WriteFile(s.tokensPath(), data, 0600)
 }
 
-func (s *Server) brainDir() string    { return filepath.Join(s.DataDir, "brain") }
+func (s *Server) memoryDir() string    { return filepath.Join(s.DataDir, "memory") }
 func (s *Server) rulesDir() string    { return filepath.Join(s.DataDir, "rules") }
 func (s *Server) skillsDir() string   { return filepath.Join(s.DataDir, "skills") }
 
@@ -87,8 +87,8 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/status", s.auth(s.status))
 
-	mux.HandleFunc("GET /api/brain/search", s.auth(s.brainSearch))
-	mux.HandleFunc("GET /api/brain/index", s.auth(s.brainIndex))
+	mux.HandleFunc("GET /api/memory/search", s.auth(s.memorySearch))
+	mux.HandleFunc("GET /api/memory/index", s.auth(s.memoryIndex))
 
 	mux.HandleFunc("GET /api/rules", s.auth(s.rulesList))
 	mux.HandleFunc("GET /api/rules/{name}", s.auth(s.ruleGet))
@@ -180,25 +180,25 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, resp)
 }
 
-func (s *Server) brainSearch(w http.ResponseWriter, r *http.Request) {
+func (s *Server) memorySearch(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	if query == "" {
-		jsonReply(w, []brain.SearchResult{})
+		jsonReply(w, []memory.SearchResult{})
 		return
 	}
-	results, err := brain.Search(s.brainDir(), query)
+	results, err := memory.Search(s.memoryDir(), query)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if results == nil {
-		results = []brain.SearchResult{}
+		results = []memory.SearchResult{}
 	}
 	jsonReply(w, results)
 }
 
-func (s *Server) brainIndex(w http.ResponseWriter, r *http.Request) {
-	content, err := brain.ReadIndex(s.brainDir())
+func (s *Server) memoryIndex(w http.ResponseWriter, r *http.Request) {
+	content, err := memory.ReadIndex(s.memoryDir())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return

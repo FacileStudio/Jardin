@@ -28,7 +28,7 @@ func ConfigPath() string {
 	return filepath.Join(home, ".ruche.yml")
 }
 
-func BrainDir() string  { return filepath.Join(DataDir(), "brain") }
+func MemoryDir() string  { return filepath.Join(DataDir(), "memory") }
 func RulesDir() string  { return filepath.Join(DataDir(), "rules") }
 func SkillsDir() string { return filepath.Join(DataDir(), "skills") }
 func MachinesDir() string { return filepath.Join(DataDir(), "machines") }

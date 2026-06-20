@@ -8,14 +8,14 @@
 	let searching = $state(false);
 
 	$effect(() => {
-		backend.brainIndex().then((i) => (index = i)).catch(() => {});
+		backend.memoryIndex().then((i) => (index = i)).catch(() => {});
 	});
 
 	async function search() {
 		if (!query.trim()) return;
 		searching = true;
 		try {
-			results = await backend.brainSearch(query);
+			results = await backend.memorySearch(query);
 		} catch {
 			results = [];
 		} finally {
@@ -34,7 +34,7 @@
 		<input
 			type="text"
 			bind:value={query}
-			placeholder="Search brain..."
+			placeholder="Search memory..."
 			class="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
 		/>
 		<button

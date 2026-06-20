@@ -15,7 +15,7 @@
 
 	onMount(async () => {
 		if (localStorage.getItem(TOKEN_KEY)) {
-			goto('/brain');
+			goto('/memory');
 			return;
 		}
 		try {
@@ -33,7 +33,7 @@
 		try {
 			const { token } = await backend.login(password);
 			localStorage.setItem(TOKEN_KEY, token);
-			goto('/brain');
+			goto('/memory');
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Something went wrong';
 		} finally {

@@ -9,7 +9,7 @@
 	let status: RucheStatus | null = $state(null);
 
 	const nav = [
-		{ label: 'Brain', href: '/brain', icon: 'solar:notebook-linear' },
+		{ label: 'Memory', href: '/memory', icon: 'solar:notebook-linear' },
 		{ label: 'Rules', href: '/rules', icon: 'solar:ruler-angular-linear' },
 		{ label: 'Skills', href: '/skills', icon: 'solar:bolt-circle-linear' },
 		{ label: 'Settings', href: '/settings', icon: 'solar:settings-linear' }
@@ -36,7 +36,7 @@
 	<div class="flex min-h-screen">
 		<aside class="sticky top-0 hidden h-screen w-60 flex-shrink-0 flex-col border-r border-border bg-background md:flex">
 			<div class="p-4">
-				<a href="/brain" class="flex items-center gap-2.5">
+				<a href="/memory" class="flex items-center gap-2.5">
 					<Icon icon="solar:graph-new-bold-duotone" class="size-6 text-foreground" />
 					<span class="text-lg font-bold tracking-tight">Ruche</span>
 				</a>

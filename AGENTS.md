@@ -1,6 +1,6 @@
 # Ruche
 
-Shared agent brain — manage wiki, rules, and skills across AI coding agents and machines.
+Shared agent memory — manage wiki, rules, and skills across AI coding agents and machines.
 
 ## Tech Stack
 
@@ -35,7 +35,7 @@ git tag v0.x.x && git push --tags
 │   ├── sync.go
 │   ├── install.go
 │   ├── diff.go
-│   ├── brain.go
+│   ├── memory.go
 │   ├── rules.go
 │   ├── skills.go
 │   ├── perception.go
@@ -45,7 +45,7 @@ git tag v0.x.x && git push --tags
 │   ├── cell/
 │   ├── git/
 │   ├── adapter/
-│   ├── brain/
+│   ├── memory/
 │   ├── merge/
 │   └── perception/
 ├── .goreleaser.yml

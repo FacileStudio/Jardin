@@ -3,23 +3,23 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/FacileStudio/Ruche/internal/brain"
+	"github.com/FacileStudio/Ruche/internal/memory"
 	"github.com/FacileStudio/Ruche/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
-var brainCmd = &cobra.Command{
-	Use:   "brain",
-	Short: "Manage brain (wiki/memory)",
+var memoryCmd = &cobra.Command{
+	Use:   "memory",
+	Short: "Manage memory",
 }
 
-var brainSearchCmd = &cobra.Command{
+var memorySearchCmd = &cobra.Command{
 	Use:   "search <query>",
-	Short: "Search brain for a query",
+	Short: "Search memory",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		results, err := brain.Search(config.BrainDir(), args[0])
+		results, err := memory.Search(config.MemoryDir(), args[0])
 		if err != nil {
 			return err
 		}
@@ -37,11 +37,11 @@ var brainSearchCmd = &cobra.Command{
 	},
 }
 
-var brainIndexCmd = &cobra.Command{
+var memoryIndexCmd = &cobra.Command{
 	Use:   "index",
-	Short: "Show brain index",
+	Short: "Show memory index",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		content, err := brain.ReadIndex(config.BrainDir())
+		content, err := memory.ReadIndex(config.MemoryDir())
 		if err != nil {
 			return err
 		}
@@ -51,7 +51,7 @@ var brainIndexCmd = &cobra.Command{
 }
 
 func init() {
-	brainCmd.AddCommand(brainSearchCmd)
-	brainCmd.AddCommand(brainIndexCmd)
-	rootCmd.AddCommand(brainCmd)
+	memoryCmd.AddCommand(memorySearchCmd)
+	memoryCmd.AddCommand(memoryIndexCmd)
+	rootCmd.AddCommand(memoryCmd)
 }

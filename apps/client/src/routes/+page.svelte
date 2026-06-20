@@ -8,7 +8,7 @@
 
 	onMount(() => {
 		if (localStorage.getItem('ruche.token')) {
-			goto('/brain');
+			goto('/memory');
 			return;
 		}
 		visible = true;
@@ -198,7 +198,7 @@
 							Perso vs. équipe.
 						</h2>
 						<p use:reveal={{ delay: 200 }} class="mt-8 max-w-lg text-lg leading-relaxed text-zinc-500">
-							Un profil personnel, un profil équipe, un profil client — chaque cell a son propre brain, ses règles et ses skills. Superposez-les : les règles perso gagnent, le brain s'additionne.
+							Un profil personnel, un profil équipe, un profil client — chaque cell a son propre memory, ses règles et ses skills. Superposez-les : les règles perso gagnent, la mémoire s'additionne.
 						</p>
 					</div>
 					<div use:reveal={{ delay: 300 }} class="grid gap-4">
@@ -239,7 +239,7 @@
 					<p class="text-green-400">$ ruche serve --port 8420</p>
 					<p class="mt-4 text-zinc-500"># sur votre machine</p>
 					<p class="text-green-400">$ ruche sync</p>
-					<p class="text-zinc-600 mt-1">&nbsp; ↓ brain/tools/dokploy.md</p>
+					<p class="text-zinc-600 mt-1">&nbsp; ↓ memory/tools/dokploy.md</p>
 					<p class="text-zinc-600">&nbsp; ↑ rules/engineering-ladder.md</p>
 					<p class="text-zinc-600">&nbsp; Synced 2 file(s).</p>
 				</div>

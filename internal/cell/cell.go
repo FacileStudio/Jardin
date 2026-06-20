@@ -11,8 +11,8 @@ import (
 
 func Init() error {
 	dirs := []string{
-		"brain", "brain/bugs", "brain/tools", "brain/projects",
-		"brain/conventions", "brain/syntheses",
+		"memory", "memory/bugs", "memory/tools", "memory/projects",
+		"memory/conventions", "memory/syntheses",
 		"rules", "skills", "machines",
 	}
 	for _, d := range dirs {
@@ -21,9 +21,9 @@ func Init() error {
 		}
 	}
 
-	writeIfMissing(filepath.Join(config.BrainDir(), "index.md"), "# Brain Index\n")
-	writeIfMissing(filepath.Join(config.BrainDir(), "overview.md"), "# Overview\n")
-	writeIfMissing(filepath.Join(config.BrainDir(), "log.md"), "# Log\n\nAppend-only.\n")
+	writeIfMissing(filepath.Join(config.MemoryDir(), "index.md"), "# Memory Index\n")
+	writeIfMissing(filepath.Join(config.MemoryDir(), "overview.md"), "# Overview\n")
+	writeIfMissing(filepath.Join(config.MemoryDir(), "log.md"), "# Log\n\nAppend-only.\n")
 	return nil
 }
 
