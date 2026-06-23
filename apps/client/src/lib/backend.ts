@@ -22,6 +22,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 	if (!res.ok) {
 		const text = await res.text();
+		if (res.status === 401 && typeof window !== 'undefined') {
+			localStorage.removeItem('ruche.token');
+		}
 		throw new Error(text || res.statusText);
 	}
 
