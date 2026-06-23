@@ -28,26 +28,26 @@ git tag v0.x.x && git push --tags
 ├── cmd/
 │   ├── root.go
 │   ├── init.go
-│   ├── clone.go
-│   ├── use.go
+│   ├── login.go
+│   ├── serve.go
 │   ├── status.go
-│   ├── cells.go
 │   ├── sync.go
 │   ├── install.go
 │   ├── diff.go
 │   ├── memory.go
 │   ├── rules.go
-│   ├── skills.go
-│   ├── perception.go
-│   └── upgrade.go
+│   └── skills.go
 ├── internal/
 │   ├── config/
 │   ├── cell/
-│   ├── git/
 │   ├── adapter/
 │   ├── memory/
-│   ├── merge/
-│   └── perception/
+│   ├── perception/
+│   ├── server/
+│   └── sync/
+├── apps/client/       # SvelteKit dashboard
+├── Dockerfile
+├── docker-compose.yml
 ├── .goreleaser.yml
 └── .github/workflows/release.yml
 ```
@@ -55,6 +55,6 @@ git tag v0.x.x && git push --tags
 ## Conventions
 
 - No inline comments in code
-- TOML for config files (ruche.toml, cell.toml)
-- All storage is plain markdown files in git repos
+- Client config is YAML at `~/.ruche.yml`; data lives under `~/.ruche` (or `$DATA_DIR`)
+- Storage is plain markdown files synced over HTTP to a Ruche server; auth is a Bearer token per machine, obtained via `ruche login <url>`
 - Each adapter is a pure function: (rules + skills + machine) -> agent config
