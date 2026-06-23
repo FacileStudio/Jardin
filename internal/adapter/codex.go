@@ -32,15 +32,16 @@ func (c *Codex) Generate(input Input) (*Output, error) {
 		sections = append(sections, strings.TrimSpace(input.Machine))
 	}
 
-	for _, skill := range input.Skills {
-		sections = append(sections, strings.TrimSpace(skill.Content))
-	}
-
 	out := &Output{Files: make(map[string]string)}
 
 	home, _ := os.UserHomeDir()
 	agentsMd := filepath.Join(home, ".codex", "AGENTS.md")
 	out.Files[agentsMd] = strings.Join(sections, "\n\n---\n\n") + "\n"
+
+	for _, skill := range input.Skills {
+		skillPath := filepath.Join(home, ".codex", "skills", skill.Name, "SKILL.md")
+		out.Files[skillPath] = skill.Content
+	}
 
 	return out, nil
 }
