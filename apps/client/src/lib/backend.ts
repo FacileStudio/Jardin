@@ -42,8 +42,9 @@ export interface RucheStatus {
 }
 
 export interface TokenInfo {
-	token: string;
+	token?: string;
 	name: string;
+	scope?: string;
 	created_at: string;
 	last_seen: string;
 }

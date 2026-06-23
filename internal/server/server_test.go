@@ -49,8 +49,8 @@ func TestLoginRotatesTokenPerMachine(t *testing.T) {
 		t.Fatal("re-login should issue a fresh token")
 	}
 	s.mu.RLock()
-	_, oldAlive := s.tokens[first]
-	_, newAlive := s.tokens[second]
+	_, oldAlive := s.tokens[hashToken(first)]
+	_, newAlive := s.tokens[hashToken(second)]
 	s.mu.RUnlock()
 	if oldAlive {
 		t.Fatal("previous token for machine should be revoked")

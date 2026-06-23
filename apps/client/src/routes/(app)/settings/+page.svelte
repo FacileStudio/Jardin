@@ -22,7 +22,7 @@
 		if (!newTokenName.trim()) return;
 		try {
 			const result = await backend.tokensCreate(newTokenName);
-			createdToken = result.token;
+			createdToken = result.token ?? '';
 			newTokenName = '';
 			tokens = await backend.tokensList();
 		} catch {
@@ -103,7 +103,12 @@
 				{#each apiTokens as token}
 					<div class="flex items-center justify-between rounded-lg border border-border px-4 py-3">
 						<div>
-							<p class="text-sm font-medium">{token.name}</p>
+							<div class="flex items-center gap-2">
+								<p class="text-sm font-medium">{token.name}</p>
+								{#if token.scope}
+									<span class="rounded border border-border px-1.5 py-0.5 text-xs text-muted-foreground">{token.scope}</span>
+								{/if}
+							</div>
 							<p class="text-xs text-muted-foreground">Created {token.created_at}</p>
 						</div>
 						<button
