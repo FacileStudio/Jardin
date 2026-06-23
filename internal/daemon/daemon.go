@@ -41,12 +41,36 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	for _, agent := range cfg.Agents {
+	agents := cfg.Agents
+	if len(agents) == 0 {
+		agents = DetectAgents()
+	}
+	for _, agent := range agents {
 		if out, err := exec.Command(self, "install", agent).CombinedOutput(); err != nil {
 			return fmt.Errorf("install %s failed: %v: %s", agent, err, out)
 		}
 	}
 	return nil
+}
+
+func DetectAgents() []string {
+	home, _ := os.UserHomeDir()
+	markers := []struct {
+		agent string
+		path  string
+	}{
+		{"claude", filepath.Join(home, ".claude", "CLAUDE.md")},
+		{"codex", filepath.Join(home, ".codex", "AGENTS.md")},
+		{"gemini", filepath.Join(home, ".gemini", "GEMINI.md")},
+		{"hermes", filepath.Join(home, "SOUL.md")},
+	}
+	var found []string
+	for _, m := range markers {
+		if _, err := os.Stat(m.path); err == nil {
+			found = append(found, m.agent)
+		}
+	}
+	return found
 }
 
 func Install() error {

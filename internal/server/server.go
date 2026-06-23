@@ -36,6 +36,7 @@ type TokenInfo struct {
 	Token     string `json:"token"`
 	Name      string `json:"name"`
 	CreatedAt string `json:"created_at"`
+	LastSeen  string `json:"last_seen"`
 }
 
 type StatusResponse struct {
@@ -124,9 +125,18 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		token := strings.TrimPrefix(header, "Bearer ")
 
-		s.mu.RLock()
-		_, validToken := s.tokens[token]
-		s.mu.RUnlock()
+		s.mu.Lock()
+		info, validToken := s.tokens[token]
+		if validToken {
+			now := time.Now().UTC()
+			prev, _ := time.Parse(time.RFC3339, info.LastSeen)
+			info.LastSeen = now.Format(time.RFC3339)
+			s.tokens[token] = info
+			if now.Sub(prev) > time.Minute {
+				s.saveTokens()
+			}
+		}
+		s.mu.Unlock()
 
 		if !validToken {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -326,7 +336,7 @@ func (s *Server) tokensList(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.RUnlock()
 	var list []TokenInfo
 	for _, t := range s.tokens {
-		list = append(list, TokenInfo{Name: t.Name, CreatedAt: t.CreatedAt})
+		list = append(list, TokenInfo{Name: t.Name, CreatedAt: t.CreatedAt, LastSeen: t.LastSeen})
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name })
 	jsonReply(w, list)

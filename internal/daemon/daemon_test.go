@@ -1,9 +1,25 @@
 package daemon
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestDetectAgents(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	os.MkdirAll(filepath.Join(home, ".claude"), 0755)
+	os.WriteFile(filepath.Join(home, ".claude", "CLAUDE.md"), []byte("x"), 0644)
+	os.MkdirAll(filepath.Join(home, ".codex"), 0755)
+	os.WriteFile(filepath.Join(home, ".codex", "AGENTS.md"), []byte("x"), 0644)
+
+	got := DetectAgents()
+	if len(got) != 2 || got[0] != "claude" || got[1] != "codex" {
+		t.Fatalf("expected [claude codex], got %v", got)
+	}
+}
 
 func TestPlistContent(t *testing.T) {
 	p := PlistContent("/usr/local/bin/ruche")
