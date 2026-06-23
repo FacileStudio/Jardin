@@ -52,7 +52,7 @@
 </script>
 
 <svelte:head>
-	<title>Ruche — Shared Agent Brain</title>
+	<title>Ruche — Shared Agent Memory</title>
 	<meta name="description" content="Un cerveau partagé pour vos agents IA. Mémoire, règles et compétences synchronisées entre Claude, Gemini, Codex et toutes vos machines." />
 </svelte:head>
 
@@ -156,7 +156,7 @@
 					<div class="mb-4 {ico}">
 						<Icon icon="solar:notebook-bold-duotone" class="size-6 text-zinc-900" />
 					</div>
-					<h3 class="text-lg font-bold tracking-tight">Brain</h3>
+					<h3 class="text-lg font-bold tracking-tight">Memory</h3>
 					<p class="mt-2 text-sm leading-relaxed text-zinc-500">
 						Wiki partagé en markdown. Bugs, outils, projets, conventions — vos agents apprennent de chaque session et partagent ce savoir entre eux.
 					</p>

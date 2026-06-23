@@ -24,7 +24,7 @@ brews:
       name: homebrew-tap
     name: ruche
     homepage: https://github.com/FacileStudio/Ruche
-    description: Shared agent brain across AI coding agents and machines
+    description: Shared agent memory across AI coding agents and machines
 
 checksum:
   name_template: checksums.txt
