@@ -45,6 +45,7 @@ export interface TokenInfo {
 	token: string;
 	name: string;
 	created_at: string;
+	last_seen: string;
 }
 
 export interface FileEntry {

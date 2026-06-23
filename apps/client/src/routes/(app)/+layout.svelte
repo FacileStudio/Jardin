@@ -12,6 +12,7 @@
 		{ label: 'Memory', href: '/memory', icon: 'solar:notebook-linear' },
 		{ label: 'Rules', href: '/rules', icon: 'solar:ruler-angular-linear' },
 		{ label: 'Skills', href: '/skills', icon: 'solar:bolt-circle-linear' },
+		{ label: 'Machines', href: '/machines', icon: 'solar:server-square-linear' },
 		{ label: 'Settings', href: '/settings', icon: 'solar:settings-linear' }
 	];
 
