@@ -148,6 +148,7 @@ func (s *Server) authConfig(w http.ResponseWriter, r *http.Request) {
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Password string `json:"password"`
+		Machine  string `json:"machine"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -158,11 +159,21 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	name := strings.TrimSpace(req.Machine)
+	if name == "" {
+		name = "session"
+	}
+
 	token := generateToken()
 	s.mu.Lock()
+	for k, v := range s.tokens {
+		if v.Name == name {
+			delete(s.tokens, k)
+		}
+	}
 	s.tokens[token] = TokenInfo{
 		Token:     token,
-		Name:      "session",
+		Name:      name,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 	s.saveTokens()

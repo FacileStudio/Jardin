@@ -22,6 +22,19 @@ var loginCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		serverURL := strings.TrimRight(args[0], "/")
 
+		cfg, err := config.LoadRucheConfig()
+		if err != nil {
+			return err
+		}
+
+		machine := loginMachine
+		if machine == "" {
+			machine = cfg.Machine
+		}
+		if machine == "" {
+			machine, _ = os.Hostname()
+		}
+
 		fmt.Print("Password: ")
 		raw, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
@@ -30,7 +43,7 @@ var loginCmd = &cobra.Command{
 		}
 		password := string(raw)
 
-		body, _ := json.Marshal(map[string]string{"password": password})
+		body, _ := json.Marshal(map[string]string{"password": password, "machine": machine})
 		resp, err := http.Post(serverURL+"/api/auth/login", "application/json", bytes.NewReader(body))
 		if err != nil {
 			return fmt.Errorf("connection failed: %w", err)
@@ -49,22 +62,22 @@ var loginCmd = &cobra.Command{
 			return fmt.Errorf("invalid response: %w", err)
 		}
 
-		cfg, err := config.LoadRucheConfig()
-		if err != nil {
-			return err
-		}
 		cfg.URL = serverURL
 		cfg.Token = result.Token
+		cfg.Machine = machine
 		if err := config.SaveRucheConfig(cfg); err != nil {
 			return err
 		}
 
-		color.Green("Logged in to %s", serverURL)
+		color.Green("Logged in to %s as %s", serverURL, machine)
 		fmt.Printf("Config saved to %s\n", config.ConfigPath())
 		return nil
 	},
 }
 
+var loginMachine string
+
 func init() {
+	loginCmd.Flags().StringVarP(&loginMachine, "machine", "m", "", "machine name to register (default: config machine or hostname)")
 	rootCmd.AddCommand(loginCmd)
 }
