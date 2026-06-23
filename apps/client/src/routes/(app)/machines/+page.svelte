@@ -2,10 +2,11 @@
 	import Icon from '@iconify/svelte';
 	import { backend, type TokenInfo } from '$lib/backend';
 
-	let machines: TokenInfo[] = $state([]);
+	let tokens: TokenInfo[] = $state([]);
+	let machines = $derived(tokens.filter((t) => t.name !== 'session'));
 
 	$effect(() => {
-		const load = () => backend.tokensList().then((t) => (machines = t)).catch(() => {});
+		const load = () => backend.tokensList().then((t) => (tokens = t)).catch(() => {});
 		load();
 		const id = setInterval(load, 30000);
 		return () => clearInterval(id);
