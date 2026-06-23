@@ -41,7 +41,7 @@ go install github.com/FacileStudio/Ruche@latest
 
 ```bash
 ruche init                              # scaffold ~/.ruche (memory, rules, skills, machines)
-ruche login https://ruche.facile.studio # authenticate this machine, save sync config
+ruche login https://ruche.facile.studio # opens your browser to authorize this machine
 ruche sync                              # pull the shared brain
 ruche install --all                     # generate config for every agent (or: ruche install claude)
 ruche daemon install                    # optional: background sync every 5 min

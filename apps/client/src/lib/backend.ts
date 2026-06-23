@@ -81,5 +81,15 @@ export const backend = {
 	tokensDelete: (name: string) => request<void>('DELETE', `/tokens/${name}`),
 
 	login: (password: string) => request<{ token: string }>('POST', '/auth/login', { password }),
-	getAuthConfig: () => request<{ sso_only: boolean; oidc_enabled: boolean }>('GET', '/auth/config')
+	getAuthConfig: () => request<{ sso_only: boolean; oidc_enabled: boolean }>('GET', '/auth/config'),
+
+	deviceInfo: (code: string) =>
+		request<{ user_code: string; machine: string; ip: string; status: string }>(
+			'GET',
+			`/auth/device/info?code=${encodeURIComponent(code)}`
+		),
+	deviceApprove: (userCode: string) =>
+		request<{ machine: string }>('POST', '/auth/device/approve', { user_code: userCode }),
+	deviceDeny: (userCode: string) =>
+		request<void>('POST', '/auth/device/deny', { user_code: userCode })
 };

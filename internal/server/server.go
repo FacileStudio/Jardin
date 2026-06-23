@@ -30,11 +30,14 @@ const (
 )
 
 type Server struct {
-	DataDir  string
-	Password string
-	mu       sync.RWMutex
-	tokens   map[string]TokenInfo
-	logins   *rateLimiter
+	DataDir   string
+	Password  string
+	mu        sync.RWMutex
+	tokens    map[string]TokenInfo
+	logins    *rateLimiter
+	devices   *deviceStore
+	devStarts *rateLimiter
+	devPolls  *rateLimiter
 }
 
 type FileEntry struct {
@@ -60,10 +63,13 @@ type StatusResponse struct {
 
 func New(dataDir, password string) *Server {
 	s := &Server{
-		DataDir:  dataDir,
-		Password: password,
-		tokens:   make(map[string]TokenInfo),
-		logins:   newRateLimiter(loginMaxAttempts, loginWindow),
+		DataDir:   dataDir,
+		Password:  password,
+		tokens:    make(map[string]TokenInfo),
+		logins:    newRateLimiter(loginMaxAttempts, loginWindow),
+		devices:   newDeviceStore(),
+		devStarts: newRateLimiter(20, time.Minute),
+		devPolls:  newRateLimiter(120, time.Minute),
 	}
 	s.loadTokens()
 	return s
@@ -129,6 +135,12 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/auth/config", s.authConfig)
 	mux.HandleFunc("POST /api/auth/login", s.login)
+
+	mux.HandleFunc("POST /api/auth/device/start", s.deviceStart)
+	mux.HandleFunc("POST /api/auth/device/poll", s.devicePoll)
+	mux.HandleFunc("GET /api/auth/device/info", s.auth(true, s.deviceInfo))
+	mux.HandleFunc("POST /api/auth/device/approve", s.auth(true, s.deviceApprove))
+	mux.HandleFunc("POST /api/auth/device/deny", s.auth(true, s.deviceDeny))
 
 	mux.HandleFunc("GET /api/status", s.auth(false, s.status))
 
@@ -228,14 +240,25 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		scope = scopeAdmin
 	}
 
-	token, err := generateToken()
+	token, err := s.mintToken(name, scope)
 	if err != nil {
 		log.Printf("login: token generation failed: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	hash := hashToken(token)
 
+	jsonReply(w, map[string]string{"token": token})
+}
+
+// mintToken generates a new bearer token, stores its hash under the given
+// machine name (replacing any prior token with the same name), and returns the
+// plaintext token to hand to the caller exactly once.
+func (s *Server) mintToken(name, scope string) (string, error) {
+	token, err := generateToken()
+	if err != nil {
+		return "", err
+	}
+	hash := hashToken(token)
 	s.mu.Lock()
 	for k, v := range s.tokens {
 		if v.Name == name {
@@ -250,8 +273,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	s.saveTokens()
 	s.mu.Unlock()
-
-	jsonReply(w, map[string]string{"token": token})
+	return token, nil
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {

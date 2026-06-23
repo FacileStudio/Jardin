@@ -13,9 +13,13 @@
 	let oidcEnabled = $state(false);
 	let configLoaded = $state(false);
 
+	let redirect = $state('/memory');
+
 	onMount(async () => {
+		const target = new URL(window.location.href).searchParams.get('redirect');
+		if (target && target.startsWith('/')) redirect = target;
 		if (localStorage.getItem(TOKEN_KEY)) {
-			goto('/memory');
+			goto(redirect);
 			return;
 		}
 		try {
@@ -33,7 +37,7 @@
 		try {
 			const { token } = await backend.login(password);
 			localStorage.setItem(TOKEN_KEY, token);
-			goto('/memory');
+			goto(redirect);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Something went wrong';
 		} finally {
