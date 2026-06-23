@@ -47,12 +47,22 @@ export interface TokenInfo {
 	created_at: string;
 }
 
+export interface FileEntry {
+	path: string;
+	checksum: string;
+	size: number;
+	mod_time: string;
+}
+
 export const backend = {
 	status: () => request<RucheStatus>('GET', '/status'),
 
 	memorySearch: (query: string) =>
 		request<{ path: string; line: number; content: string }[]>('GET', `/memory/search?q=${encodeURIComponent(query)}`),
 	memoryIndex: () => request<string>('GET', '/memory/index'),
+
+	syncTree: () => request<FileEntry[]>('GET', '/sync/tree'),
+	syncFile: (path: string) => request<string>('GET', `/sync/files/${path}`),
 
 	rulesList: () => request<string[]>('GET', '/rules'),
 	ruleGet: (name: string) => request<string>('GET', `/rules/${name}`),
