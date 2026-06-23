@@ -60,7 +60,7 @@
 
 <div class="space-y-6">
 	<div>
-		<h2 class="text-xl font-semibold">Memory</h2>
+		<h2 class="text-2xl font-semibold tracking-tight">Memory</h2>
 		<p class="text-sm text-muted-foreground">Browse and search your shared agent memory.</p>
 	</div>
 

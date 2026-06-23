@@ -32,7 +32,7 @@
 
 <div class="space-y-6">
 	<div>
-		<h2 class="text-xl font-semibold">Machines</h2>
+		<h2 class="text-2xl font-semibold tracking-tight">Machines</h2>
 		<p class="text-sm text-muted-foreground">Machines and agents syncing with this brain. Connected = synced in the last ~10 min.</p>
 	</div>
 

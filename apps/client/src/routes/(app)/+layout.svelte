@@ -70,7 +70,7 @@
 		</aside>
 
 		<main class="flex-1 overflow-auto">
-			<div class="mx-auto max-w-4xl p-6">
+			<div class="mx-auto max-w-5xl p-6 md:p-8">
 				{@render children()}
 			</div>
 		</main>

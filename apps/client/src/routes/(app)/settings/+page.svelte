@@ -37,7 +37,7 @@
 
 <div class="space-y-8">
 	<div>
-		<h2 class="text-xl font-semibold">Settings</h2>
+		<h2 class="text-2xl font-semibold tracking-tight">Settings</h2>
 		<p class="text-sm text-muted-foreground">Connect your agents and manage sync tokens.</p>
 	</div>
 
