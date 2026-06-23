@@ -7,6 +7,8 @@
 	let index = $state('');
 	let searching = $state(false);
 
+	let indexBody = $derived(index.replace(/^#\s+.*(\r?\n)?/, '').trim());
+
 	$effect(() => {
 		backend.memoryIndex().then((i) => (index = i)).catch(() => {});
 	});
@@ -26,7 +28,7 @@
 
 <div class="space-y-6">
 	<div>
-		<h2 class="text-xl font-semibold">Brain</h2>
+		<h2 class="text-xl font-semibold">Memory</h2>
 		<p class="text-sm text-muted-foreground">Search and browse your agent memory.</p>
 	</div>
 
@@ -58,9 +60,13 @@
 		</div>
 	{/if}
 
-	{#if index}
+	{#if indexBody}
 		<div>
-			<pre class="whitespace-pre-wrap rounded-lg border border-border bg-accent p-4 text-sm">{index}</pre>
+			<pre class="whitespace-pre-wrap rounded-lg border border-border bg-accent p-4 text-sm">{indexBody}</pre>
+		</div>
+	{:else if results.length === 0}
+		<div class="rounded-lg border border-dashed border-border p-8 text-center">
+			<p class="text-sm text-muted-foreground">No memories yet. Your agents will fill this in as they learn.</p>
 		</div>
 	{/if}
 </div>
