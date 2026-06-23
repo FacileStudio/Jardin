@@ -15,19 +15,30 @@ builds:
       - -s -w -X github.com/FacileStudio/Ruche/cmd.version={{.Version}}
 
 archives:
-  - format: tar.gz
+  - formats:
+      - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-
-brews:
-  - repository:
-      owner: FacileStudio
-      name: homebrew-tap
-    name: ruche
-    homepage: https://github.com/FacileStudio/Ruche
-    description: Shared agent memory across AI coding agents and machines
 
 checksum:
   name_template: checksums.txt
+
+brews:
+  - name: ruche
+    homepage: https://github.com/FacileStudio/Ruche
+    description: Shared agent memory across AI coding agents and machines
+    directory: Formula
+    repository:
+      owner: FacileStudio
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    install: |
+      bin.install "ruche"
+    test: |
+      system "#{bin}/ruche --version"
 
 changelog:
   sort: asc
