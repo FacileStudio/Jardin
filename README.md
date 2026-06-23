@@ -93,7 +93,10 @@ Agents: `claude`, `codex`, `gemini`, `cursor`, `copilot`, `hermes`.
   `~/.codex/skills/<name>/SKILL.md`; and so on. Adding an agent is one small file
   in `internal/adapter/`.
 - **Sync** is plain markdown over HTTP with a per-machine Bearer token (tokens are
-  hashed at rest, scoped, and rate-limited on the server).
+  hashed at rest, scoped, and rate-limited on the server). It's a three-way reconcile
+  against a local base manifest: your edits push, others' edits pull, deletions
+  propagate, and a true edit-vs-edit conflict keeps a `.conflict` backup instead of
+  losing a version. `ruche push` / `pull` force one direction when you want it.
 
 ## Self-hosting
 

@@ -50,5 +50,5 @@ git tag v0.x.x && git push --tags
 - Client config is YAML at `~/.ruche.yml`; data lives under `~/.ruche` (or `$DATA_DIR`)
 - Storage is plain markdown files synced over HTTP to a Ruche server; auth is a Bearer token per machine, obtained via `ruche login <url>`
 - Each adapter is a pure function `(rules + skills + machine) -> agent config`, self-registers via `init()` in `internal/adapter/`, and writes the format its agent expects
-- Sync is checksum-based with no merge: `sync` pulls then pushes, so **remote wins on conflict** — use `ruche push` to force local changes up
+- Sync is a three-way reconcile against a local base manifest (`~/.ruche/.sync-base.json`): local edits push, remote edits pull, deletes propagate both ways, and a genuine edit-vs-edit conflict keeps a `<path>.conflict` backup (never silent loss). `ruche push`/`pull` force one direction
 - The copy-paste master prompt shown in the dashboard lives in `apps/client/src/lib/agentPrompt.ts`

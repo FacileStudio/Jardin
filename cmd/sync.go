@@ -9,42 +9,55 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func syncClient() (*hsync.Client, string, error) {
+	cfg, err := config.LoadRucheConfig()
+	if err != nil {
+		return nil, "", err
+	}
+	if cfg.URL == "" {
+		return nil, "", fmt.Errorf("sync not configured — run 'ruche login <url>'")
+	}
+	return hsync.NewClient(cfg.URL, cfg.Token), config.DataDir(), nil
+}
+
+func printResult(res *hsync.Result) {
+	for _, f := range res.Downloaded {
+		color.Cyan("  ↓ %s", f)
+	}
+	for _, f := range res.Uploaded {
+		color.Green("  ↑ %s", f)
+	}
+	for _, f := range res.DeletedLocal {
+		color.Red("  ✗ %s (removed locally)", f)
+	}
+	for _, f := range res.DeletedRemote {
+		color.Red("  ✗ %s (removed on server)", f)
+	}
+	for _, f := range res.Conflicts {
+		color.Yellow("  ! %s", f)
+	}
+}
+
 var syncCmd = &cobra.Command{
 	Use:   "sync",
-	Short: "Push and pull changes to sync server",
+	Short: "Reconcile local and server changes (push + pull + deletes)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadRucheConfig()
+		client, dataDir, err := syncClient()
 		if err != nil {
 			return err
 		}
-		if cfg.URL == "" {
-			return fmt.Errorf("sync not configured — run 'ruche login <url>'")
-		}
-
-		client := hsync.NewClient(cfg.URL, cfg.Token)
-		dataDir := config.DataDir()
-
-		pullPlan, err := client.Pull(dataDir)
+		res, err := client.Sync(dataDir)
 		if err != nil {
-			return fmt.Errorf("pull: %w", err)
+			return err
 		}
-		for _, f := range pullPlan.Download {
-			color.Cyan("  ↓ %s", f)
-		}
-
-		pushPlan, err := client.Push(dataDir)
-		if err != nil {
-			return fmt.Errorf("push: %w", err)
-		}
-		for _, f := range pushPlan.Upload {
-			color.Green("  ↑ %s", f)
-		}
-
-		total := len(pullPlan.Download) + len(pushPlan.Upload)
-		if total == 0 {
+		printResult(res)
+		if res.Total() == 0 {
 			fmt.Println("Already in sync.")
 		} else {
-			fmt.Printf("Synced %d file(s).\n", total)
+			fmt.Printf("Synced %d change(s).\n", res.Total())
+		}
+		if len(res.Conflicts) > 0 {
+			color.Yellow("Resolve conflicts by editing the file and deleting its .conflict backup, then sync again.")
 		}
 		return nil
 	},
@@ -52,25 +65,18 @@ var syncCmd = &cobra.Command{
 
 var pushCmd = &cobra.Command{
 	Use:   "push",
-	Short: "Push local changes to sync server",
+	Short: "Force local changes up, overwriting the server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadRucheConfig()
+		client, dataDir, err := syncClient()
 		if err != nil {
 			return err
 		}
-		if cfg.URL == "" {
-			return fmt.Errorf("sync not configured — run 'ruche login <url>'")
-		}
-
-		client := hsync.NewClient(cfg.URL, cfg.Token)
-		plan, err := client.Push(config.DataDir())
+		res, err := client.Push(dataDir)
 		if err != nil {
 			return err
 		}
-		for _, f := range plan.Upload {
-			color.Green("  ↑ %s", f)
-		}
-		if len(plan.Upload) == 0 {
+		printResult(res)
+		if res.Total() == 0 {
 			fmt.Println("Nothing to push.")
 		}
 		return nil
@@ -79,25 +85,18 @@ var pushCmd = &cobra.Command{
 
 var pullCmd = &cobra.Command{
 	Use:   "pull",
-	Short: "Pull changes from sync server",
+	Short: "Force server changes down, overwriting local",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadRucheConfig()
+		client, dataDir, err := syncClient()
 		if err != nil {
 			return err
 		}
-		if cfg.URL == "" {
-			return fmt.Errorf("sync not configured — run 'ruche login <url>'")
-		}
-
-		client := hsync.NewClient(cfg.URL, cfg.Token)
-		plan, err := client.Pull(config.DataDir())
+		res, err := client.Pull(dataDir)
 		if err != nil {
 			return err
 		}
-		for _, f := range plan.Download {
-			color.Cyan("  ↓ %s", f)
-		}
-		if len(plan.Download) == 0 {
+		printResult(res)
+		if res.Total() == 0 {
 			fmt.Println("Nothing to pull.")
 		}
 		return nil

@@ -152,6 +152,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/sync/tree", s.auth(false, s.syncTree))
 	mux.HandleFunc("GET /api/sync/files/{path...}", s.auth(false, s.syncGetFile))
 	mux.HandleFunc("PUT /api/sync/files/{path...}", s.auth(false, s.syncPutFile))
+	mux.HandleFunc("DELETE /api/sync/files/{path...}", s.auth(false, s.syncDeleteFile))
 
 	return mux
 }
@@ -434,6 +435,20 @@ func (s *Server) syncPutFile(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) syncDeleteFile(w http.ResponseWriter, r *http.Request) {
+	full, ok := s.resolveSyncPath(r.PathValue("path"))
+	if !ok {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
+	}
+	if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
+		log.Printf("sync delete: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) tokensList(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -499,7 +514,7 @@ func (s *Server) tokensDelete(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) resolveSyncPath(rel string) (string, bool) {
 	clean := strings.TrimPrefix(filepath.Clean("/"+rel), "/")
-	if clean == "." || clean == "tokens.json" || strings.HasPrefix(clean, ".") {
+	if clean == "." || clean == "tokens.json" || strings.HasPrefix(clean, ".") || strings.HasSuffix(clean, ".conflict") {
 		return "", false
 	}
 	full := filepath.Join(s.DataDir, clean)
@@ -510,7 +525,7 @@ func (s *Server) resolveSyncPath(rel string) (string, bool) {
 }
 
 func syncSkip(rel string) bool {
-	return rel == "tokens.json" || strings.HasPrefix(rel, ".")
+	return rel == "tokens.json" || strings.HasPrefix(rel, ".") || strings.HasSuffix(rel, ".conflict")
 }
 
 func safeName(name string) (string, bool) {
