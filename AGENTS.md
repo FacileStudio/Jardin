@@ -25,26 +25,18 @@ git tag v0.x.x && git push --tags
 ```
 .
 ├── main.go
-├── cmd/
-│   ├── root.go
-│   ├── init.go
-│   ├── login.go
-│   ├── serve.go
-│   ├── status.go
-│   ├── sync.go
-│   ├── install.go
-│   ├── diff.go
-│   ├── memory.go
-│   ├── rules.go
-│   └── skills.go
+├── cmd/                # cobra commands (one file per command)
+│   ├── root.go init.go login.go status.go
+│   ├── sync.go install.go diff.go daemon.go
+│   └── memory.go rules.go skills.go serve.go
 ├── internal/
-│   ├── config/
-│   ├── cell/
-│   ├── adapter/
-│   ├── memory/
-│   ├── perception/
-│   ├── server/
-│   └── sync/
+│   ├── config/         # ~/.ruche.yml + paths
+│   ├── cell/           # local store: read rules/skills/machine, scaffold
+│   ├── adapter/        # one file per agent (claude, codex, gemini, cursor, copilot, hermes)
+│   ├── memory/         # memory search + index
+│   ├── daemon/         # background sync service (launchd/systemd)
+│   ├── server/         # sync API + dashboard backend
+│   └── sync/           # HTTP client: push/pull by checksum
 ├── apps/client/       # SvelteKit dashboard
 ├── Dockerfile
 ├── docker-compose.yml
@@ -57,4 +49,6 @@ git tag v0.x.x && git push --tags
 - No inline comments in code
 - Client config is YAML at `~/.ruche.yml`; data lives under `~/.ruche` (or `$DATA_DIR`)
 - Storage is plain markdown files synced over HTTP to a Ruche server; auth is a Bearer token per machine, obtained via `ruche login <url>`
-- Each adapter is a pure function: (rules + skills + machine) -> agent config
+- Each adapter is a pure function `(rules + skills + machine) -> agent config`, self-registers via `init()` in `internal/adapter/`, and writes the format its agent expects
+- Sync is checksum-based with no merge: `sync` pulls then pushes, so **remote wins on conflict** — use `ruche push` to force local changes up
+- The copy-paste master prompt shown in the dashboard lives in `apps/client/src/lib/agentPrompt.ts`
