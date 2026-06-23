@@ -1,9 +1,17 @@
 <script lang="ts">
 	import { backend, type TokenInfo } from '$lib/backend';
+	import { AGENT_PROMPT } from '$lib/agentPrompt';
 
 	let tokens: TokenInfo[] = $state([]);
 	let newTokenName = $state('');
 	let createdToken = $state('');
+	let promptCopied = $state(false);
+
+	async function copyPrompt() {
+		await navigator.clipboard.writeText(AGENT_PROMPT);
+		promptCopied = true;
+		setTimeout(() => (promptCopied = false), 2000);
+	}
 
 	$effect(() => {
 		backend.tokensList().then((t) => (tokens = t)).catch(() => {});
@@ -30,8 +38,30 @@
 <div class="space-y-8">
 	<div>
 		<h2 class="text-xl font-semibold">Settings</h2>
-		<p class="text-sm text-muted-foreground">Manage API tokens for sync.</p>
+		<p class="text-sm text-muted-foreground">Connect your agents and manage sync tokens.</p>
 	</div>
+
+	<section class="space-y-4">
+		<div>
+			<h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Connect your agents</h3>
+			<p class="mt-1 text-sm text-muted-foreground">
+				Paste this into an agent's master prompt (CLAUDE.md, AGENTS.md, GEMINI.md…) so it knows
+				how to read, write, and sync the shared brain. It assumes the
+				<code class="rounded bg-accent px-1 py-0.5 text-xs">ruche</code> CLI is installed and
+				logged in (<code class="rounded bg-accent px-1 py-0.5 text-xs">ruche login https://ruche.facile.studio</code>).
+			</p>
+		</div>
+
+		<div class="relative">
+			<button
+				onclick={copyPrompt}
+				class="absolute right-2 top-2 z-10 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-accent"
+			>
+				{promptCopied ? 'Copied!' : 'Copy'}
+			</button>
+			<pre class="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-accent p-4 pr-16 text-xs leading-relaxed">{AGENT_PROMPT}</pre>
+		</div>
+	</section>
 
 	{#if createdToken}
 		<div class="rounded-lg border border-green-200 bg-green-50 p-4">
