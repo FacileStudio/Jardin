@@ -65,6 +65,7 @@ prompt into each agent so it knows how to read, write, and sync the shared brain
 | `ruche install [agent] \| --all` | Generate agent config from rules + skills + machine |
 | `ruche diff <agent>` | Preview what `install` would change |
 | `ruche daemon install` / `uninstall` / `status` | Manage the background sync service |
+| `ruche update` (alias `upgrade`) | Self-update to the latest release |
 | `ruche serve` | Run the sync server + dashboard API (self-host) |
 
 Agents: `claude`, `codex`, `gemini`, `cursor`, `copilot`, `hermes`.
@@ -108,8 +109,9 @@ docker compose up -d        # server + SvelteKit dashboard
 ruche serve
 ```
 
-The dashboard (`apps/client`, SvelteKit) lets you browse memory, rules, skills, and
-machines, manage sync tokens, and copy the master prompt.
+The dashboard (`apps/client`, SvelteKit) lets you browse and edit memory, rules, and
+skills, manage machines and sync tokens, authorize new devices, and copy the master
+prompt — the whole brain, from the browser.
 
 ## Development
 
