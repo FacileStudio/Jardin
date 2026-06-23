@@ -3,6 +3,7 @@
 	import { AGENT_PROMPT } from '$lib/agentPrompt';
 
 	let tokens: TokenInfo[] = $state([]);
+	let apiTokens = $derived(tokens.filter((t) => t.name !== 'session'));
 	let newTokenName = $state('');
 	let createdToken = $state('');
 	let promptCopied = $state(false);
@@ -97,9 +98,9 @@
 			</button>
 		</form>
 
-		{#if tokens.length > 0}
+		{#if apiTokens.length > 0}
 			<div class="space-y-2">
-				{#each tokens as token}
+				{#each apiTokens as token}
 					<div class="flex items-center justify-between rounded-lg border border-border px-4 py-3">
 						<div>
 							<p class="text-sm font-medium">{token.name}</p>
