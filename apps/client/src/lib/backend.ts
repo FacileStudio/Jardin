@@ -65,6 +65,8 @@ export const backend = {
 
 	syncTree: () => request<FileEntry[]>('GET', '/sync/tree'),
 	syncFile: (path: string) => request<string>('GET', `/sync/files/${path}`),
+	syncFilePut: (path: string, content: string) => request<void>('PUT', `/sync/files/${path}`, content),
+	syncFileDelete: (path: string) => request<void>('DELETE', `/sync/files/${path}`),
 
 	rulesList: () => request<string[]>('GET', '/rules'),
 	ruleGet: (name: string) => request<string>('GET', `/rules/${name}`),

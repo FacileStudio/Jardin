@@ -1,15 +1,15 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { goto } from '$app/navigation';
 	import { backend, type FileEntry } from '$lib/backend';
+
+	const FOLDERS = ['', 'bugs', 'tools', 'projects', 'conventions', 'syntheses'];
 
 	let query = $state('');
 	let results: { path: string; line: number; content: string }[] = $state([]);
 	let searching = $state(false);
 
 	let files: FileEntry[] = $state([]);
-	let selected = $state('');
-	let content = $state('');
-	let loadingContent = $state(false);
 
 	$effect(() => {
 		backend
@@ -32,17 +32,21 @@
 		return path.split('/').pop()!.replace(/\.md$/, '');
 	}
 
-	async function open(path: string) {
-		selected = path;
-		loadingContent = true;
-		content = '';
-		try {
-			content = await backend.syncFile(path);
-		} catch {
-			content = '';
-		} finally {
-			loadingContent = false;
+	async function addPage() {
+		const folder = prompt(`Folder (${FOLDERS.slice(1).join(', ')}, or leave empty for root):`, '');
+		if (folder === null) return;
+		const f = folder.trim().replace(/^\/+|\/+$/g, '');
+		if (f && !FOLDERS.includes(f)) {
+			alert(`Unknown folder "${f}". Use one of: ${FOLDERS.slice(1).join(', ')} or leave empty.`);
+			return;
 		}
+		const rawName = prompt('Page name (e.g. my-finding):');
+		if (!rawName) return;
+		let name = rawName.trim().replace(/^\/+/, '');
+		if (!name.endsWith('.md')) name += '.md';
+		const path = f ? `memory/${f}/${name}` : `memory/${name}`;
+		await backend.syncFilePut(path, `# ${name.replace(/\.md$/, '')}\n`);
+		goto(`/memory/${path.slice('memory/'.length)}`);
 	}
 
 	async function search() {
@@ -58,10 +62,16 @@
 	}
 </script>
 
-<div class="space-y-6">
-	<div>
-		<h2 class="text-2xl font-semibold tracking-tight">Memory</h2>
-		<p class="text-sm text-muted-foreground">Browse and search your shared agent memory.</p>
+<div class="space-y-7">
+	<div class="flex items-end justify-between gap-4">
+		<div>
+			<h2 class="text-2xl font-semibold tracking-tight">Memory</h2>
+			<p class="mt-1 text-sm text-muted-foreground">Browse, search, and curate your shared agent memory.</p>
+		</div>
+		<button onclick={addPage} class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+			<Icon icon="solar:add-circle-linear" class="size-4" />
+			New page
+		</button>
 	</div>
 
 	<form onsubmit={(e) => { e.preventDefault(); search(); }} class="flex gap-2">
@@ -84,51 +94,47 @@
 	{#if results.length > 0}
 		<div class="space-y-1">
 			{#each results as r}
-				<button onclick={() => open(r.path.startsWith('memory/') ? r.path : `memory/${r.path}`)} class="block w-full rounded-lg border border-border px-3 py-2 text-left hover:bg-accent">
+				{@const rp = r.path.startsWith('memory/') ? r.path.slice('memory/'.length) : r.path}
+				<a href="/memory/{rp}" class="block w-full rounded-lg border border-border px-3 py-2 text-left hover:bg-accent">
 					<span class="text-xs font-medium text-primary">{r.path}:{r.line}</span>
 					<p class="text-sm">{r.content}</p>
-				</button>
+				</a>
 			{/each}
 		</div>
 	{/if}
 
 	{#if files.length === 0}
-		<div class="rounded-lg border border-dashed border-border p-8 text-center">
-			<p class="text-sm text-muted-foreground">No memories yet. Your agents will fill this in as they learn.</p>
+		<div class="rounded-xl border border-dashed border-border p-12 text-center">
+			<Icon icon="solar:notebook-linear" class="mx-auto size-6 text-muted-foreground/50" />
+			<p class="mt-2 text-sm text-muted-foreground">No memories yet. Create one or let your agents fill this in as they learn.</p>
 		</div>
 	{:else}
-		<div class="grid gap-4 md:grid-cols-[260px_1fr]">
-			<nav class="space-y-3 md:max-h-[70vh] md:overflow-auto">
-				{#each grouped as [folder, entries]}
-					<div>
-						<p class="mb-1 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-							<Icon icon={folder === '/' ? 'solar:notebook-linear' : 'solar:folder-linear'} class="size-3.5" />
-							{folder === '/' ? 'root' : folder}
-						</p>
+		<div class="space-y-6">
+			{#each grouped as [folder, entries]}
+				<div>
+					<p class="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+						<Icon icon={folder === '/' ? 'solar:notebook-linear' : 'solar:folder-linear'} class="size-3.5" />
+						{folder === '/' ? 'root' : folder}
+					</p>
+					<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 						{#each entries as f}
-							<button
-								onclick={() => open(f.path)}
-								class="block w-full truncate rounded-md px-2 py-1 text-left text-sm transition-colors {selected === f.path ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'}"
+							<a
+								href="/memory/{f.path.slice('memory/'.length)}"
+								class="group rounded-xl border border-border bg-background p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-sm"
 							>
-								{label(f.path)}
-							</button>
+								<div class="flex items-center justify-between">
+									<div class="flex size-9 items-center justify-center rounded-lg bg-accent">
+										<Icon icon="solar:document-text-linear" class="size-[18px] text-foreground" />
+									</div>
+									<Icon icon="solar:alt-arrow-right-linear" class="size-4 text-muted-foreground/30 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+								</div>
+								<p class="mt-3 truncate font-medium">{label(f.path)}</p>
+								<p class="truncate font-mono text-xs text-muted-foreground">{f.path}</p>
+							</a>
 						{/each}
 					</div>
-				{/each}
-			</nav>
-
-			<div class="min-w-0">
-				{#if loadingContent}
-					<p class="text-sm text-muted-foreground">Loading…</p>
-				{:else if selected}
-					<p class="mb-2 font-mono text-xs text-primary">{selected}</p>
-					<pre class="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-accent p-4 text-sm leading-relaxed">{content}</pre>
-				{:else}
-					<div class="flex h-full min-h-40 items-center justify-center rounded-lg border border-dashed border-border">
-						<p class="text-sm text-muted-foreground">Select a page to read it.</p>
-					</div>
-				{/if}
-			</div>
+				</div>
+			{/each}
 		</div>
 	{/if}
 </div>
