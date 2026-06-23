@@ -32,29 +32,30 @@ func ListSkills() ([]string, error) { return listMdFiles(config.SkillsDir()) }
 
 func ReadRules(order []string) ([]NamedFile, error) {
 	dir := config.RulesDir()
-	if len(order) > 0 {
-		var files []NamedFile
-		for _, name := range order {
-			content, err := readFile(filepath.Join(dir, name+".md"))
-			if err != nil {
-				return nil, err
-			}
-			files = append(files, NamedFile{Name: name, Content: content})
-		}
-		return files, nil
-	}
-
 	names, err := listMdFiles(dir)
 	if err != nil {
 		return nil, err
 	}
+
+	seen := map[string]bool{}
 	var files []NamedFile
-	for _, name := range names {
+	add := func(name string) {
+		if seen[name] {
+			return
+		}
 		content, err := readFile(filepath.Join(dir, name+".md"))
 		if err != nil {
-			return nil, err
+			return
 		}
+		seen[name] = true
 		files = append(files, NamedFile{Name: name, Content: content})
+	}
+
+	for _, name := range order {
+		add(name)
+	}
+	for _, name := range names {
+		add(name)
 	}
 	return files, nil
 }
