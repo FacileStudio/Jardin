@@ -13,6 +13,7 @@ type RucheConfig struct {
 	URL       string   `yaml:"url,omitempty"`
 	Token     string   `yaml:"token,omitempty"`
 	RuleOrder []string `yaml:"rule_order,omitempty"`
+	Agents    []string `yaml:"agents,omitempty"`
 }
 
 func DataDir() string {

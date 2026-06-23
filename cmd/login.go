@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/FacileStudio/Ruche/internal/config"
+	"github.com/FacileStudio/Ruche/internal/daemon"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -71,13 +72,24 @@ var loginCmd = &cobra.Command{
 
 		color.Green("Logged in to %s as %s", serverURL, machine)
 		fmt.Printf("Config saved to %s\n", config.ConfigPath())
+
+		if !loginNoDaemon {
+			if err := daemon.Install(); err != nil {
+				color.Yellow("Background sync not enabled: %v", err)
+				fmt.Println("Enable later with: ruche daemon install")
+			} else {
+				color.Green("Background sync enabled (every %ds). Disable with: ruche daemon uninstall", daemon.IntervalSeconds)
+			}
+		}
 		return nil
 	},
 }
 
 var loginMachine string
+var loginNoDaemon bool
 
 func init() {
 	loginCmd.Flags().StringVarP(&loginMachine, "machine", "m", "", "machine name to register (default: config machine or hostname)")
+	loginCmd.Flags().BoolVar(&loginNoDaemon, "no-daemon", false, "skip enabling the background sync service")
 	rootCmd.AddCommand(loginCmd)
 }
