@@ -69,7 +69,7 @@
 			<p class="mt-1 text-sm text-muted-foreground">Browse, search, and curate your shared agent memory.</p>
 		</div>
 		<button onclick={addPage} class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-			<Icon icon="solar:add-circle-linear" class="size-4" />
+			<Icon icon="mdi:plus" class="size-4" />
 			New page
 		</button>
 	</div>
