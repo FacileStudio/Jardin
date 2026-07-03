@@ -34,8 +34,9 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	var syncErr error
 	if out, err := exec.Command(self, "sync").CombinedOutput(); err != nil {
-		return fmt.Errorf("sync failed: %v: %s", err, out)
+		syncErr = fmt.Errorf("sync failed: %v: %s", err, out)
 	}
 	cfg, err := config.LoadRucheConfig()
 	if err != nil {
@@ -50,7 +51,7 @@ func Run() error {
 			return fmt.Errorf("install %s failed: %v: %s", agent, err, out)
 		}
 	}
-	return nil
+	return syncErr
 }
 
 func DetectAgents() []string {
@@ -59,9 +60,9 @@ func DetectAgents() []string {
 		agent string
 		path  string
 	}{
-		{"claude", filepath.Join(home, ".claude", "CLAUDE.md")},
-		{"codex", filepath.Join(home, ".codex", "AGENTS.md")},
-		{"gemini", filepath.Join(home, ".gemini", "GEMINI.md")},
+		{"claude", filepath.Join(home, ".claude")},
+		{"codex", filepath.Join(home, ".codex")},
+		{"gemini", filepath.Join(home, ".gemini")},
 		{"hermes", filepath.Join(home, "SOUL.md")},
 	}
 	var found []string

@@ -195,3 +195,20 @@ func TestSyncFreshMachinePullsAll(t *testing.T) {
 		t.Fatal("fresh pull missing content")
 	}
 }
+
+// Machine-local files (logs, tokens, dotfiles, conflict backups) never sync.
+func TestSyncSkipsMachineLocalFiles(t *testing.T) {
+	c, clientDir, _ := setup(t)
+	write(t, clientDir, "daemon.log", "local log noise")
+	write(t, clientDir, "tokens.json", "{}")
+	write(t, clientDir, "rules/a.md.conflict", "backup")
+	write(t, clientDir, "rules/a.md", "v1")
+
+	res, err := c.Sync(clientDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Uploaded) != 1 || res.Uploaded[0] != "rules/a.md" {
+		t.Fatalf("expected only rules/a.md to upload, got %+v", res)
+	}
+}

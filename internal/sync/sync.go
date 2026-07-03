@@ -103,7 +103,8 @@ func (c *Client) Delete(filePath string) error {
 func syncSkip(rel string) bool {
 	return rel == tokensFile ||
 		strings.HasPrefix(rel, ".") ||
-		strings.HasSuffix(rel, conflictExt)
+		strings.HasSuffix(rel, conflictExt) ||
+		strings.HasSuffix(rel, ".log")
 }
 
 func LocalTree(dataDir string) ([]FileEntry, error) {

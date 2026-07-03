@@ -39,8 +39,8 @@ func (c *Claude) Generate(input Input) (*Output, error) {
 	out.Files[claudeMd] = strings.Join(sections, "\n\n---\n\n") + "\n"
 
 	for _, skill := range input.Skills {
-		cmdPath := filepath.Join(home, ".claude", "commands", skill.Name+".md")
-		out.Files[cmdPath] = skill.Content
+		skillPath := filepath.Join(home, ".claude", "skills", skill.Name, "SKILL.md")
+		out.Files[skillPath] = skill.Content
 	}
 
 	return out, nil
