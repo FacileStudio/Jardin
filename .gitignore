@@ -37,3 +37,4 @@ apps/client/build/
 # Editor/IDE
 # .idea/
 # .vscode/
+.gstack/
