@@ -11,13 +11,22 @@ func TestDetectAgents(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	os.MkdirAll(filepath.Join(home, ".claude"), 0755)
-	os.WriteFile(filepath.Join(home, ".claude", "CLAUDE.md"), []byte("x"), 0644)
 	os.MkdirAll(filepath.Join(home, ".codex"), 0755)
-	os.WriteFile(filepath.Join(home, ".codex", "AGENTS.md"), []byte("x"), 0644)
 
 	got := DetectAgents()
 	if len(got) != 2 || got[0] != "claude" || got[1] != "codex" {
 		t.Fatalf("expected [claude codex], got %v", got)
+	}
+}
+
+func TestDetectAgentsWithoutGeneratedFiles(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	os.MkdirAll(filepath.Join(home, ".claude"), 0755)
+
+	got := DetectAgents()
+	if len(got) != 1 || got[0] != "claude" {
+		t.Fatalf("agent dir without generated config must still be detected, got %v", got)
 	}
 }
 

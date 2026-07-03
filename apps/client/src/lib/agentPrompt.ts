@@ -17,6 +17,10 @@ not conversation.
 A background daemon also syncs every ~5 min (\`ruche daemon status\`), but still sync
 explicitly around real work — the brain is only as shared as your last sync.
 
+If \`ruche sync\` fails (offline, sandboxed shell, server unreachable), do NOT skip the
+rest of the loop: memory is local-first. Keep reading, searching, and writing
+\`~/.ruche/memory/\` — the daemon reconciles once the network is back.
+
 ## Recall
 
 - \`ruche memory search "<query>"\` — substring search over all memory; returns \`path:line\`.
