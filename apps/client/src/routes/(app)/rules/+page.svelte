@@ -24,7 +24,7 @@
 			<p class="mt-1 text-sm text-muted-foreground">Modular instructions, concatenated into every agent config in filename order.</p>
 		</div>
 		<button onclick={addRule} class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-			<Icon icon="solar:add-circle-linear" class="size-4" />
+			<Icon icon="mdi:plus" class="size-4" />
 			New rule
 		</button>
 	</div>
