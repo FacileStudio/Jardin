@@ -22,7 +22,27 @@ func selfPath() (string, error) {
 	if err != nil {
 		return p, nil
 	}
-	return resolved, nil
+	return stablePath(resolved), nil
+}
+
+// stablePath returns a launcher path for resolved that survives upgrades.
+// Package managers install into versioned directories — Homebrew's
+// Cellar/<formula>/<version> — and expose a stable symlink on PATH. Baking the
+// versioned path into a plist or a systemd unit leaves the daemon pointing at a
+// binary that disappears on the next upgrade, which fails silently.
+func stablePath(resolved string) string {
+	onPath, err := exec.LookPath(filepath.Base(resolved))
+	if err != nil {
+		return resolved
+	}
+	abs, err := filepath.Abs(onPath)
+	if err != nil {
+		return resolved
+	}
+	if target, err := filepath.EvalSymlinks(abs); err != nil || target != resolved {
+		return resolved
+	}
+	return abs
 }
 
 func logPath() string {

@@ -47,3 +47,37 @@ func TestSystemdContent(t *testing.T) {
 		t.Error("timer missing interval")
 	}
 }
+
+func TestStablePathPrefersPathEntryOverVersionedDir(t *testing.T) {
+	dir := t.TempDir()
+	cellar := filepath.Join(dir, "Cellar", "jardin", "1.2.3", "bin")
+	if err := os.MkdirAll(cellar, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(cellar, "jardin")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stableDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(stableDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(stableDir, "jardin")
+	if err := os.Symlink(bin, link); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := filepath.EvalSymlinks(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("PATH", stableDir)
+	if got := stablePath(resolved); got != link {
+		t.Fatalf("expected the stable symlink %s, got the versioned path %s", link, got)
+	}
+
+	t.Setenv("PATH", filepath.Join(dir, "empty"))
+	if got := stablePath(resolved); got != resolved {
+		t.Fatalf("expected fallback to %s, got %s", resolved, got)
+	}
+}
