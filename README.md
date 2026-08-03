@@ -2,10 +2,10 @@
 
 **One brain for all your AI coding agents, synced across every machine.**
 
-Jardin (French for *beehive*) keeps a single canonical store of agent **memory**,
+Jardin (French for *garden*) keeps a single canonical store of agent **memory**,
 **rules**, and **skills**, then generates the native config each agent expects —
 Claude Code's `CLAUDE.md`, Codex's `AGENTS.md`, Gemini, Cursor, Copilot, Hermes —
-and syncs the whole hive over HTTP. Teach one agent something on one machine, and
+and syncs the whole garden over HTTP. Teach one agent something on one machine, and
 every other agent on every other machine knows it too.
 
 ```
@@ -26,7 +26,7 @@ markdown, and fans it out. The agents stay thin; the brain is shared.
 - **Persistent** — a tiered, MemGPT-style wiki (`overview` → `index` → topic pages)
   that agents read before acting and write back to after.
 - **Synced** — markdown over HTTP, one Bearer token per machine. Background daemon
-  keeps the hive in sync every 5 minutes.
+  keeps every machine in sync every 5 minutes.
 - **Plain files** — no database, no lock-in. It's just markdown in `~/.jardin`.
 
 ## Install
