@@ -62,12 +62,12 @@ func TestLoginRotatesTokenPerMachine(t *testing.T) {
 		t.Fatalf("expected exactly 1 lucy token, got %d", got)
 	}
 
-	loginAs(t, h, "secret", "ruche")
+	loginAs(t, h, "secret", "jardin")
 	if got := countnamed(s, "lucy"); got != 1 {
 		t.Fatalf("logging in another machine must not touch lucy, got %d", got)
 	}
-	if got := countnamed(s, "ruche"); got != 1 {
-		t.Fatalf("expected 1 ruche token, got %d", got)
+	if got := countnamed(s, "jardin"); got != 1 {
+		t.Fatalf("expected 1 jardin token, got %d", got)
 	}
 }
 

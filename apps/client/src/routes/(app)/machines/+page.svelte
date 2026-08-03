@@ -39,7 +39,7 @@
 	{#if machines.length === 0}
 		<div class="rounded-lg border border-dashed border-border p-8 text-center">
 			<p class="text-sm text-muted-foreground">
-				No machines connected yet. Run <code class="rounded bg-accent px-1 py-0.5 text-xs">ruche login https://ruche.facile.studio</code> on a machine.
+				No machines connected yet. Run <code class="rounded bg-accent px-1 py-0.5 text-xs">jardin login https://jardin.facile.studio</code> on a machine.
 			</p>
 		</div>
 	{:else}

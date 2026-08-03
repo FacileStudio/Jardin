@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/FacileStudio/Ruche/internal/cell"
-	"github.com/FacileStudio/Ruche/internal/config"
+	"github.com/FacileStudio/Jardin/internal/cell"
+	"github.com/FacileStudio/Jardin/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -13,7 +13,7 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show machine, sync state, and content summary",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadRucheConfig()
+		cfg, err := config.LoadJardinConfig()
 		if err != nil {
 			return err
 		}

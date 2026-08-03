@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { backend } from '$lib/backend';
 
-	const TOKEN_KEY = 'ruche.token';
+	const TOKEN_KEY = 'jardin.token';
 
 	let password = $state('');
 	let error = $state('');
@@ -47,14 +47,14 @@
 </script>
 
 <svelte:head>
-	<title>Log in — Ruche</title>
+	<title>Log in — Jardin</title>
 </svelte:head>
 
 <div class="flex min-h-screen">
 	<div class="hidden lg:flex lg:w-1/2 flex-col bg-black px-12 py-10">
 		<a href="/" class="flex items-center gap-3 mb-auto">
 			<Icon icon="solar:graph-new-bold-duotone" class="size-7 text-white" />
-			<span class="text-xl font-bold tracking-tight text-white">Ruche</span>
+			<span class="text-xl font-bold tracking-tight text-white">Jardin</span>
 		</a>
 
 		<div class="mb-auto">
@@ -67,7 +67,7 @@
 		</div>
 
 		<p class="text-xs text-white/30">
-			&copy; {new Date().getFullYear()} Ruche by Facile.
+			&copy; {new Date().getFullYear()} Jardin by Facile.
 		</p>
 	</div>
 
@@ -80,7 +80,7 @@
 				<p class="mt-1.5 text-sm text-muted-foreground">
 					{ssoOnly
 						? 'Connectez-vous avec votre compte organisation.'
-						: 'Connectez-vous pour accéder à Ruche.'}
+						: 'Connectez-vous pour accéder à Jardin.'}
 				</p>
 			</div>
 

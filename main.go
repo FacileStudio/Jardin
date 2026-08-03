@@ -1,6 +1,6 @@
 package main
 
-import "github.com/FacileStudio/Ruche/cmd"
+import "github.com/FacileStudio/Jardin/cmd"
 
 func main() {
 	cmd.Execute()

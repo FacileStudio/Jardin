@@ -7,7 +7,7 @@
 	let visible = $state(false);
 
 	onMount(() => {
-		if (localStorage.getItem('ruche.token')) {
+		if (localStorage.getItem('jardin.token')) {
 			goto('/memory');
 			return;
 		}
@@ -52,7 +52,7 @@
 </script>
 
 <svelte:head>
-	<title>Ruche — Shared Agent Memory</title>
+	<title>Jardin — Shared Agent Memory</title>
 	<meta name="description" content="Un cerveau partagé pour vos agents IA. Mémoire, règles et compétences synchronisées entre Claude, Gemini, Codex et toutes vos machines." />
 </svelte:head>
 
@@ -62,7 +62,7 @@
 		<div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
 			<a href="/" class="flex items-center gap-2.5">
 				<Icon icon="solar:graph-new-bold-duotone" class="size-7 text-zinc-900" />
-				<span class="text-xl font-bold tracking-tight">Ruche</span>
+				<span class="text-xl font-bold tracking-tight">Jardin</span>
 			</a>
 			<a
 				href="/login"
@@ -97,7 +97,7 @@
 						<Icon icon="solar:arrow-right-linear" class="size-4" />
 					</a>
 					<a
-						href="https://github.com/FacileStudio/Ruche"
+						href="https://github.com/FacileStudio/Jardin"
 						target="_blank"
 						rel="noopener noreferrer"
 						class="inline-flex items-center gap-2 rounded-md border border-zinc-200 px-6 py-3 text-base font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900"
@@ -120,7 +120,7 @@
 					<span class="text-zinc-500">Déployez partout.</span>
 				</h2>
 				<p use:reveal={{ delay: 200 }} class="mt-8 max-w-xl text-lg leading-relaxed text-zinc-400">
-					Vos règles et compétences sont écrites en markdown. Ruche génère automatiquement les fichiers de configuration pour chaque agent.
+					Vos règles et compétences sont écrites en markdown. Jardin génère automatiquement les fichiers de configuration pour chaque agent.
 				</p>
 
 				<div use:reveal={{ delay: 300 }} class="mt-16 grid gap-4 sm:grid-cols-3">
@@ -231,14 +231,14 @@
 					<span class="text-zinc-500">Même binaire.</span>
 				</h2>
 				<p use:reveal={{ delay: 200 }} class="mt-8 max-w-xl text-lg leading-relaxed text-zinc-400">
-					<code class="rounded bg-zinc-800 px-2 py-0.5 text-sm font-mono">ruche serve</code> lance un serveur de sync HTTP. Déployez-le sur votre VPS, connectez vos machines avec un token.
+					<code class="rounded bg-zinc-800 px-2 py-0.5 text-sm font-mono">jardin serve</code> lance un serveur de sync HTTP. Déployez-le sur votre VPS, connectez vos machines avec un token.
 				</p>
 
 				<div use:reveal={{ delay: 300 }} class="mt-12 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 font-mono text-sm">
 					<p class="text-zinc-500"># sur le serveur</p>
-					<p class="text-green-400">$ ruche serve --port 8420</p>
+					<p class="text-green-400">$ jardin serve --port 8420</p>
 					<p class="mt-4 text-zinc-500"># sur votre machine</p>
-					<p class="text-green-400">$ ruche sync</p>
+					<p class="text-green-400">$ jardin sync</p>
 					<p class="text-zinc-600 mt-1">&nbsp; ↓ memory/tools/dokploy.md</p>
 					<p class="text-zinc-600">&nbsp; ↑ rules/engineering-ladder.md</p>
 					<p class="text-zinc-600">&nbsp; Synced 2 file(s).</p>
@@ -262,7 +262,7 @@
 						Se connecter
 					</a>
 					<a
-						href="https://github.com/FacileStudio/Ruche"
+						href="https://github.com/FacileStudio/Jardin"
 						target="_blank"
 						rel="noopener noreferrer"
 						class="inline-flex h-11 items-center justify-center rounded-md border border-zinc-200 px-6 text-sm font-medium transition-colors hover:bg-zinc-50"
@@ -277,7 +277,7 @@
 
 	<footer class="border-t border-zinc-200">
 		<div class="mx-auto max-w-5xl px-6 py-6 text-center text-sm text-zinc-400">
-			&copy; {new Date().getFullYear()} Ruche by <a href="https://facile.studio" class="text-zinc-600 transition-colors hover:text-zinc-900">Facile.</a>
+			&copy; {new Date().getFullYear()} Jardin by <a href="https://facile.studio" class="text-zinc-600 transition-colors hover:text-zinc-900">Facile.</a>
 		</div>
 	</footer>
 </div>

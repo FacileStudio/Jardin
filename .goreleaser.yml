@@ -2,7 +2,7 @@ version: 2
 
 builds:
   - main: .
-    binary: ruche
+    binary: jardin
     env:
       - CGO_ENABLED=0
     goos:
@@ -12,7 +12,7 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w -X github.com/FacileStudio/Ruche/cmd.version={{.Version}}
+      - -s -w -X github.com/FacileStudio/Jardin/cmd.version={{.Version}}
 
 archives:
   - formats:
@@ -23,8 +23,8 @@ checksum:
   name_template: checksums.txt
 
 brews:
-  - name: ruche
-    homepage: https://github.com/FacileStudio/Ruche
+  - name: jardin
+    homepage: https://github.com/FacileStudio/Jardin
     description: Shared agent memory across AI coding agents and machines
     directory: Formula
     repository:
@@ -36,9 +36,9 @@ brews:
       name: goreleaserbot
       email: bot@goreleaser.com
     install: |
-      bin.install "ruche"
+      bin.install "jardin"
     test: |
-      system "#{bin}/ruche --version"
+      system "#{bin}/jardin --version"
 
 changelog:
   sort: asc

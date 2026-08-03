@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/FacileStudio/Ruche/internal/adapter"
-	"github.com/FacileStudio/Ruche/internal/cell"
-	"github.com/FacileStudio/Ruche/internal/config"
+	"github.com/FacileStudio/Jardin/internal/adapter"
+	"github.com/FacileStudio/Jardin/internal/cell"
+	"github.com/FacileStudio/Jardin/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -24,7 +24,7 @@ var installCmd = &cobra.Command{
 			return cmd.Help()
 		}
 
-		cfg, err := config.LoadRucheConfig()
+		cfg, err := config.LoadJardinConfig()
 		if err != nil {
 			return err
 		}
@@ -51,7 +51,7 @@ var installCmd = &cobra.Command{
 	},
 }
 
-func buildInput(cfg *config.RucheConfig) (*adapter.Input, error) {
+func buildInput(cfg *config.JardinConfig) (*adapter.Input, error) {
 	rules, err := cell.ReadRules(cfg.RuleOrder)
 	if err != nil {
 		return nil, fmt.Errorf("reading rules: %w", err)

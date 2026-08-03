@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/FacileStudio/Ruche/internal/server"
+	"github.com/FacileStudio/Jardin/internal/server"
 )
 
 func setup(t *testing.T) (*Client, string, string) {

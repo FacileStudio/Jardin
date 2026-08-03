@@ -19,13 +19,13 @@ import (
 )
 
 // ErrHomebrew is returned when the running binary is managed by Homebrew and
-// must be updated through `brew upgrade ruche` instead of self-replacement.
-var ErrHomebrew = errors.New("ruche is managed by Homebrew; run: brew upgrade ruche")
+// must be updated through `brew upgrade jardin` instead of self-replacement.
+var ErrHomebrew = errors.New("jardin is managed by Homebrew; run: brew upgrade jardin")
 
 const (
-	releaseURL  = "https://api.github.com/repos/FacileStudio/Ruche/releases/latest"
+	releaseURL  = "https://api.github.com/repos/FacileStudio/Jardin/releases/latest"
 	httpTimeout = 30 * time.Second
-	userAgent   = "ruche-selfupdate (+https://github.com/FacileStudio/Ruche)"
+	userAgent   = "jardin-selfupdate (+https://github.com/FacileStudio/Jardin)"
 )
 
 type asset struct {
@@ -44,7 +44,7 @@ func normalizeVersion(v string) string {
 
 // assetName returns the release tarball name for the given version, OS and arch.
 func assetName(version, goos, goarch string) string {
-	return fmt.Sprintf("Ruche_%s_%s_%s.tar.gz", normalizeVersion(version), goos, goarch)
+	return fmt.Sprintf("Jardin_%s_%s_%s.tar.gz", normalizeVersion(version), goos, goarch)
 }
 
 // updateNeeded reports whether moving from current to latest is an update.
@@ -181,7 +181,7 @@ func isHomebrew(path string) bool {
 
 func replaceBinary(realPath string, data []byte) error {
 	dir := filepath.Dir(realPath)
-	tmp, err := os.CreateTemp(dir, ".ruche-update-*")
+	tmp, err := os.CreateTemp(dir, ".jardin-update-*")
 	if err != nil {
 		if os.IsPermission(err) {
 			return fmt.Errorf("cannot write to %s: permission denied; re-run with elevated permissions or use your package manager", dir)
@@ -267,7 +267,7 @@ func Apply(current string) (newVersion string, err error) {
 		return "", fmt.Errorf("checksum mismatch for %s: got %s, want %s", name, got, want)
 	}
 
-	bin, err := extractBinary(tarball, "ruche")
+	bin, err := extractBinary(tarball, "jardin")
 	if err != nil {
 		return "", err
 	}

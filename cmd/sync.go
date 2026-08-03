@@ -3,19 +3,19 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/FacileStudio/Ruche/internal/config"
-	hsync "github.com/FacileStudio/Ruche/internal/sync"
+	"github.com/FacileStudio/Jardin/internal/config"
+	hsync "github.com/FacileStudio/Jardin/internal/sync"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
 func syncClient() (*hsync.Client, string, error) {
-	cfg, err := config.LoadRucheConfig()
+	cfg, err := config.LoadJardinConfig()
 	if err != nil {
 		return nil, "", err
 	}
 	if cfg.URL == "" {
-		return nil, "", fmt.Errorf("sync not configured — run 'ruche login <url>'")
+		return nil, "", fmt.Errorf("sync not configured — run 'jardin login <url>'")
 	}
 	return hsync.NewClient(cfg.URL, cfg.Token), config.DataDir(), nil
 }

@@ -2,7 +2,7 @@ const BASE = '/api';
 
 function getToken(): string | null {
 	if (typeof window === 'undefined') return null;
-	return localStorage.getItem('ruche.token');
+	return localStorage.getItem('jardin.token');
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -23,7 +23,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 	if (!res.ok) {
 		const text = await res.text();
 		if (res.status === 401 && typeof window !== 'undefined') {
-			localStorage.removeItem('ruche.token');
+			localStorage.removeItem('jardin.token');
 		}
 		throw new Error(text || res.statusText);
 	}
@@ -35,7 +35,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 	return res.text() as unknown as T;
 }
 
-export interface RucheStatus {
+export interface JardinStatus {
 	machine: string;
 	rules: string[];
 	skills: string[];
@@ -57,7 +57,7 @@ export interface FileEntry {
 }
 
 export const backend = {
-	status: () => request<RucheStatus>('GET', '/status'),
+	status: () => request<JardinStatus>('GET', '/status'),
 
 	memorySearch: (query: string) =>
 		request<{ path: string; line: number; content: string }[]>('GET', `/memory/search?q=${encodeURIComponent(query)}`),

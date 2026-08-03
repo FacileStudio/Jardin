@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/FacileStudio/Ruche/internal/config"
+	"github.com/FacileStudio/Jardin/internal/config"
 )
 
 func Init() error {

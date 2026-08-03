@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/FacileStudio/Ruche/internal/config"
-	"github.com/FacileStudio/Ruche/internal/server"
+	"github.com/FacileStudio/Jardin/internal/config"
+	"github.com/FacileStudio/Jardin/internal/server"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -27,7 +27,7 @@ var serveCmd = &cobra.Command{
 		srv := server.New(dataDir, password)
 
 		addr := fmt.Sprintf(":%d", servePort)
-		color.Green("Ruche server listening on %s", addr)
+		color.Green("Jardin server listening on %s", addr)
 		color.Green("Data: %s", dataDir)
 		if password != "" {
 			fmt.Println("Auth: password required (login via /api/auth/login)")
@@ -41,6 +41,6 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	serveCmd.Flags().IntVar(&servePort, "port", 8420, "port to listen on")
-	serveCmd.Flags().String("data", "", "data directory (default: ~/.ruche/)")
+	serveCmd.Flags().String("data", "", "data directory (default: ~/.jardin/)")
 	rootCmd.AddCommand(serveCmd)
 }

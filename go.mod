@@ -1,4 +1,4 @@
-module github.com/FacileStudio/Ruche
+module github.com/FacileStudio/Jardin
 
 go 1.26.1
 

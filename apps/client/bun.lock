@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "ruche-client",
+      "name": "jardin-client",
       "dependencies": {
         "@iconify/svelte": "^5.2.2",
       },

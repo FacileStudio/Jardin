@@ -8,7 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type RucheConfig struct {
+type JardinConfig struct {
 	Machine   string   `yaml:"machine,omitempty"`
 	URL       string   `yaml:"url,omitempty"`
 	Token     string   `yaml:"token,omitempty"`
@@ -21,12 +21,12 @@ func DataDir() string {
 		return dir
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".ruche")
+	return filepath.Join(home, ".jardin")
 }
 
 func ConfigPath() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".ruche.yml")
+	return filepath.Join(home, ".jardin.yml")
 }
 
 func MemoryDir() string  { return filepath.Join(DataDir(), "memory") }
@@ -34,9 +34,9 @@ func RulesDir() string  { return filepath.Join(DataDir(), "rules") }
 func SkillsDir() string { return filepath.Join(DataDir(), "skills") }
 func MachinesDir() string { return filepath.Join(DataDir(), "machines") }
 
-func LoadRucheConfig() (*RucheConfig, error) {
+func LoadJardinConfig() (*JardinConfig, error) {
 	path := ConfigPath()
-	cfg := &RucheConfig{}
+	cfg := &JardinConfig{}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -50,7 +50,7 @@ func LoadRucheConfig() (*RucheConfig, error) {
 	return cfg, nil
 }
 
-func SaveRucheConfig(cfg *RucheConfig) error {
+func SaveJardinConfig(cfg *JardinConfig) error {
 	path := ConfigPath()
 	data, err := yaml.Marshal(cfg)
 	if err != nil {

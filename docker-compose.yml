@@ -1,5 +1,5 @@
 services:
-  ruche-api:
+  jardin-api:
     build:
       context: .
       dockerfile: Dockerfile
@@ -7,40 +7,40 @@ services:
       - DATA_DIR=/data
       - PASSWORD=${PASSWORD}
     volumes:
-      - ruche-data:/data
+      - jardin-data:/data
     networks:
       - internal
       - dokploy-network
     labels:
       - traefik.enable=true
-      - traefik.http.routers.ruche-api.rule=Host(`ruche.facile.studio`) && PathPrefix(`/api`)
-      - traefik.http.routers.ruche-api.entrypoints=websecure
-      - traefik.http.routers.ruche-api.tls.certResolver=letsencrypt
-      - traefik.http.routers.ruche-api.priority=10
-      - traefik.http.services.ruche-api.loadbalancer.server.port=8420
+      - traefik.http.routers.jardin-api.rule=Host(`jardin.facile.studio`) && PathPrefix(`/api`)
+      - traefik.http.routers.jardin-api.entrypoints=websecure
+      - traefik.http.routers.jardin-api.tls.certResolver=letsencrypt
+      - traefik.http.routers.jardin-api.priority=10
+      - traefik.http.services.jardin-api.loadbalancer.server.port=8420
     restart: unless-stopped
 
-  ruche-client:
+  jardin-client:
     build:
       context: ./apps/client
       dockerfile: Dockerfile
     environment:
-      - ORIGIN=https://ruche.facile.studio
+      - ORIGIN=https://jardin.facile.studio
       - BODY_SIZE_LIMIT=Infinity
     networks:
       - internal
       - dokploy-network
     labels:
       - traefik.enable=true
-      - traefik.http.routers.ruche-client.rule=Host(`ruche.facile.studio`)
-      - traefik.http.routers.ruche-client.entrypoints=websecure
-      - traefik.http.routers.ruche-client.tls.certResolver=letsencrypt
-      - traefik.http.routers.ruche-client.priority=1
-      - traefik.http.services.ruche-client.loadbalancer.server.port=3000
+      - traefik.http.routers.jardin-client.rule=Host(`jardin.facile.studio`)
+      - traefik.http.routers.jardin-client.entrypoints=websecure
+      - traefik.http.routers.jardin-client.tls.certResolver=letsencrypt
+      - traefik.http.routers.jardin-client.priority=1
+      - traefik.http.services.jardin-client.loadbalancer.server.port=3000
     restart: unless-stopped
 
 volumes:
-  ruche-data:
+  jardin-data:
 
 networks:
   internal:
