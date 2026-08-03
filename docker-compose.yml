@@ -1,5 +1,5 @@
 services:
-  ruche-api:
+  mycelium-api:
     build:
       context: .
       dockerfile: Dockerfile
@@ -7,40 +7,40 @@ services:
       - DATA_DIR=/data
       - PASSWORD=${PASSWORD}
     volumes:
-      - ruche-data:/data
+      - mycelium-data:/data
     networks:
       - internal
       - dokploy-network
     labels:
       - traefik.enable=true
-      - traefik.http.routers.ruche-api.rule=Host(`ruche.facile.studio`) && PathPrefix(`/api`)
-      - traefik.http.routers.ruche-api.entrypoints=websecure
-      - traefik.http.routers.ruche-api.tls.certResolver=letsencrypt
-      - traefik.http.routers.ruche-api.priority=10
-      - traefik.http.services.ruche-api.loadbalancer.server.port=8420
+      - traefik.http.routers.mycelium-api.rule=Host(`mycelium.facile.studio`) && PathPrefix(`/api`)
+      - traefik.http.routers.mycelium-api.entrypoints=websecure
+      - traefik.http.routers.mycelium-api.tls.certResolver=letsencrypt
+      - traefik.http.routers.mycelium-api.priority=10
+      - traefik.http.services.mycelium-api.loadbalancer.server.port=8420
     restart: unless-stopped
 
-  ruche-client:
+  mycelium-client:
     build:
       context: ./apps/client
       dockerfile: Dockerfile
     environment:
-      - ORIGIN=https://ruche.facile.studio
+      - ORIGIN=https://mycelium.facile.studio
       - BODY_SIZE_LIMIT=Infinity
     networks:
       - internal
       - dokploy-network
     labels:
       - traefik.enable=true
-      - traefik.http.routers.ruche-client.rule=Host(`ruche.facile.studio`)
-      - traefik.http.routers.ruche-client.entrypoints=websecure
-      - traefik.http.routers.ruche-client.tls.certResolver=letsencrypt
-      - traefik.http.routers.ruche-client.priority=1
-      - traefik.http.services.ruche-client.loadbalancer.server.port=3000
+      - traefik.http.routers.mycelium-client.rule=Host(`mycelium.facile.studio`)
+      - traefik.http.routers.mycelium-client.entrypoints=websecure
+      - traefik.http.routers.mycelium-client.tls.certResolver=letsencrypt
+      - traefik.http.routers.mycelium-client.priority=1
+      - traefik.http.services.mycelium-client.loadbalancer.server.port=3000
     restart: unless-stopped
 
 volumes:
-  ruche-data:
+  mycelium-data:
 
 networks:
   internal:

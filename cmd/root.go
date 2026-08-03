@@ -9,9 +9,9 @@ import (
 var version = "dev"
 
 var rootCmd = &cobra.Command{
-	Use:   "ruche",
+	Use:   "mycelium",
 	Short: "Shared agent memory across AI coding agents and machines",
-	Long:  "Ruche manages a canonical source of truth for agent memory, rules, and skills. It generates per-agent configs via thin adapters and syncs across machines.",
+	Long:  "Mycelium manages a canonical source of truth for agent memory, rules, and skills. It generates per-agent configs via thin adapters and syncs across machines.",
 }
 
 func init() {

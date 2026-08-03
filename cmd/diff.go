@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/FacileStudio/Ruche/internal/adapter"
-	"github.com/FacileStudio/Ruche/internal/config"
+	"github.com/FacileStudio/Mycelium/internal/adapter"
+	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -16,7 +16,7 @@ var diffCmd = &cobra.Command{
 	Short: "Preview what install would change",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadRucheConfig()
+		cfg, err := config.LoadMyceliumConfig()
 		if err != nil {
 			return err
 		}

@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/FacileStudio/Ruche/internal/memory"
+	"github.com/FacileStudio/Mycelium/internal/memory"
 )
 
 const (

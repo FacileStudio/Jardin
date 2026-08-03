@@ -14,7 +14,7 @@
 	let done: '' | 'approved' | 'denied' = $state('');
 
 	onMount(async () => {
-		const token = localStorage.getItem('ruche.token');
+		const token = localStorage.getItem('mycelium.token');
 		const url = new URL(window.location.href);
 		code = url.searchParams.get('code') ?? '';
 
@@ -68,14 +68,14 @@
 </script>
 
 <svelte:head>
-	<title>Authorize a machine — Ruche</title>
+	<title>Authorize a machine — Mycelium</title>
 </svelte:head>
 
 <div class="flex min-h-screen items-center justify-center bg-background px-6 py-12">
 	<div class="w-full max-w-sm">
 		<a href="/memory" class="mb-8 flex items-center justify-center gap-2.5">
 			<Icon icon="solar:graph-new-bold-duotone" class="size-7 text-foreground" />
-			<span class="text-xl font-bold tracking-tight">Ruche</span>
+			<span class="text-xl font-bold tracking-tight">Mycelium</span>
 		</a>
 
 		{#if !loaded}
@@ -141,7 +141,7 @@
 					</div>
 
 					<p class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-						Only authorize if you just ran <code>ruche login</code> on this machine. Approving grants
+						Only authorize if you just ran <code>mycelium login</code> on this machine. Approving grants
 						it ongoing sync access to your shared brain.
 					</p>
 

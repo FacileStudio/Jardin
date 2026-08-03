@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/FacileStudio/Ruche/internal/config"
+	"github.com/FacileStudio/Mycelium/internal/config"
 )
 
-const Label = "studio.facile.ruche-sync"
+const Label = "studio.facile.mycelium-sync"
 const IntervalSeconds = 300
 
 func selfPath() (string, error) {
@@ -38,7 +38,7 @@ func Run() error {
 	if out, err := exec.Command(self, "sync").CombinedOutput(); err != nil {
 		syncErr = fmt.Errorf("sync failed: %v: %s", err, out)
 	}
-	cfg, err := config.LoadRucheConfig()
+	cfg, err := config.LoadMyceliumConfig()
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func Installed() bool {
 		_, err := os.Stat(launchdPath())
 		return err == nil
 	case "linux":
-		_, err := os.Stat(filepath.Join(systemdDir(), "ruche-sync.timer"))
+		_, err := os.Stat(filepath.Join(systemdDir(), "mycelium-sync.timer"))
 		return err == nil
 	default:
 		return false
@@ -175,7 +175,7 @@ func systemdDir() string {
 
 func ServiceContent(self string) string {
 	return fmt.Sprintf(`[Unit]
-Description=Ruche background sync
+Description=Mycelium background sync
 
 [Service]
 Type=oneshot
@@ -185,7 +185,7 @@ ExecStart=%s daemon run
 
 func TimerContent() string {
 	return fmt.Sprintf(`[Unit]
-Description=Ruche background sync timer
+Description=Mycelium background sync timer
 
 [Timer]
 OnBootSec=1min
@@ -202,23 +202,23 @@ func installSystemd(self string) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "ruche-sync.service"), []byte(ServiceContent(self)), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "mycelium-sync.service"), []byte(ServiceContent(self)), 0644); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "ruche-sync.timer"), []byte(TimerContent()), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "mycelium-sync.timer"), []byte(TimerContent()), 0644); err != nil {
 		return err
 	}
 	exec.Command("systemctl", "--user", "daemon-reload").Run()
-	if out, err := exec.Command("systemctl", "--user", "enable", "--now", "ruche-sync.timer").CombinedOutput(); err != nil {
+	if out, err := exec.Command("systemctl", "--user", "enable", "--now", "mycelium-sync.timer").CombinedOutput(); err != nil {
 		return fmt.Errorf("systemctl enable: %v: %s", err, out)
 	}
 	return nil
 }
 
 func uninstallSystemd() error {
-	exec.Command("systemctl", "--user", "disable", "--now", "ruche-sync.timer").Run()
-	os.Remove(filepath.Join(systemdDir(), "ruche-sync.timer"))
-	os.Remove(filepath.Join(systemdDir(), "ruche-sync.service"))
+	exec.Command("systemctl", "--user", "disable", "--now", "mycelium-sync.timer").Run()
+	os.Remove(filepath.Join(systemdDir(), "mycelium-sync.timer"))
+	os.Remove(filepath.Join(systemdDir(), "mycelium-sync.service"))
 	exec.Command("systemctl", "--user", "daemon-reload").Run()
 	return nil
 }

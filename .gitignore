@@ -25,7 +25,7 @@ go.work
 go.work.sum
 
 # Binary
-ruche
+mycelium
 dist/
 apps/client/node_modules/
 apps/client/.svelte-kit/

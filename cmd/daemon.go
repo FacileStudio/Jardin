@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/FacileStudio/Ruche/internal/daemon"
+	"github.com/FacileStudio/Mycelium/internal/daemon"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -21,7 +21,7 @@ var daemonInstallCmd = &cobra.Command{
 			return err
 		}
 		color.Green("Background sync enabled (every %ds).", daemon.IntervalSeconds)
-		fmt.Println("Disable with: ruche daemon uninstall")
+		fmt.Println("Disable with: mycelium daemon uninstall")
 		return nil
 	},
 }

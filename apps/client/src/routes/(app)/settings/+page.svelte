@@ -48,8 +48,8 @@
 			<p class="mt-1 text-sm text-muted-foreground">
 				Paste this into an agent's master prompt (CLAUDE.md, AGENTS.md, GEMINI.md…) so it knows
 				how to read, write, and sync the shared brain. It assumes the
-				<code class="rounded bg-accent px-1 py-0.5 text-xs">ruche</code> CLI is installed and
-				logged in (<code class="rounded bg-accent px-1 py-0.5 text-xs">ruche login https://ruche.facile.studio</code>).
+				<code class="rounded bg-accent px-1 py-0.5 text-xs">mycelium</code> CLI is installed and
+				logged in (<code class="rounded bg-accent px-1 py-0.5 text-xs">mycelium login https://mycelium.facile.studio</code>).
 			</p>
 		</div>
 
@@ -79,7 +79,7 @@
 			<p class="mt-3 text-xs text-muted-foreground">
 				To sync from another machine, run:
 			</p>
-			<pre class="mt-1 rounded bg-background p-2 font-mono text-xs">ruche login https://ruche.facile.studio</pre>
+			<pre class="mt-1 rounded bg-background p-2 font-mono text-xs">mycelium login https://mycelium.facile.studio</pre>
 		</div>
 	{/if}
 
@@ -90,7 +90,7 @@
 			<input
 				type="text"
 				bind:value={newTokenName}
-				placeholder="Token name (e.g. lucy, ruche)"
+				placeholder="Token name (e.g. lucy, mycelium)"
 				class="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
 			/>
 			<button type="submit" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">

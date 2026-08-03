@@ -2,7 +2,7 @@ version: 2
 
 builds:
   - main: .
-    binary: ruche
+    binary: mycelium
     env:
       - CGO_ENABLED=0
     goos:
@@ -12,7 +12,7 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w -X github.com/FacileStudio/Ruche/cmd.version={{.Version}}
+      - -s -w -X github.com/FacileStudio/Mycelium/cmd.version={{.Version}}
 
 archives:
   - formats:
@@ -23,8 +23,8 @@ checksum:
   name_template: checksums.txt
 
 brews:
-  - name: ruche
-    homepage: https://github.com/FacileStudio/Ruche
+  - name: mycelium
+    homepage: https://github.com/FacileStudio/Mycelium
     description: Shared agent memory across AI coding agents and machines
     directory: Formula
     repository:
@@ -36,9 +36,9 @@ brews:
       name: goreleaserbot
       email: bot@goreleaser.com
     install: |
-      bin.install "ruche"
+      bin.install "mycelium"
     test: |
-      system "#{bin}/ruche --version"
+      system "#{bin}/mycelium --version"
 
 changelog:
   sort: asc

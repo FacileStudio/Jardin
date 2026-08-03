@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/FacileStudio/Ruche/internal/config"
-	"github.com/FacileStudio/Ruche/internal/daemon"
+	"github.com/FacileStudio/Mycelium/internal/config"
+	"github.com/FacileStudio/Mycelium/internal/daemon"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -31,20 +31,20 @@ var (
 
 var loginCmd = &cobra.Command{
 	Use:   "login <url>",
-	Short: "Authenticate with a Ruche server and save sync config",
-	Long: `Authenticate with a Ruche server and save sync config.
+	Short: "Authenticate with a Mycelium server and save sync config",
+	Long: `Authenticate with a Mycelium server and save sync config.
 
 By default this opens your browser to approve the machine from a logged-in
-Ruche session (device authorization). Alternatives:
+Mycelium session (device authorization). Alternatives:
 
-  ruche login <url> --token <token>     use a token from the dashboard
-  ruche login <url> --token-stdin       read the token from stdin
-  ruche login <url> --password          authenticate with the server password`,
+  mycelium login <url> --token <token>     use a token from the dashboard
+  mycelium login <url> --token-stdin       read the token from stdin
+  mycelium login <url> --password          authenticate with the server password`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		serverURL := strings.TrimRight(args[0], "/")
 
-		cfg, err := config.LoadRucheConfig()
+		cfg, err := config.LoadMyceliumConfig()
 		if err != nil {
 			return err
 		}
@@ -90,11 +90,11 @@ Ruche session (device authorization). Alternatives:
 	},
 }
 
-func finishLogin(cfg *config.RucheConfig, serverURL, token, machine string) error {
+func finishLogin(cfg *config.MyceliumConfig, serverURL, token, machine string) error {
 	cfg.URL = serverURL
 	cfg.Token = token
 	cfg.Machine = machine
-	if err := config.SaveRucheConfig(cfg); err != nil {
+	if err := config.SaveMyceliumConfig(cfg); err != nil {
 		return err
 	}
 
@@ -104,9 +104,9 @@ func finishLogin(cfg *config.RucheConfig, serverURL, token, machine string) erro
 	if !loginNoDaemon {
 		if err := daemon.Install(); err != nil {
 			color.Yellow("Background sync not enabled: %v", err)
-			fmt.Println("Enable later with: ruche daemon install")
+			fmt.Println("Enable later with: mycelium daemon install")
 		} else {
-			color.Green("Background sync enabled (every %ds). Disable with: ruche daemon uninstall", daemon.IntervalSeconds)
+			color.Green("Background sync enabled (every %ds). Disable with: mycelium daemon uninstall", daemon.IntervalSeconds)
 		}
 	}
 	return nil
@@ -174,7 +174,7 @@ func deviceLogin(serverURL, machine string) (string, error) {
 		}
 	}
 	fmt.Println()
-	return "", fmt.Errorf("authorization timed out — run `ruche login` again")
+	return "", fmt.Errorf("authorization timed out — run `mycelium login` again")
 }
 
 func passwordLogin(serverURL, machine string) (string, error) {

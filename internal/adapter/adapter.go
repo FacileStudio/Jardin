@@ -3,7 +3,7 @@ package adapter
 import (
 	"fmt"
 
-	"github.com/FacileStudio/Ruche/internal/cell"
+	"github.com/FacileStudio/Mycelium/internal/cell"
 )
 
 type Input struct {

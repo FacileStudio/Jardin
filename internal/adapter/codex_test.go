@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/FacileStudio/Ruche/internal/cell"
+	"github.com/FacileStudio/Mycelium/internal/cell"
 )
 
 func TestCodexEmitsSkillFilesNotInline(t *testing.T) {

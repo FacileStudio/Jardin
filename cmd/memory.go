@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/FacileStudio/Ruche/internal/memory"
-	"github.com/FacileStudio/Ruche/internal/config"
+	"github.com/FacileStudio/Mycelium/internal/memory"
+	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )

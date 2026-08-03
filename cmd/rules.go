@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/FacileStudio/Ruche/internal/cell"
-	"github.com/FacileStudio/Ruche/internal/config"
+	"github.com/FacileStudio/Mycelium/internal/cell"
+	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/spf13/cobra"
 )
 

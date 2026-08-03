@@ -2,11 +2,11 @@
 	import Icon from '@iconify/svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { backend, type RucheStatus } from '$lib/backend';
+	import { backend, type MyceliumStatus } from '$lib/backend';
 	import { setContext } from 'svelte';
 
 	let { children } = $props();
-	let status: RucheStatus | null = $state(null);
+	let status: MyceliumStatus | null = $state(null);
 
 	const nav = [
 		{ label: 'Memory', href: '/memory', icon: 'solar:notebook-linear' },
@@ -17,7 +17,7 @@
 	];
 
 	$effect(() => {
-		const token = localStorage.getItem('ruche.token');
+		const token = localStorage.getItem('mycelium.token');
 		if (!token) {
 			goto('/login');
 			return;
@@ -26,7 +26,7 @@
 	});
 
 	function logout() {
-		localStorage.removeItem('ruche.token');
+		localStorage.removeItem('mycelium.token');
 		goto('/login');
 	}
 
@@ -39,7 +39,7 @@
 			<div class="p-4">
 				<a href="/memory" class="flex items-center gap-2.5">
 					<Icon icon="solar:graph-new-bold-duotone" class="size-6 text-foreground" />
-					<span class="text-lg font-bold tracking-tight">Ruche</span>
+					<span class="text-lg font-bold tracking-tight">Mycelium</span>
 				</a>
 			</div>
 
