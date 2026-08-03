@@ -61,7 +61,7 @@
 	<header class="fixed top-0 z-50 w-full border-b border-zinc-200 bg-white/90 backdrop-blur-sm">
 		<div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
 			<a href="/" class="flex items-center gap-2.5">
-				<Icon icon="solar:graph-new-bold-duotone" class="size-7 text-zinc-900" />
+				<Icon icon="solar:leaf-bold-duotone" class="size-7 text-zinc-900" />
 				<span class="text-xl font-bold tracking-tight">Mycelium</span>
 			</a>
 			<a

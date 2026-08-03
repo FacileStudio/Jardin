@@ -74,7 +74,7 @@
 <div class="flex min-h-screen items-center justify-center bg-background px-6 py-12">
 	<div class="w-full max-w-sm">
 		<a href="/memory" class="mb-8 flex items-center justify-center gap-2.5">
-			<Icon icon="solar:graph-new-bold-duotone" class="size-7 text-foreground" />
+			<Icon icon="solar:leaf-bold-duotone" class="size-7 text-foreground" />
 			<span class="text-xl font-bold tracking-tight">Mycelium</span>
 		</a>
 

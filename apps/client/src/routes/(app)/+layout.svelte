@@ -38,7 +38,7 @@
 		<aside class="sticky top-0 hidden h-screen w-60 flex-shrink-0 flex-col border-r border-border bg-background md:flex">
 			<div class="p-4">
 				<a href="/memory" class="flex items-center gap-2.5">
-					<Icon icon="solar:graph-new-bold-duotone" class="size-6 text-foreground" />
+					<Icon icon="solar:leaf-bold-duotone" class="size-6 text-foreground" />
 					<span class="text-lg font-bold tracking-tight">Mycelium</span>
 				</a>
 			</div>
