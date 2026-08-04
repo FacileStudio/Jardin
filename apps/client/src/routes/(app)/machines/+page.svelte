@@ -3,7 +3,7 @@
 	import { backend, type TokenInfo } from '$lib/backend';
 
 	let tokens: TokenInfo[] = $state([]);
-	let machines = $derived(tokens.filter((t) => t.name !== 'session'));
+	let machines = $derived(tokens.filter((t) => t.scope !== 'admin' && t.scope !== 'user' && !t.name.startsWith('session')));
 
 	$effect(() => {
 		const load = () => backend.tokensList().then((t) => (tokens = t)).catch(() => {});
@@ -48,7 +48,7 @@
 				<div class="rounded-lg border border-border p-4">
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-2">
-							<Icon icon={m.name === 'session' ? 'solar:laptop-linear' : 'solar:server-square-linear'} class="size-5 text-muted-foreground" />
+							<Icon icon={m.name.startsWith('session') ? 'solar:laptop-linear' : 'solar:server-square-linear'} class="size-5 text-muted-foreground" />
 							<span class="font-medium">{m.name}</span>
 						</div>
 						<span class="flex items-center gap-1.5 text-xs {online(m.last_seen) ? 'text-green-600' : 'text-muted-foreground'}">
