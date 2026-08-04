@@ -188,6 +188,35 @@ func TestUserBoundMachineTokenSyncsSpace(t *testing.T) {
 	}
 }
 
+func TestCommonTreeIsOwnerPrivate(t *testing.T) {
+	srv := New(t.TempDir(), "pw")
+	h := srv.Handler()
+	owner := sessionFor(t, srv, "yann@facile.studio", true)
+	other := sessionFor(t, srv, "noah@facile.studio", false)
+
+	if rec := spReq(t, h, "PUT", "/api/rules/private", owner, "my wiki"); rec.Code != http.StatusNoContent {
+		t.Fatalf("admin must write common: %d", rec.Code)
+	}
+
+	for _, path := range []string{
+		"/api/rules", "/api/rules/private", "/api/skills", "/api/memory/index",
+		"/api/memory/search?q=x", "/api/sessions/stats", "/api/sessions/recent",
+		"/api/status", "/api/sync/tree", "/api/sync/files/rules/private.md",
+	} {
+		if rec := spReq(t, h, "GET", path, other, ""); rec.Code != http.StatusForbidden {
+			t.Fatalf("non-admin user must not read common %s: got %d", path, rec.Code)
+		}
+	}
+	if rec := spReq(t, h, "PUT", "/api/rules/injected", other, "x"); rec.Code != http.StatusForbidden {
+		t.Fatalf("non-admin user must not write common: %d", rec.Code)
+	}
+
+	machine := loginAs(t, h, "pw", "lucy")
+	if rec := spReq(t, h, "GET", "/api/sync/tree", machine, ""); rec.Code != http.StatusOK {
+		t.Fatalf("machine token must keep syncing common: %d", rec.Code)
+	}
+}
+
 func TestExpiredSessionRejected(t *testing.T) {
 	srv := New(t.TempDir(), "pw")
 	h := srv.Handler()

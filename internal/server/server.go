@@ -259,12 +259,37 @@ func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// scopeRoot resolves the tree a request operates on: the shared common tree
-// when no space_id is supplied, or the space's subtree after the membership
-// guard passes. Writes its own error response on failure.
+// commonAllowed reports whether an identity may touch the common tree. The
+// common tree is the instance owner's private data, not a shared bucket:
+// admins reach it, machine tokens reach it (only an admin can mint one, and
+// pre-multi-user tokens carry no email), and every other signed-in user is
+// denied until an admin adds them to a space.
+func (s *Server) commonAllowed(id Identity) bool {
+	if id.Scope == scopeAdmin {
+		return true
+	}
+	if id.Scope == scopeSync {
+		if id.Email == "" {
+			return true
+		}
+		s.mu.RLock()
+		user, ok := s.loadUsers()[id.Email]
+		s.mu.RUnlock()
+		return ok && user.Admin
+	}
+	return false
+}
+
+// scopeRoot resolves the tree a request operates on: the common tree when no
+// space_id is supplied, or the space's subtree after the membership guard
+// passes. Writes its own error response on failure.
 func (s *Server) scopeRoot(w http.ResponseWriter, r *http.Request) (string, bool) {
 	spaceID := r.URL.Query().Get("space_id")
 	if spaceID == "" {
+		if !s.commonAllowed(identityFrom(r)) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return "", false
+		}
 		return s.DataDir, true
 	}
 	if strings.ContainsAny(spaceID, "/\\.") {
