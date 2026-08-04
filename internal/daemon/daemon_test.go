@@ -1,10 +1,12 @@
 package daemon
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDetectAgents(t *testing.T) {
@@ -43,7 +45,7 @@ func TestSystemdContent(t *testing.T) {
 	if !strings.Contains(ServiceContent("/x/jardin"), "ExecStart=/x/jardin daemon run") {
 		t.Error("service missing ExecStart")
 	}
-	if !strings.Contains(TimerContent(), "OnUnitActiveSec=300sec") {
+	if !strings.Contains(TimerContent(), fmt.Sprintf("OnUnitActiveSec=%dsec", IntervalSeconds)) {
 		t.Error("timer missing interval")
 	}
 }
@@ -79,5 +81,22 @@ func TestStablePathPrefersPathEntryOverVersionedDir(t *testing.T) {
 	t.Setenv("PATH", filepath.Join(dir, "empty"))
 	if got := stablePath(resolved); got != resolved {
 		t.Fatalf("expected fallback to %s, got %s", resolved, got)
+	}
+}
+
+func TestInstallDueRespectsRefreshWindow(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DATA_DIR", dir)
+
+	now := time.Now()
+	if !installDue(now) {
+		t.Fatal("first run must install")
+	}
+	markInstalled(now)
+	if installDue(now.Add(time.Minute)) {
+		t.Fatal("install must not rerun on every live tick")
+	}
+	if !installDue(now.Add(installRefresh + time.Second)) {
+		t.Fatal("install must resume after the refresh window")
 	}
 }
