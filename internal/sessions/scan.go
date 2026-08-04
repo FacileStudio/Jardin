@@ -15,6 +15,15 @@ type ScanResult struct {
 }
 
 func Scan(dataDir, machine, claudeDir string, now time.Time) (*ScanResult, error) {
+	release, err := lockScan(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return scanLocked(dataDir, machine, claudeDir, now)
+}
+
+func scanLocked(dataDir, machine, claudeDir string, now time.Time) (*ScanResult, error) {
 	state := LoadState(dataDir)
 	resolve := projectResolver(state)
 
@@ -36,13 +45,18 @@ func Scan(dataDir, machine, claudeDir string, now time.Time) (*ScanResult, error
 // full transcript history. Block IDs are deterministic, so downstream
 // consumers deduplicate re-emitted history instead of double-counting it.
 func Rescan(dataDir, machine, claudeDir string, now time.Time) (*ScanResult, error) {
+	release, err := lockScan(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if err := os.RemoveAll(machineDir(dataDir, machine)); err != nil {
 		return nil, err
 	}
 	if err := os.Remove(statePath(dataDir)); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	return Scan(dataDir, machine, claudeDir, now)
+	return scanLocked(dataDir, machine, claudeDir, now)
 }
 
 func projectResolver(state *ScanState) func(cwd string) string {
