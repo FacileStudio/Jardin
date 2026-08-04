@@ -71,17 +71,36 @@ func projectResolver(state *ScanState) func(cwd string) string {
 	}
 }
 
+// resolveProject prefers the origin remote's repository name: it is identical
+// across machines, checkout directories, and local casing, so GFConseil and
+// gfconseil converge on one project. Fallbacks: git toplevel basename, then
+// the cwd basename.
 func resolveProject(cwd, home string) string {
 	if home != "" && filepath.Clean(cwd) == filepath.Clean(home) {
 		return "home"
 	}
-	out, err := exec.Command("git", "-C", cwd, "rev-parse", "--show-toplevel").Output()
-	if err == nil {
+	if out, err := exec.Command("git", "-C", cwd, "remote", "get-url", "origin").Output(); err == nil {
+		if name := repoNameFromRemote(strings.TrimSpace(string(out))); name != "" {
+			return name
+		}
+	}
+	if out, err := exec.Command("git", "-C", cwd, "rev-parse", "--show-toplevel").Output(); err == nil {
 		if root := strings.TrimSpace(string(out)); root != "" {
 			return filepath.Base(root)
 		}
 	}
 	return filepath.Base(cwd)
+}
+
+func repoNameFromRemote(url string) string {
+	url = strings.TrimSuffix(strings.TrimSuffix(url, "/"), ".git")
+	if i := strings.LastIndexAny(url, "/:"); i >= 0 {
+		url = url[i+1:]
+	}
+	if url == "" || url == "." || url == ".." || strings.ContainsAny(url, " \\") {
+		return ""
+	}
+	return url
 }
 
 func ResolveProject(cwd string) string {

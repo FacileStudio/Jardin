@@ -15,7 +15,10 @@ import (
 	"github.com/FacileStudio/Jardin/internal/sessions"
 )
 
-const emitterInterval = 30 * time.Second
+const (
+	emitterInterval = 30 * time.Second
+	minEmitDuration = time.Minute
+)
 
 // Emitter publishes sealed session blocks to the Nook pool as
 // agent_session.created events. The shards are the durable outbox; the ledger
@@ -198,8 +201,10 @@ func (e *Emitter) emitPending(nook *NookSettings) {
 	}
 }
 
-// pendingBlocks selects sealed blocks that are attributable, ended after the
-// emit watermark, and not yet in the ledger, oldest first.
+// pendingBlocks selects sealed blocks that are attributable, at least a
+// minute long, ended after the emit watermark, and not yet in the ledger,
+// oldest first. Sub-minute blocks are excluded outright — they stay in local
+// stats but never become billing noise.
 func pendingBlocks(blocks []sessions.Block, ledger map[string]string, nook *NookSettings) []sessions.Block {
 	var since time.Time
 	if nook.EmitSince != "" {
@@ -208,6 +213,9 @@ func pendingBlocks(blocks []sessions.Block, ledger map[string]string, nook *Nook
 	var out []sessions.Block
 	for _, b := range blocks {
 		if _, done := ledger[b.ID]; done {
+			continue
+		}
+		if b.Duration() < minEmitDuration {
 			continue
 		}
 		if !since.IsZero() && b.EndedAt.Before(since) {

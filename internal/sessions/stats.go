@@ -45,10 +45,10 @@ func Aggregate(blocks []Block, since time.Time, by string) []StatRow {
 		if key == "" {
 			key = "(none)"
 		}
-		row := rows[key]
+		row := rows[strings.ToLower(key)]
 		if row == nil {
 			row = &StatRow{Key: key}
-			rows[key] = row
+			rows[strings.ToLower(key)] = row
 		}
 		row.Sessions++
 		row.Seconds += int64(b.Duration().Seconds())
@@ -135,7 +135,7 @@ func Recap(dataDir, project string, now time.Time) string {
 	}
 	var mine []Block
 	for _, b := range blocks {
-		if b.Project == project {
+		if strings.EqualFold(b.Project, project) {
 			mine = append(mine, b)
 		}
 	}
