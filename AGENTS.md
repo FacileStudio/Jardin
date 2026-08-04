@@ -34,8 +34,9 @@ git tag v0.x.x && git push --tags
 │   ├── cell/           # local store: read rules/skills/machine, scaffold
 │   ├── adapter/        # one file per agent (claude, codex, gemini, cursor, copilot, hermes)
 │   ├── memory/         # memory search + index
+│   ├── sessions/       # agent session tracking: transcript scan, sessionize, shards, stats
 │   ├── daemon/         # background sync service (launchd/systemd)
-│   ├── server/         # sync API + dashboard backend
+│   ├── server/         # sync API + dashboard backend + settings + Nook pool emitter
 │   └── sync/           # HTTP client: push/pull by checksum
 ├── apps/client/       # SvelteKit dashboard
 ├── Dockerfile
@@ -52,3 +53,11 @@ git tag v0.x.x && git push --tags
 - Each adapter is a pure function `(rules + skills + machine) -> agent config`, self-registers via `init()` in `internal/adapter/`, and writes the format its agent expects
 - Sync is a three-way reconcile against a local base manifest (`~/.mycelium/.sync-base.json`): local edits push, remote edits pull, deletes propagate both ways, and a genuine edit-vs-edit conflict keeps a `<path>.conflict` backup (never silent loss). `mycelium push`/`pull` force one direction
 - The copy-paste master prompt shown in the dashboard lives in `apps/client/src/lib/agentPrompt.ts`
+
+## Session tracking
+
+- `internal/sessions` tails Claude Code transcripts (`~/.claude/projects/*/*.jsonl`) with per-file byte offsets kept in `~/.mycelium/.sessions-state.json` (never synced). Heartbeats are user/assistant lines; token usage is deduped by `requestId` (streamed responses repeat identical usage lines)
+- Sessionization is gap-based (15 min gap joins, no padding, isolated heartbeat = 0 duration); a block idle >30 min is sealed and appended to `~/.mycelium/sessions/<machine>/<YYYY-MM>.jsonl`. Shards are append-only and single-writer per machine, so they ride the normal file sync with zero conflict risk
+- Block IDs are deterministic (`sha256(machine|agent|project|start)`), so full rescans (`mycelium sessions scan --all`) and re-emits deduplicate downstream
+- The daemon runs `sessions scan` before each sync; `mycelium install claude` merges a SessionStart hook into `~/.claude/settings.json` that injects `mycelium recap` output as agent context
+- The server (`mycelium serve`) can publish sealed blocks to the Nook pool as `agent_session.created` (enveloppe contract) for Sablier to turn into time entries. Config lives in the server data dir as `.settings.json`, managed via `PUT /api/settings` (admin scope, dashboard Settings page); the emit ledger is `.pool-ledger.json`; on first enable the `emit_since` watermark defaults to now (no surprise backfill)

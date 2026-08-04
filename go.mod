@@ -3,6 +3,8 @@ module github.com/FacileStudio/Mycelium
 go 1.26.1
 
 require (
+	github.com/FacileStudio/enveloppe/go v0.0.0-20260804090730-02b0f4b20c6f
+	github.com/FacileStudio/pool/go v0.0.0-20260703193105-683b8b5581af
 	github.com/fatih/color v1.19.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/term v0.44.0
@@ -10,6 +12,7 @@ require (
 )
 
 require (
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
