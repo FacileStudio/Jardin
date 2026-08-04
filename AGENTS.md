@@ -54,6 +54,13 @@ git tag v0.x.x && git push --tags
 - Sync is a three-way reconcile against a local base manifest (`~/.jardin/.sync-base.json`): local edits push, remote edits pull, deletes propagate both ways, and a genuine edit-vs-edit conflict keeps a `<path>.conflict` backup (never silent loss). `jardin push`/`pull` force one direction
 - The copy-paste master prompt shown in the dashboard lives in `apps/client/src/lib/agentPrompt.ts`
 
+## Spaces + SSO (v0.6)
+
+- Suite-consistent spaces: the existing tree is the shared **Common** scope (no migration); each space lives under `spaces/<uuid>/{memory,rules,skills,sessions}` server-side with membership roles owner/admin/member in `.spaces.json`. A caller-supplied `space_id` (query param on all content + sync routes) is untrusted input — every route funnels through the `spaceAccess` membership guard, and the common tree fences out `spaces/` so space content is unreachable without membership
+- SSO via Authentik (porte): env-driven (`OIDC_ISSUER/CLIENT_ID/CLIENT_SECRET/REDIRECT_URL/SUCCESS_URL`, `SSO_ONLY`) using go-oidc/v3; callback upserts the user by email (`.users.json`, first user becomes admin), mints a 30-day session token (name `session:<email>`, sha256 at rest), and hands it to the SPA via URL fragment on `/auth/callback`. Unset issuer = feature dormant, password login unchanged
+- Token scopes: `admin` (settings/tokens/devices), `user` (OIDC non-admin sessions: spaces + content), `sync` (machines: content + sync only). Sessions expire; machine tokens don't
+- CLI: `jardin spaces list|use <name>`, `space:` in ~/.jardin.yml, sync sends `space_id` — switching spaces resets `.sync-base.json` so the three-way merge doesn't read the tree switch as mass deletions
+
 ## Session tracking
 
 - `internal/sessions` tails Claude Code transcripts (`~/.claude/projects/*/*.jsonl`) with per-file byte offsets kept in `~/.jardin/.sessions-state.json` (never synced). Heartbeats are user/assistant lines; token usage is deduped by `requestId` (streamed responses repeat identical usage lines)

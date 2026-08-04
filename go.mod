@@ -5,13 +5,16 @@ go 1.26.1
 require (
 	github.com/FacileStudio/enveloppe/go v0.0.0-20260804090730-02b0f4b20c6f
 	github.com/FacileStudio/pool/go v0.0.0-20260703193105-683b8b5581af
+	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/fatih/color v1.19.0
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/oauth2 v0.36.0
 	golang.org/x/term v0.44.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect

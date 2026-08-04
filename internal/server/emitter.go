@@ -62,11 +62,29 @@ func (e *Emitter) Status() EmitterStatus {
 	defer e.mu.Unlock()
 	status := EmitterStatus{Connected: e.connected, LastError: e.lastError, Emitted: e.emitted}
 	settings := e.srv.loadSettings()
-	if blocks, err := sessions.ReadBlocks(e.srv.DataDir); err == nil {
-		ledger := e.loadLedger()
-		status.Pending = len(pendingBlocks(blocks, ledger, &settings.Nook))
-	}
+	ledger := e.loadLedger()
+	status.Pending = len(pendingBlocks(e.allBlocks(), ledger, &settings.Nook))
 	return status
+}
+
+// allBlocks aggregates sealed sessions from the common tree and every space
+// tree — machines sync into exactly one of them, but billing sees all work.
+func (e *Emitter) allBlocks() []sessions.Block {
+	blocks, _ := sessions.ReadBlocks(e.srv.DataDir)
+	entries, err := os.ReadDir(filepath.Join(e.srv.DataDir, "spaces"))
+	if err != nil {
+		return blocks
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		spaceBlocks, err := sessions.ReadBlocks(filepath.Join(e.srv.DataDir, "spaces", entry.Name()))
+		if err == nil {
+			blocks = append(blocks, spaceBlocks...)
+		}
+	}
+	return blocks
 }
 
 func (e *Emitter) Run(ctx context.Context) {
@@ -169,13 +187,8 @@ func (e *Emitter) emitPending(nook *NookSettings) {
 		return
 	}
 
-	blocks, err := sessions.ReadBlocks(e.srv.DataDir)
-	if err != nil {
-		e.setError("read blocks: " + err.Error())
-		return
-	}
 	ledger := e.loadLedger()
-	pending := pendingBlocks(blocks, ledger, nook)
+	pending := pendingBlocks(e.allBlocks(), ledger, nook)
 
 	for _, b := range pending {
 		evt := envelopeFor(&b, nook.EmailFor(b.Machine))

@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -193,6 +194,60 @@ func TestSyncFreshMachinePullsAll(t *testing.T) {
 	}
 	if read(t, clientDir, "rules/a.md") != "v1" {
 		t.Fatal("fresh pull missing content")
+	}
+}
+
+// A Client with Space set must send space_id on every sync request; without it,
+// no space_id is sent (the server then serves the common tree). Tested against
+// a stub server because the real server's space support ships separately.
+func TestClientSendsSpaceID(t *testing.T) {
+	queries := map[string]string{}
+	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries[r.Method+" "+r.URL.Path] = r.URL.RawQuery
+		switch {
+		case r.URL.Path == "/api/sync/tree":
+			w.Write([]byte("[]"))
+		case r.Method == http.MethodGet:
+			w.Write([]byte("data"))
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer stub.Close()
+
+	c := NewClient(stub.URL, "")
+	c.Space = "space-42"
+
+	if _, err := c.Tree(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Upload("rules/a.md", []byte("v1")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Download("rules/a.md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Delete("rules/a.md"); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, key := range []string{
+		"GET /api/sync/tree",
+		"PUT /api/sync/files/rules/a.md",
+		"GET /api/sync/files/rules/a.md",
+		"DELETE /api/sync/files/rules/a.md",
+	} {
+		if got, want := queries[key], "space_id=space-42"; got != want {
+			t.Fatalf("%s: query = %q, want %q", key, got, want)
+		}
+	}
+
+	c.Space = ""
+	if _, err := c.Tree(); err != nil {
+		t.Fatal(err)
+	}
+	if q := queries["GET /api/sync/tree"]; q != "" {
+		t.Fatalf("Space unset should send no query, got %q", q)
 	}
 }
 

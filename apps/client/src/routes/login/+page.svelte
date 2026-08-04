@@ -23,9 +23,12 @@
 			return;
 		}
 		try {
-			const cfg = await backend.getAuthConfig();
-			ssoOnly = cfg.sso_only ?? false;
-			oidcEnabled = cfg.oidc_enabled ?? false;
+			const res = await fetch('/api/auth/config');
+			if (res.ok) {
+				const cfg = await res.json();
+				ssoOnly = (cfg.sso_only ?? false) || cfg.password_auth === false;
+				oidcEnabled = cfg.oidc_enabled ?? false;
+			}
 		} catch {}
 		configLoaded = true;
 	});
@@ -124,13 +127,11 @@
 						</div>
 					{/if}
 
-					<a href="/api/auth/oidc" class="block">
-						<button
-							type="button"
-							class="inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
-						>
-							Continuer avec SSO
-						</button>
+					<a
+						href="/api/auth/oidc"
+						class="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+					>
+						Continuer avec SSO
 					</a>
 				{/if}
 			{/if}

@@ -30,7 +30,11 @@ func (s *Server) sessionsStats(w http.ResponseWriter, r *http.Request) {
 	if !valid {
 		by = "project"
 	}
-	blocks, err := sessions.ReadBlocks(s.DataDir)
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	blocks, err := sessions.ReadBlocks(root)
 	if err != nil {
 		log.Printf("sessions: read failed: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -48,7 +52,11 @@ func (s *Server) sessionsRecent(w http.ResponseWriter, r *http.Request) {
 	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 && v <= 200 {
 		limit = v
 	}
-	blocks, err := sessions.ReadBlocks(s.DataDir)
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	blocks, err := sessions.ReadBlocks(root)
 	if err != nil {
 		log.Printf("sessions: read failed: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
