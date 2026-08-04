@@ -312,7 +312,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		scope = scopeAdmin
 	}
 
-	token, err := s.mintToken(name, scope)
+	token, err := s.mintToken(name, scope, "")
 	if err != nil {
 		log.Printf("login: token generation failed: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -324,8 +324,9 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 
 // mintToken generates a new bearer token, stores its hash under the given
 // machine name (replacing any prior token with the same name), and returns the
-// plaintext token to hand to the caller exactly once.
-func (s *Server) mintToken(name, scope string) (string, error) {
+// plaintext token to hand to the caller exactly once. A non-empty email ties
+// the token to a user, which is what lets a machine sync space trees.
+func (s *Server) mintToken(name, scope, email string) (string, error) {
 	token, err := generateToken()
 	if err != nil {
 		return "", err
@@ -341,6 +342,7 @@ func (s *Server) mintToken(name, scope string) (string, error) {
 		Hash:      hash,
 		Name:      name,
 		Scope:     scope,
+		UserEmail: email,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 	s.saveTokens()
@@ -616,7 +618,8 @@ func (s *Server) tokensList(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) tokensCreate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name string `json:"name"`
+		Name      string `json:"name"`
+		UserEmail string `json:"user_email"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "name required", http.StatusBadRequest)
@@ -626,6 +629,10 @@ func (s *Server) tokensCreate(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		http.Error(w, "name required", http.StatusBadRequest)
 		return
+	}
+	email := strings.TrimSpace(req.UserEmail)
+	if email == "" {
+		email = identityFrom(r).Email
 	}
 
 	token, err := generateToken()
@@ -638,6 +645,7 @@ func (s *Server) tokensCreate(w http.ResponseWriter, r *http.Request) {
 		Hash:      hashToken(token),
 		Name:      name,
 		Scope:     scopeSync,
+		UserEmail: email,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 	s.mu.Lock()

@@ -275,7 +275,7 @@ func (s *Server) deviceApprove(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	token, err := s.mintToken(req.Machine, scopeSync)
+	token, err := s.mintToken(req.Machine, scopeSync, identityFrom(r).Email)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
