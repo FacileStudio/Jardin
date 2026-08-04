@@ -38,6 +38,44 @@ var sessionsCmd = &cobra.Command{
 	},
 }
 
+var sessionsLiveCmd = &cobra.Command{
+	Use:   "live",
+	Short: "Show sessions running right now across machines",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		entries, err := sessions.ReadLive(config.DataDir(), time.Now())
+		if err != nil {
+			return err
+		}
+		if len(entries) == 0 {
+			fmt.Println("No sessions running.")
+			return nil
+		}
+		for _, e := range entries {
+			switch {
+			case e.Live:
+				color.New(color.FgGreen).Printf("● ")
+			case e.MachineOnline:
+				color.New(color.FgYellow).Printf("● ")
+			default:
+				fmt.Printf("○ ")
+			}
+			color.New(color.Bold).Printf("%-20s", e.Project)
+			fmt.Printf(" %-14s", e.Machine+"/"+e.Agent)
+			fmt.Printf(" %8s", sessions.FormatDuration(time.Since(e.StartedAt)))
+			fmt.Printf(" %8s out", sessions.FormatTokens(e.TokensOut))
+			switch {
+			case e.Live:
+				color.Green("  active")
+			case e.MachineOnline:
+				color.Yellow("  idle %dm", e.IdleSeconds/60)
+			default:
+				fmt.Println("  machine offline")
+			}
+		}
+		return nil
+	},
+}
+
 var sessionsScanCmd = &cobra.Command{
 	Use:   "scan",
 	Short: "Collect new agent activity into session blocks",
@@ -65,6 +103,6 @@ var sessionsScanCmd = &cobra.Command{
 
 func init() {
 	sessionsScanCmd.Flags().BoolVar(&sessionsScanAll, "all", false, "rebuild this machine's history from full transcripts")
-	sessionsCmd.AddCommand(sessionsScanCmd)
+	sessionsCmd.AddCommand(sessionsScanCmd, sessionsLiveCmd)
 	rootCmd.AddCommand(sessionsCmd)
 }

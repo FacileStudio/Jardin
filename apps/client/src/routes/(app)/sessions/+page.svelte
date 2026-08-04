@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { backend, type SessionBlock, type SessionStats } from '$lib/backend';
+	import { backend, type LiveSession, type SessionBlock, type SessionStats } from '$lib/backend';
 
 	const RANGES = [
 		{ label: '7d', value: '7d' },
@@ -17,6 +17,14 @@
 	let by = $state('project');
 	let stats: SessionStats | null = $state(null);
 	let recent: SessionBlock[] = $state([]);
+	let live: LiveSession[] = $state([]);
+
+	$effect(() => {
+		const load = () => backend.sessionsLive().then((l) => (live = l ?? [])).catch(() => {});
+		load();
+		const timer = setInterval(load, 30_000);
+		return () => clearInterval(timer);
+	});
 
 	$effect(() => {
 		backend.sessionsStats(since, by).then((s) => (stats = s)).catch(() => {});
@@ -53,6 +61,29 @@
 		return `${month} ${day} ${hh}:${mm}`;
 	}
 
+	function elapsed(iso: string): string {
+		return formatDuration(Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000));
+	}
+
+	function liveState(s: LiveSession): 'active' | 'idle' | 'offline' {
+		if (!s.machine_online) return 'offline';
+		return s.live ? 'active' : 'idle';
+	}
+
+	function liveDot(s: LiveSession): string {
+		const state = liveState(s);
+		if (state === 'offline') return 'bg-muted-foreground/40';
+		if (state === 'idle') return 'bg-amber-500';
+		return 'bg-emerald-500 animate-pulse';
+	}
+
+	function liveLabel(s: LiveSession): string {
+		const state = liveState(s);
+		if (state === 'offline') return 'machine offline';
+		if (state === 'active') return 'active';
+		return `idle ${Math.max(1, Math.round(s.idle_seconds / 60))}m`;
+	}
+
 	function blockDuration(b: SessionBlock): string {
 		const seconds = Math.max(0, (new Date(b.ended_at).getTime() - new Date(b.started_at).getTime()) / 1000);
 		return formatDuration(seconds);
@@ -64,6 +95,33 @@
 		<h2 class="text-2xl font-semibold tracking-tight">Sessions</h2>
 		<p class="text-sm text-muted-foreground">Agent work sessions recorded across your machines.</p>
 	</div>
+
+	<section class="space-y-3">
+		<h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Running now</h3>
+		{#if live.length === 0}
+			<p class="text-sm text-muted-foreground">No sessions running.</p>
+		{:else}
+			<div class="space-y-1.5">
+				{#each live as s}
+					<div
+						class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border px-4 py-2.5 text-sm {s.machine_online
+							? ''
+							: 'opacity-60'}"
+					>
+						<span class="size-2 flex-shrink-0 rounded-full {liveDot(s)}"></span>
+						<span class="font-medium">{s.project}</span>
+						<span class="text-muted-foreground">{s.machine}/{s.agent}</span>
+						{#if s.branch}
+							<code class="rounded bg-accent px-1 py-0.5 text-xs">{s.branch}</code>
+						{/if}
+						<span class="tabular-nums text-muted-foreground">{elapsed(s.started_at)}</span>
+						<span class="tabular-nums text-muted-foreground">{formatTokens(s.tokens_out)} out</span>
+						<span class="ml-auto text-muted-foreground">{liveLabel(s)}</span>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</section>
 
 	<div class="flex flex-wrap items-center gap-4">
 		<div class="flex gap-1.5">

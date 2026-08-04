@@ -47,6 +47,20 @@ func (s *Server) sessionsStats(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, sessionsStatsResponse{By: by, Rows: rows})
 }
 
+func (s *Server) sessionsLive(w http.ResponseWriter, r *http.Request) {
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	entries, err := sessions.ReadLive(root, time.Now())
+	if err != nil {
+		log.Printf("sessions live: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	jsonReply(w, entries)
+}
+
 func (s *Server) sessionsRecent(w http.ResponseWriter, r *http.Request) {
 	limit := 20
 	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 && v <= 200 {

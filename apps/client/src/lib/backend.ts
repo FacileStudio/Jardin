@@ -93,6 +93,21 @@ export interface SessionBlock {
 	cache_write: number;
 }
 
+export interface LiveSession {
+	project: string;
+	agent: string;
+	branch?: string;
+	model?: string;
+	started_at: string;
+	last_event_at: string;
+	events: number;
+	tokens_out: number;
+	machine: string;
+	live: boolean;
+	machine_online: boolean;
+	idle_seconds: number;
+}
+
 export interface NookSettings {
 	enabled: boolean;
 	instance: string;
@@ -178,6 +193,7 @@ export const backend = {
 	sessionsStats: (since: string, by: string) =>
 		request<SessionStats>('GET', `/sessions/stats?since=${since}&by=${by}${spaceQuery('&')}`),
 	sessionsRecent: (limit = 20) => request<SessionBlock[]>('GET', `/sessions/recent?limit=${limit}${spaceQuery('&')}`),
+	sessionsLive: () => request<LiveSession[]>('GET', `/sessions/live${spaceQuery('?')}`),
 
 	settingsGet: () => request<MyceliumSettings>('GET', '/settings'),
 	settingsSave: (nook: NookSettings) => request<MyceliumSettings>('PUT', '/settings', { nook }),

@@ -38,6 +38,9 @@ func scanLocked(dataDir, machine, claudeDir string, now time.Time) (*ScanResult,
 	if err := SaveState(dataDir, state); err != nil {
 		return nil, err
 	}
+	if err := writeLive(dataDir, machine, state, now); err != nil {
+		return nil, err
+	}
 	return &ScanResult{Events: len(events), Sealed: len(sealed), Open: len(state.Open)}, nil
 }
 

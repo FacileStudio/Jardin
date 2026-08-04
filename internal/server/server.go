@@ -172,6 +172,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/sessions/stats", s.auth(false, s.sessionsStats))
 	mux.HandleFunc("GET /api/sessions/recent", s.auth(false, s.sessionsRecent))
+	mux.HandleFunc("GET /api/sessions/live", s.auth(false, s.sessionsLive))
 
 	mux.HandleFunc("GET /api/settings", s.auth(true, s.settingsGet))
 	mux.HandleFunc("PUT /api/settings", s.auth(true, s.settingsPut))

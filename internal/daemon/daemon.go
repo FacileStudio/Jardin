@@ -6,12 +6,19 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/FacileStudio/Mycelium/internal/config"
 )
 
 const Label = "studio.facile.mycelium-sync"
-const IntervalSeconds = 300
+
+// IntervalSeconds paces the cheap work — scanning sessions and syncing — so
+// liveness stays roughly a minute fresh. Regenerating agent configs is far
+// more write-heavy, so installRefresh keeps it on its original cadence.
+const IntervalSeconds = 60
+
+const installRefresh = 5 * time.Minute
 
 func selfPath() (string, error) {
 	p, err := os.Executable()
@@ -59,6 +66,9 @@ func Run() error {
 	if out, err := exec.Command(self, "sync").CombinedOutput(); err != nil {
 		syncErr = fmt.Errorf("sync failed: %v: %s", err, out)
 	}
+	if !installDue(time.Now()) {
+		return syncErr
+	}
 	cfg, err := config.LoadMyceliumConfig()
 	if err != nil {
 		return err
@@ -72,7 +82,28 @@ func Run() error {
 			return fmt.Errorf("install %s failed: %v: %s", agent, err, out)
 		}
 	}
+	markInstalled(time.Now())
 	return syncErr
+}
+
+func installStampPath() string {
+	return filepath.Join(config.DataDir(), ".last-install")
+}
+
+func installDue(now time.Time) bool {
+	info, err := os.Stat(installStampPath())
+	if err != nil {
+		return true
+	}
+	return now.Sub(info.ModTime()) >= installRefresh
+}
+
+func markInstalled(now time.Time) {
+	path := installStampPath()
+	if f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
+		f.Close()
+	}
+	os.Chtimes(path, now, now)
 }
 
 func DetectAgents() []string {
