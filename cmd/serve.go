@@ -25,6 +25,8 @@ var serveCmd = &cobra.Command{
 		password := os.Getenv("PASSWORD")
 
 		srv := server.New(dataDir, password)
+		emitter := server.NewEmitter(srv)
+		go emitter.Run(cmd.Context())
 
 		addr := fmt.Sprintf(":%d", servePort)
 		color.Green("Jardin server listening on %s", addr)

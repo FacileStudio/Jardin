@@ -38,6 +38,7 @@ type Server struct {
 	devices   *deviceStore
 	devStarts *rateLimiter
 	devPolls  *rateLimiter
+	emitter   *Emitter
 }
 
 type FileEntry struct {
@@ -146,6 +147,12 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/memory/search", s.auth(false, s.memorySearch))
 	mux.HandleFunc("GET /api/memory/index", s.auth(false, s.memoryIndex))
+
+	mux.HandleFunc("GET /api/sessions/stats", s.auth(false, s.sessionsStats))
+	mux.HandleFunc("GET /api/sessions/recent", s.auth(false, s.sessionsRecent))
+
+	mux.HandleFunc("GET /api/settings", s.auth(true, s.settingsGet))
+	mux.HandleFunc("PUT /api/settings", s.auth(true, s.settingsPut))
 
 	mux.HandleFunc("GET /api/rules", s.auth(false, s.rulesList))
 	mux.HandleFunc("GET /api/rules/{name}", s.auth(false, s.ruleGet))

@@ -23,6 +23,10 @@ type Adapter interface {
 	TargetPaths() []string
 }
 
+type HookInstaller interface {
+	InstallHooks() (string, error)
+}
+
 var registry = map[string]Adapter{}
 
 func Register(a Adapter) {

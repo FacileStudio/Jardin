@@ -56,6 +56,57 @@ export interface FileEntry {
 	mod_time: string;
 }
 
+export interface SessionStatRow {
+	key: string;
+	sessions: number;
+	seconds: number;
+	tokens_in: number;
+	tokens_out: number;
+	cache_read: number;
+}
+
+export interface SessionStats {
+	by: string;
+	rows: SessionStatRow[];
+}
+
+export interface SessionBlock {
+	id: string;
+	project: string;
+	machine: string;
+	agent: string;
+	branch?: string;
+	model?: string;
+	started_at: string;
+	ended_at: string;
+	events: number;
+	tokens_in: number;
+	tokens_out: number;
+	cache_read: number;
+	cache_write: number;
+}
+
+export interface NookSettings {
+	enabled: boolean;
+	instance: string;
+	secret: string;
+	user_email: string;
+	machine_emails: Record<string, string>;
+	emit_since?: string;
+}
+
+export interface EmitterStatus {
+	connected: boolean;
+	last_error?: string;
+	emitted: number;
+	pending: number;
+}
+
+export interface JardinSettings {
+	nook: NookSettings;
+	status: EmitterStatus;
+}
+
 export const backend = {
 	status: () => request<JardinStatus>('GET', '/status'),
 
@@ -77,6 +128,12 @@ export const backend = {
 	skillGet: (name: string) => request<string>('GET', `/skills/${name}`),
 	skillSave: (name: string, content: string) => request<void>('PUT', `/skills/${name}`, content),
 	skillDelete: (name: string) => request<void>('DELETE', `/skills/${name}`),
+
+	sessionsStats: (since: string, by: string) => request<SessionStats>('GET', `/sessions/stats?since=${since}&by=${by}`),
+	sessionsRecent: (limit = 20) => request<SessionBlock[]>('GET', `/sessions/recent?limit=${limit}`),
+
+	settingsGet: () => request<JardinSettings>('GET', '/settings'),
+	settingsSave: (nook: NookSettings) => request<JardinSettings>('PUT', '/settings', { nook }),
 
 	tokensCreate: (name: string) => request<TokenInfo>('POST', '/tokens', { name }),
 	tokensList: () => request<TokenInfo[]>('GET', '/tokens'),

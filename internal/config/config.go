@@ -29,9 +29,11 @@ func ConfigPath() string {
 	return filepath.Join(home, ".jardin.yml")
 }
 
-func MemoryDir() string  { return filepath.Join(DataDir(), "memory") }
-func RulesDir() string  { return filepath.Join(DataDir(), "rules") }
-func SkillsDir() string { return filepath.Join(DataDir(), "skills") }
+func MemoryDir() string   { return filepath.Join(DataDir(), "memory") }
+func RulesDir() string    { return filepath.Join(DataDir(), "rules") }
+func SkillsDir() string   { return filepath.Join(DataDir(), "skills") }
+func SessionsDir() string { return filepath.Join(DataDir(), "sessions") }
+
 func MachinesDir() string { return filepath.Join(DataDir(), "machines") }
 
 func LoadJardinConfig() (*JardinConfig, error) {

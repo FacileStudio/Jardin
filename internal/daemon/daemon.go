@@ -54,6 +54,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	exec.Command(self, "sessions", "scan").Run()
 	var syncErr error
 	if out, err := exec.Command(self, "sync").CombinedOutput(); err != nil {
 		syncErr = fmt.Errorf("sync failed: %v: %s", err, out)

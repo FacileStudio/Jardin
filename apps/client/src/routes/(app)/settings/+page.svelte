@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { backend, type TokenInfo } from '$lib/backend';
+	import { backend, type EmitterStatus, type NookSettings, type TokenInfo } from '$lib/backend';
 	import { AGENT_PROMPT } from '$lib/agentPrompt';
 
 	let tokens: TokenInfo[] = $state([]);
@@ -7,6 +7,18 @@
 	let newTokenName = $state('');
 	let createdToken = $state('');
 	let promptCopied = $state(false);
+
+	let nookLoaded = $state(false);
+	let nookDenied = $state(false);
+	let nookEnabled = $state(false);
+	let nookInstance = $state('');
+	let nookSecret = $state('');
+	let nookUserEmail = $state('');
+	let nookEmitSince = $state('');
+	let machineEmails: { machine: string; email: string }[] = $state([]);
+	let nookStatus: EmitterStatus | null = $state(null);
+	let nookError = $state('');
+	let nookSaving = $state(false);
 
 	async function copyPrompt() {
 		await navigator.clipboard.writeText(AGENT_PROMPT);
@@ -17,6 +29,50 @@
 	$effect(() => {
 		backend.tokensList().then((t) => (tokens = t)).catch(() => {});
 	});
+
+	$effect(() => {
+		backend
+			.settingsGet()
+			.then((s) => {
+				applyNook(s.nook, s.status);
+				nookLoaded = true;
+			})
+			.catch(() => (nookDenied = true));
+	});
+
+	function applyNook(nook: NookSettings, status: EmitterStatus) {
+		nookEnabled = nook.enabled;
+		nookInstance = nook.instance;
+		nookSecret = nook.secret;
+		nookUserEmail = nook.user_email;
+		nookEmitSince = nook.emit_since ?? '';
+		machineEmails = Object.entries(nook.machine_emails ?? {}).map(([machine, email]) => ({ machine, email }));
+		nookStatus = status;
+	}
+
+	async function saveNook() {
+		nookSaving = true;
+		nookError = '';
+		try {
+			const emails: Record<string, string> = {};
+			for (const row of machineEmails) {
+				if (row.machine.trim()) emails[row.machine.trim()] = row.email.trim();
+			}
+			const s = await backend.settingsSave({
+				enabled: nookEnabled,
+				instance: nookInstance,
+				secret: nookSecret,
+				user_email: nookUserEmail,
+				machine_emails: emails,
+				emit_since: nookEmitSince || undefined
+			});
+			applyNook(s.nook, s.status);
+		} catch (e) {
+			nookError = e instanceof Error ? e.message : 'Save failed';
+		} finally {
+			nookSaving = false;
+		}
+	}
 
 	async function createToken() {
 		if (!newTokenName.trim()) return;
@@ -122,6 +178,119 @@
 			</div>
 		{:else}
 			<p class="text-sm text-muted-foreground">No tokens yet.</p>
+		{/if}
+	</section>
+
+	<section class="space-y-4">
+		<div>
+			<h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Nook sync</h3>
+			<p class="mt-1 text-sm text-muted-foreground">
+				Publish sealed agent sessions to the Nook event bus so Sablier can turn them into time entries.
+			</p>
+		</div>
+
+		{#if nookDenied}
+			<p class="text-sm text-muted-foreground">Admin login required.</p>
+		{:else if nookLoaded}
+			{#if nookStatus}
+				<div class="flex flex-wrap items-center gap-2 text-sm">
+					<span class="size-2 rounded-full {nookStatus.connected ? 'bg-green-500' : 'bg-muted-foreground/40'}"></span>
+					<span class={nookStatus.connected ? '' : 'text-muted-foreground'}>
+						{nookStatus.connected ? 'Connected' : 'Disconnected'}
+					</span>
+					<span class="text-muted-foreground">{nookStatus.pending} sessions pending</span>
+					{#if nookStatus.last_error}
+						<span class="text-xs text-destructive">{nookStatus.last_error}</span>
+					{/if}
+				</div>
+			{/if}
+
+			<form onsubmit={(e) => { e.preventDefault(); saveNook(); }} class="space-y-4">
+				<label class="flex items-center gap-2 text-sm">
+					<input type="checkbox" bind:checked={nookEnabled} class="size-4 rounded border-input accent-primary" />
+					Enabled
+				</label>
+
+				<div class="grid gap-3 sm:grid-cols-2">
+					<label class="space-y-1">
+						<span class="text-xs font-medium text-muted-foreground">Instance URL</span>
+						<input
+							type="text"
+							bind:value={nookInstance}
+							placeholder="https://nook.facile.studio"
+							class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						/>
+					</label>
+					<label class="space-y-1">
+						<span class="text-xs font-medium text-muted-foreground">Secret</span>
+						<input
+							type="password"
+							bind:value={nookSecret}
+							class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						/>
+					</label>
+					<label class="space-y-1">
+						<span class="text-xs font-medium text-muted-foreground">Attribution email</span>
+						<input
+							type="text"
+							bind:value={nookUserEmail}
+							placeholder="you@example.com"
+							class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						/>
+					</label>
+				</div>
+
+				<div class="space-y-2">
+					<p class="text-xs font-medium text-muted-foreground">Machine email overrides</p>
+					{#each machineEmails as row, i}
+						<div class="flex gap-2">
+							<input
+								type="text"
+								bind:value={row.machine}
+								placeholder="machine"
+								class="w-40 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							/>
+							<input
+								type="text"
+								bind:value={row.email}
+								placeholder="email"
+								class="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							/>
+							<button
+								type="button"
+								onclick={() => (machineEmails = machineEmails.filter((_, j) => j !== i))}
+								class="rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
+							>
+								Remove
+							</button>
+						</div>
+					{/each}
+					<button
+						type="button"
+						onclick={() => (machineEmails = [...machineEmails, { machine: '', email: '' }])}
+						class="rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
+					>
+						Add override
+					</button>
+				</div>
+
+				{#if nookEmitSince}
+					<p class="text-xs text-muted-foreground">Emitting sessions ended after {nookEmitSince}</p>
+				{/if}
+
+				<div class="flex items-center gap-3">
+					<button
+						type="submit"
+						disabled={nookSaving}
+						class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+					>
+						{nookSaving ? 'Saving…' : 'Save'}
+					</button>
+					{#if nookError}
+						<span class="text-sm text-destructive">{nookError}</span>
+					{/if}
+				</div>
+			</form>
 		{/if}
 	</section>
 </div>

@@ -96,6 +96,15 @@ func runAdapter(a adapter.Adapter, input *adapter.Input) error {
 			color.Green("  %s → %s", a.Name(), path)
 		}
 	}
+
+	if h, ok := a.(adapter.HookInstaller); ok {
+		written, err := h.InstallHooks()
+		if err != nil {
+			color.Yellow("  %s: hook install skipped: %v", a.Name(), err)
+		} else if written != "" {
+			color.Green("  %s → %s (SessionStart recap hook)", a.Name(), written)
+		}
+	}
 	return nil
 }
 
