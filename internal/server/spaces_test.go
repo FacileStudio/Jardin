@@ -165,6 +165,29 @@ func TestMachineTokensCannotManageSpaces(t *testing.T) {
 	}
 }
 
+func TestUserBoundMachineTokenSyncsSpace(t *testing.T) {
+	srv := New(t.TempDir(), "pw")
+	h := srv.Handler()
+	owner := sessionFor(t, srv, "yann@facile.studio", false)
+	id := createSpace(t, h, owner, "Facile")
+
+	machine, err := srv.mintToken("lucy", scopeSync, "yann@facile.studio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec := spReq(t, h, "GET", "/api/sync/tree?space_id="+id, machine, ""); rec.Code != http.StatusOK {
+		t.Fatalf("member-bound machine token must sync space: %d", rec.Code)
+	}
+	if rec := spReq(t, h, "PUT", "/api/sync/files/memory/note.md?space_id="+id, machine, "hello"); rec.Code != http.StatusNoContent {
+		t.Fatalf("member-bound machine token must write space files: %d", rec.Code)
+	}
+
+	orphan := loginAs(t, h, "pw", "stray")
+	if rec := spReq(t, h, "GET", "/api/sync/tree?space_id="+id, orphan, ""); rec.Code != http.StatusForbidden {
+		t.Fatalf("userless machine token must stay fenced out: %d", rec.Code)
+	}
+}
+
 func TestExpiredSessionRejected(t *testing.T) {
 	srv := New(t.TempDir(), "pw")
 	h := srv.Handler()
