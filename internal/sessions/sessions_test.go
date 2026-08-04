@@ -208,6 +208,36 @@ func TestCollectClaudeIgnoresPartialLine(t *testing.T) {
 	}
 }
 
+func TestReadBlocksDedupesById(t *testing.T) {
+	dir := t.TempDir()
+	block := finalize(&Block{Project: "Jardin", Machine: "lucy", Agent: "claude", StartedAt: t0, EndedAt: t0.Add(10 * time.Minute)})
+	if err := appendBlocks(dir, "lucy", []Block{block, block}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadBlocks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("duplicate ids must collapse to one block, got %d", len(got))
+	}
+}
+
+func TestScanLockExcludesConcurrentScan(t *testing.T) {
+	dir := t.TempDir()
+	release, err := lockScan(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Scan(dir, "lucy", filepath.Join(dir, "no-claude"), t0); err == nil {
+		t.Fatal("scan must refuse while lock is held")
+	}
+	release()
+	if _, err := Scan(dir, "lucy", filepath.Join(dir, "no-claude"), t0); err != nil {
+		t.Fatalf("scan must succeed after release: %v", err)
+	}
+}
+
 func TestShardRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	blocks := []Block{

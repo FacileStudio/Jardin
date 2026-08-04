@@ -84,10 +84,12 @@ func appendBlocks(dataDir, machine string, blocks []Block) error {
 	return nil
 }
 
-// ReadBlocks returns every sealed block from every machine's shards, sorted by
-// start time. A missing sessions dir yields an empty slice, not an error.
+// ReadBlocks returns every sealed block from every machine's shards, deduped
+// by deterministic ID and sorted by start time. A missing sessions dir yields
+// an empty slice, not an error.
 func ReadBlocks(dataDir string) ([]Block, error) {
 	root := filepath.Join(dataDir, "sessions")
+	seen := make(map[string]bool)
 	var blocks []Block
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
@@ -106,7 +108,8 @@ func ReadBlocks(dataDir string) ([]Block, error) {
 		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 		for scanner.Scan() {
 			var b Block
-			if json.Unmarshal(scanner.Bytes(), &b) == nil && b.ID != "" {
+			if json.Unmarshal(scanner.Bytes(), &b) == nil && b.ID != "" && !seen[b.ID] {
+				seen[b.ID] = true
 				blocks = append(blocks, b)
 			}
 		}
