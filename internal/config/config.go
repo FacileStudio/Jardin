@@ -12,6 +12,7 @@ type MyceliumConfig struct {
 	Machine   string   `yaml:"machine,omitempty"`
 	URL       string   `yaml:"url,omitempty"`
 	Token     string   `yaml:"token,omitempty"`
+	Space     string   `yaml:"space,omitempty"`
 	RuleOrder []string `yaml:"rule_order,omitempty"`
 	Agents    []string `yaml:"agents,omitempty"`
 }

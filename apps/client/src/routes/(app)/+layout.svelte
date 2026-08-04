@@ -2,11 +2,14 @@
 	import Icon from '@iconify/svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { backend, type MyceliumStatus } from '$lib/backend';
+	import { backend, type AuthUser, type MyceliumStatus } from '$lib/backend';
+	import { getActiveSpaceId, getSpaces, setActiveSpaceId, setSpaces } from '$lib/space.svelte';
 	import { setContext } from 'svelte';
 
 	let { children } = $props();
 	let status: MyceliumStatus | null = $state(null);
+	let me: AuthUser | null = $state(null);
+	let spaceMenuOpen = $state(false);
 
 	const nav = [
 		{ label: 'Memory', href: '/memory', icon: 'solar:notebook-linear' },
@@ -14,6 +17,7 @@
 		{ label: 'Skills', href: '/skills', icon: 'solar:bolt-circle-linear' },
 		{ label: 'Machines', href: '/machines', icon: 'solar:server-square-linear' },
 		{ label: 'Sessions', href: '/sessions', icon: 'solar:history-linear' },
+		{ label: 'Spaces', href: '/spaces', icon: 'solar:users-group-rounded-linear' },
 		{ label: 'Settings', href: '/settings', icon: 'solar:settings-linear' }
 	];
 
@@ -23,10 +27,36 @@
 			goto('/login');
 			return;
 		}
-		backend.status().then((s) => (status = s)).catch(() => goto('/login'));
+		backend
+			.status()
+			.then((s) => (status = s))
+			.catch(() => {
+				if (getActiveSpaceId() !== null) {
+					setActiveSpaceId(null);
+					window.location.reload();
+					return;
+				}
+				goto('/login');
+			});
+		backend.authMe().then((u) => (me = u)).catch(() => (me = null));
+		backend.spacesList().then((s) => setSpaces(s)).catch(() => setSpaces([]));
 	});
 
-	function logout() {
+	let activeSpace = $derived(getSpaces().find((s) => s.id === getActiveSpaceId()) ?? null);
+
+	function pickSpace(id: string | null) {
+		spaceMenuOpen = false;
+		if (id === getActiveSpaceId()) return;
+		setActiveSpaceId(id);
+		window.location.reload();
+	}
+
+	async function logout() {
+		if (me) {
+			try {
+				await backend.logout();
+			} catch {}
+		}
 		localStorage.removeItem('mycelium.token');
 		goto('/login');
 	}
@@ -44,6 +74,52 @@
 				</a>
 			</div>
 
+			{#if getSpaces().length > 0}
+				<div class="relative px-2 pb-2">
+					<button
+						onclick={() => (spaceMenuOpen = !spaceMenuOpen)}
+						class="flex w-full items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-accent"
+					>
+						<Icon
+							icon={activeSpace ? 'solar:planet-linear' : 'solar:users-group-rounded-linear'}
+							class="size-[18px] text-muted-foreground"
+						/>
+						<span class="flex-1 truncate text-left font-medium">{activeSpace ? activeSpace.name : 'Common'}</span>
+						<Icon icon="solar:alt-arrow-down-linear" class="size-4 text-muted-foreground" />
+					</button>
+
+					{#if spaceMenuOpen}
+						<button
+							class="fixed inset-0 z-10 cursor-default"
+							onclick={() => (spaceMenuOpen = false)}
+							aria-label="Close space menu"
+						></button>
+						<div class="absolute left-2 right-2 top-full z-20 mt-1 rounded-lg border border-border bg-background p-1 shadow-md">
+							<button
+								onclick={() => pickSpace(null)}
+								class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent {getActiveSpaceId() === null
+									? 'bg-accent font-medium text-foreground'
+									: 'text-muted-foreground'}"
+							>
+								<Icon icon="solar:users-group-rounded-linear" class="size-[18px]" />
+								Common
+							</button>
+							{#each getSpaces() as space}
+								<button
+									onclick={() => pickSpace(space.id)}
+									class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent {getActiveSpaceId() === space.id
+										? 'bg-accent font-medium text-foreground'
+										: 'text-muted-foreground'}"
+								>
+									<Icon icon="solar:planet-linear" class="size-[18px]" />
+									<span class="truncate">{space.name}</span>
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
+
 			<nav class="flex-1 space-y-0.5 px-2">
 				{#each nav as item}
 					{@const active = $page.url.pathname.startsWith(item.href)}
@@ -60,13 +136,21 @@
 			</nav>
 
 			<div class="border-t border-border p-3">
-				<button
-					onclick={logout}
-					class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-				>
-					<Icon icon="solar:logout-2-linear" class="size-[18px]" />
-					Déconnexion
-				</button>
+				<div class="flex items-center gap-2.5 px-3 py-2">
+					<div class="min-w-0 flex-1">
+						<p class="truncate text-sm font-medium">{me ? me.name || me.email : 'admin'}</p>
+						{#if me}
+							<p class="truncate text-xs text-muted-foreground">{me.email}</p>
+						{/if}
+					</div>
+					<button
+						onclick={logout}
+						title="Déconnexion"
+						class="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+					>
+						<Icon icon="solar:logout-2-linear" class="size-[18px]" />
+					</button>
+				</div>
 			</div>
 		</aside>
 

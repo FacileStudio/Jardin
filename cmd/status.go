@@ -34,6 +34,13 @@ var statusCmd = &cobra.Command{
 			fmt.Println("not configured")
 		}
 
+		color.New(color.Bold).Printf("Space:   ")
+		if cfg.Space != "" {
+			fmt.Println(cfg.Space)
+		} else {
+			fmt.Println("common")
+		}
+
 		rules, _ := cell.ListRules()
 		skills, _ := cell.ListSkills()
 

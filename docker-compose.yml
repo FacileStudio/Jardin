@@ -6,6 +6,12 @@ services:
     environment:
       - DATA_DIR=/data
       - PASSWORD=${PASSWORD}
+      - OIDC_ISSUER=${OIDC_ISSUER:-}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
+      - OIDC_REDIRECT_URL=${OIDC_REDIRECT_URL:-}
+      - OIDC_SUCCESS_URL=${OIDC_SUCCESS_URL:-}
+      - SSO_ONLY=${SSO_ONLY:-}
     volumes:
       - mycelium-data:/data
     networks:

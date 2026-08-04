@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -22,6 +23,7 @@ const (
 type Client struct {
 	BaseURL    string
 	Token      string
+	Space      string
 	HTTPClient *http.Client
 }
 
@@ -41,7 +43,18 @@ func NewClient(baseURL, token string) *Client {
 }
 
 func (c *Client) do(method, path string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest(method, c.BaseURL+path, body)
+	target := c.BaseURL + path
+	if c.Space != "" {
+		u, err := url.Parse(target)
+		if err != nil {
+			return nil, err
+		}
+		q := u.Query()
+		q.Set("space_id", c.Space)
+		u.RawQuery = q.Encode()
+		target = u.String()
+	}
+	req, err := http.NewRequest(method, target, body)
 	if err != nil {
 		return nil, err
 	}
@@ -398,6 +411,17 @@ func (c *Client) Pull(dataDir string) (*Result, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+// ResetBase discards the last-synced base manifest. Callers use it when the
+// remote tree identity changes (switching spaces), where a stale base would
+// make the reconciler propagate bogus deletions; the next Sync then performs a
+// non-destructive union merge instead.
+func ResetBase(dataDir string) error {
+	if err := os.Remove(manifestPath(dataDir)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 type manifest struct {

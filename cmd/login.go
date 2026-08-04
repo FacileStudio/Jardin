@@ -27,6 +27,7 @@ var (
 	loginPassword      bool
 	loginPasswordStdin bool
 	loginNoBrowser     bool
+	loginSpace         string
 )
 
 var loginCmd = &cobra.Command{
@@ -101,6 +102,13 @@ func finishLogin(cfg *config.MyceliumConfig, serverURL, token, machine string) e
 	color.Green("Logged in to %s as %s", serverURL, machine)
 	fmt.Printf("Config saved to %s\n", config.ConfigPath())
 
+	if loginSpace != "" {
+		if err := selectLoginSpace(cfg, loginSpace); err != nil {
+			color.Yellow("Space not selected: %v", err)
+			fmt.Println("Select later with: mycelium spaces use <name-or-id>")
+		}
+	}
+
 	if !loginNoDaemon {
 		if err := daemon.Install(); err != nil {
 			color.Yellow("Background sync not enabled: %v", err)
@@ -109,6 +117,22 @@ func finishLogin(cfg *config.MyceliumConfig, serverURL, token, machine string) e
 			color.Green("Background sync enabled (every %ds). Disable with: mycelium daemon uninstall", daemon.IntervalSeconds)
 		}
 	}
+	return nil
+}
+
+func selectLoginSpace(cfg *config.MyceliumConfig, arg string) error {
+	spaces, err := fetchSpaces(cfg)
+	if err != nil {
+		return err
+	}
+	space, err := resolveSpace(spaces, arg)
+	if err != nil {
+		return err
+	}
+	if err := setSpace(cfg, space.ID); err != nil {
+		return err
+	}
+	color.Green("Syncing space %s (%s)", space.Name, space.ID)
 	return nil
 }
 
@@ -267,5 +291,6 @@ func init() {
 	loginCmd.Flags().BoolVar(&loginPassword, "password", false, "authenticate with the server password instead of the browser")
 	loginCmd.Flags().BoolVar(&loginPasswordStdin, "password-stdin", false, "read the server password from stdin")
 	loginCmd.Flags().BoolVar(&loginNoBrowser, "no-browser", false, "print the authorization URL instead of opening a browser")
+	loginCmd.Flags().StringVar(&loginSpace, "space", "", "select a space to sync after login (name or id)")
 	rootCmd.AddCommand(loginCmd)
 }

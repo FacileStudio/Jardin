@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -24,10 +25,26 @@ import (
 const (
 	scopeAdmin = "admin"
 	scopeSync  = "sync"
+	scopeUser  = "user"
 
 	loginMaxAttempts = 10
 	loginWindow      = time.Minute
 )
+
+type ctxKey int
+
+const identityKey ctxKey = 0
+
+type Identity struct {
+	Email     string
+	Scope     string
+	TokenHash string
+}
+
+func identityFrom(r *http.Request) Identity {
+	id, _ := r.Context().Value(identityKey).(Identity)
+	return id
+}
 
 type Server struct {
 	DataDir   string
@@ -39,6 +56,7 @@ type Server struct {
 	devStarts *rateLimiter
 	devPolls  *rateLimiter
 	emitter   *Emitter
+	oidc      oidcRuntime
 }
 
 type FileEntry struct {
@@ -52,7 +70,9 @@ type TokenInfo struct {
 	Hash      string `json:"-"`
 	Name      string `json:"name"`
 	Scope     string `json:"scope"`
+	UserEmail string `json:"user_email,omitempty"`
 	CreatedAt string `json:"created_at"`
+	ExpiresAt string `json:"expires_at,omitempty"`
 	LastSeen  string `json:"last_seen"`
 }
 
@@ -127,15 +147,17 @@ func (s *Server) saveTokens() {
 	}
 }
 
-func (s *Server) memoryDir() string { return filepath.Join(s.DataDir, "memory") }
-func (s *Server) rulesDir() string  { return filepath.Join(s.DataDir, "rules") }
-func (s *Server) skillsDir() string { return filepath.Join(s.DataDir, "skills") }
-
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/auth/config", s.authConfig)
-	mux.HandleFunc("POST /api/auth/login", s.login)
+	if !ssoOnly() {
+		mux.HandleFunc("POST /api/auth/login", s.login)
+	}
+	mux.HandleFunc("GET /api/auth/oidc", s.oidcStart)
+	mux.HandleFunc("GET /api/auth/oidc/callback", s.oidcCallback)
+	mux.HandleFunc("GET /api/auth/me", s.auth(false, s.authMe))
+	mux.HandleFunc("POST /api/auth/logout", s.auth(false, s.logout))
 
 	mux.HandleFunc("POST /api/auth/device/start", s.deviceStart)
 	mux.HandleFunc("POST /api/auth/device/poll", s.devicePoll)
@@ -164,6 +186,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/skills/{name}", s.auth(false, s.skillSave))
 	mux.HandleFunc("DELETE /api/skills/{name}", s.auth(false, s.skillDelete))
 
+	mux.HandleFunc("GET /api/users", s.auth(false, s.usersList))
+
+	mux.HandleFunc("GET /api/spaces", s.auth(false, s.spacesList))
+	mux.HandleFunc("POST /api/spaces", s.auth(false, s.spacesCreate))
+	mux.HandleFunc("PUT /api/spaces/{id}", s.auth(false, s.spacesUpdate))
+	mux.HandleFunc("DELETE /api/spaces/{id}", s.auth(false, s.spacesDelete))
+	mux.HandleFunc("GET /api/spaces/{id}/members", s.auth(false, s.spacesMembers))
+	mux.HandleFunc("POST /api/spaces/{id}/members", s.auth(false, s.spacesMemberAdd))
+	mux.HandleFunc("PUT /api/spaces/{id}/members/{email}", s.auth(false, s.spacesMemberUpdate))
+	mux.HandleFunc("DELETE /api/spaces/{id}/members/{email}", s.auth(false, s.spacesMemberRemove))
+	mux.HandleFunc("POST /api/spaces/{id}/leave", s.auth(false, s.spacesLeave))
+
 	mux.HandleFunc("GET /api/tokens", s.auth(true, s.tokensList))
 	mux.HandleFunc("POST /api/tokens", s.auth(true, s.tokensCreate))
 	mux.HandleFunc("DELETE /api/tokens/{name}", s.auth(true, s.tokensDelete))
@@ -178,8 +212,9 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.Password == "" {
-			next(w, r)
+		if s.Password == "" && loadOIDCEnv() == nil {
+			ctx := context.WithValue(r.Context(), identityKey, Identity{Scope: scopeAdmin})
+			next(w, r.WithContext(ctx))
 			return
 		}
 		header := r.Header.Get("Authorization")
@@ -191,6 +226,13 @@ func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 
 		s.mu.Lock()
 		info, ok := s.tokens[hash]
+		if ok && info.ExpiresAt != "" {
+			if exp, err := time.Parse(time.RFC3339, info.ExpiresAt); err == nil && time.Now().UTC().After(exp) {
+				delete(s.tokens, hash)
+				s.saveTokens()
+				ok = false
+			}
+		}
 		if ok {
 			now := time.Now().UTC()
 			prev, _ := time.Parse(time.RFC3339, info.LastSeen)
@@ -210,14 +252,37 @@ func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
-		next(w, r)
+		ctx := context.WithValue(r.Context(), identityKey, Identity{
+			Email: info.UserEmail, Scope: info.Scope, TokenHash: hash,
+		})
+		next(w, r.WithContext(ctx))
 	}
+}
+
+// scopeRoot resolves the tree a request operates on: the shared common tree
+// when no space_id is supplied, or the space's subtree after the membership
+// guard passes. Writes its own error response on failure.
+func (s *Server) scopeRoot(w http.ResponseWriter, r *http.Request) (string, bool) {
+	spaceID := r.URL.Query().Get("space_id")
+	if spaceID == "" {
+		return s.DataDir, true
+	}
+	if strings.ContainsAny(spaceID, "/\\.") {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return "", false
+	}
+	if _, _, ok := s.spaceAccess(identityFrom(r), spaceID); !ok {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return "", false
+	}
+	return s.spaceDir(spaceID), true
 }
 
 func (s *Server) authConfig(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, map[string]bool{
-		"sso_only":     os.Getenv("SSO_ONLY") == "true",
-		"oidc_enabled": os.Getenv("OIDC_ENABLED") == "true",
+		"password_auth": s.Password != "" && !ssoOnly(),
+		"sso_only":      ssoOnly(),
+		"oidc_enabled":  loadOIDCEnv() != nil,
 	})
 }
 
@@ -284,20 +349,28 @@ func (s *Server) mintToken(name, scope string) (string, error) {
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
+	root, ok := s.scopeRoot(w, r)
+	if !ok {
+		return
+	}
 	resp := StatusResponse{
-		Rules:  listMdNames(s.rulesDir()),
-		Skills: listMdNames(s.skillsDir()),
+		Rules:  listMdNames(filepath.Join(root, "rules")),
+		Skills: listMdNames(filepath.Join(root, "skills")),
 	}
 	jsonReply(w, resp)
 }
 
 func (s *Server) memorySearch(w http.ResponseWriter, r *http.Request) {
+	root, ok := s.scopeRoot(w, r)
+	if !ok {
+		return
+	}
 	query := r.URL.Query().Get("q")
 	if query == "" {
 		jsonReply(w, []memory.SearchResult{})
 		return
 	}
-	results, err := memory.Search(s.memoryDir(), query)
+	results, err := memory.Search(filepath.Join(root, "memory"), query)
 	if err != nil {
 		log.Printf("memory search: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -310,7 +383,11 @@ func (s *Server) memorySearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) memoryIndex(w http.ResponseWriter, r *http.Request) {
-	content, err := memory.ReadIndex(s.memoryDir())
+	root, ok := s.scopeRoot(w, r)
+	if !ok {
+		return
+	}
+	content, err := memory.ReadIndex(filepath.Join(root, "memory"))
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -320,7 +397,11 @@ func (s *Server) memoryIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) rulesList(w http.ResponseWriter, r *http.Request) {
-	jsonReply(w, listMdNames(s.rulesDir()))
+	root, ok := s.scopeRoot(w, r)
+	if !ok {
+		return
+	}
+	jsonReply(w, listMdNames(filepath.Join(root, "rules")))
 }
 
 func (s *Server) ruleGet(w http.ResponseWriter, r *http.Request) {
@@ -329,7 +410,11 @@ func (s *Server) ruleGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid name", http.StatusBadRequest)
 		return
 	}
-	data, err := os.ReadFile(filepath.Join(s.rulesDir(), name+".md"))
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(root, "rules", name+".md"))
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -344,7 +429,11 @@ func (s *Server) ruleSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid name", http.StatusBadRequest)
 		return
 	}
-	if err := writeFile(s.rulesDir(), name+".md", r.Body); err != nil {
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	if err := writeFile(filepath.Join(root, "rules"), name+".md", r.Body); err != nil {
 		log.Printf("rule save %q: %v", name, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -358,12 +447,20 @@ func (s *Server) ruleDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid name", http.StatusBadRequest)
 		return
 	}
-	os.Remove(filepath.Join(s.rulesDir(), name+".md"))
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	os.Remove(filepath.Join(root, "rules", name+".md"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) skillsList(w http.ResponseWriter, r *http.Request) {
-	jsonReply(w, listMdNames(s.skillsDir()))
+	root, ok := s.scopeRoot(w, r)
+	if !ok {
+		return
+	}
+	jsonReply(w, listMdNames(filepath.Join(root, "skills")))
 }
 
 func (s *Server) skillGet(w http.ResponseWriter, r *http.Request) {
@@ -372,7 +469,11 @@ func (s *Server) skillGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid name", http.StatusBadRequest)
 		return
 	}
-	data, err := os.ReadFile(filepath.Join(s.skillsDir(), name+".md"))
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(root, "skills", name+".md"))
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -387,7 +488,11 @@ func (s *Server) skillSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid name", http.StatusBadRequest)
 		return
 	}
-	if err := writeFile(s.skillsDir(), name+".md", r.Body); err != nil {
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	if err := writeFile(filepath.Join(root, "skills"), name+".md", r.Body); err != nil {
 		log.Printf("skill save %q: %v", name, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -401,17 +506,25 @@ func (s *Server) skillDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid name", http.StatusBadRequest)
 		return
 	}
-	os.Remove(filepath.Join(s.skillsDir(), name+".md"))
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	os.Remove(filepath.Join(root, "skills", name+".md"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) syncTree(w http.ResponseWriter, r *http.Request) {
+	root, ok := s.scopeRoot(w, r)
+	if !ok {
+		return
+	}
 	var files []FileEntry
-	filepath.Walk(s.DataDir, func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
-		rel, _ := filepath.Rel(s.DataDir, path)
+		rel, _ := filepath.Rel(root, path)
 		if syncSkip(rel) {
 			return nil
 		}
@@ -432,7 +545,11 @@ func (s *Server) syncTree(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) syncGetFile(w http.ResponseWriter, r *http.Request) {
-	full, ok := s.resolveSyncPath(r.PathValue("path"))
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	full, ok := s.resolveSyncPath(root, r.PathValue("path"))
 	if !ok {
 		http.Error(w, "invalid path", http.StatusBadRequest)
 		return
@@ -441,7 +558,11 @@ func (s *Server) syncGetFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) syncPutFile(w http.ResponseWriter, r *http.Request) {
-	full, ok := s.resolveSyncPath(r.PathValue("path"))
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	full, ok := s.resolveSyncPath(root, r.PathValue("path"))
 	if !ok {
 		http.Error(w, "invalid path", http.StatusBadRequest)
 		return
@@ -465,7 +586,11 @@ func (s *Server) syncPutFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) syncDeleteFile(w http.ResponseWriter, r *http.Request) {
-	full, ok := s.resolveSyncPath(r.PathValue("path"))
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	full, ok := s.resolveSyncPath(root, r.PathValue("path"))
 	if !ok {
 		http.Error(w, "invalid path", http.StatusBadRequest)
 		return
@@ -541,20 +666,26 @@ func (s *Server) tokensDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) resolveSyncPath(rel string) (string, bool) {
+func (s *Server) resolveSyncPath(root, rel string) (string, bool) {
 	clean := strings.TrimPrefix(filepath.Clean("/"+rel), "/")
-	if clean == "." || clean == "tokens.json" || strings.HasPrefix(clean, ".") || strings.HasSuffix(clean, ".conflict") {
+	if clean == "." || syncSkip(clean) {
 		return "", false
 	}
-	full := filepath.Join(s.DataDir, clean)
-	if full != s.DataDir && !strings.HasPrefix(full, s.DataDir+string(os.PathSeparator)) {
+	full := filepath.Join(root, clean)
+	if full != root && !strings.HasPrefix(full, root+string(os.PathSeparator)) {
 		return "", false
 	}
 	return full, true
 }
 
+// syncSkip fences everything the file sync must never touch: server state
+// (tokens, dotfiles), conflict backups, and the spaces subtree — space content
+// is reachable only through its own scoped root, never via the common tree.
 func syncSkip(rel string) bool {
-	return rel == "tokens.json" || strings.HasPrefix(rel, ".") || strings.HasSuffix(rel, ".conflict")
+	return rel == "tokens.json" ||
+		strings.HasPrefix(rel, ".") ||
+		strings.HasSuffix(rel, ".conflict") ||
+		rel == "spaces" || strings.HasPrefix(rel, "spaces"+string(os.PathSeparator)) || strings.HasPrefix(rel, "spaces/")
 }
 
 func safeName(name string) (string, bool) {

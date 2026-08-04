@@ -17,7 +17,9 @@ func syncClient() (*hsync.Client, string, error) {
 	if cfg.URL == "" {
 		return nil, "", fmt.Errorf("sync not configured — run 'mycelium login <url>'")
 	}
-	return hsync.NewClient(cfg.URL, cfg.Token), config.DataDir(), nil
+	client := hsync.NewClient(cfg.URL, cfg.Token)
+	client.Space = cfg.Space
+	return client, config.DataDir(), nil
 }
 
 func printResult(res *hsync.Result) {
