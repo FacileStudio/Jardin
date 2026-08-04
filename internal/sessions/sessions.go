@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -82,7 +83,7 @@ func fold(state *ScanState, machine string, events []Event, now time.Time) []Blo
 
 	var sealed []Block
 	for _, ev := range events {
-		key := ev.Project + "|" + ev.Agent
+		key := strings.ToLower(ev.Project) + "|" + ev.Agent
 		open := state.Open[key]
 		if open != nil && ev.Time.After(open.EndedAt.Add(GapTimeout)) {
 			sealed = append(sealed, finalize(open))

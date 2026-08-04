@@ -37,6 +37,18 @@ func TestPendingBlocksFiltersLedgerAndWatermark(t *testing.T) {
 	}
 }
 
+func TestPendingBlocksSkipsSubMinuteBlocks(t *testing.T) {
+	nook := &NookSettings{Enabled: true, UserEmail: "yann@facile.studio"}
+	short := mkBlock("short", "lucy", e0)
+	short.StartedAt = short.EndedAt.Add(-30 * time.Second)
+	long := mkBlock("long", "lucy", e0)
+
+	pending := pendingBlocks([]sessions.Block{short, long}, map[string]string{}, nook)
+	if len(pending) != 1 || pending[0].ID != "long" {
+		t.Fatalf("sub-minute block must be excluded, got %+v", pending)
+	}
+}
+
 func TestPendingBlocksSkipsUnattributable(t *testing.T) {
 	nook := &NookSettings{Enabled: true, MachineEmails: map[string]string{"lucy": "sara@example.com"}}
 	blocks := []sessions.Block{

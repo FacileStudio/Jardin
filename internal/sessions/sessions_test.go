@@ -26,7 +26,7 @@ func TestFoldMergesWithinGap(t *testing.T) {
 	if len(sealed) != 0 {
 		t.Fatalf("expected no sealed blocks, got %d", len(sealed))
 	}
-	open := state.Open["Mycelium|claude"]
+	open := state.Open["mycelium|claude"]
 	if open == nil {
 		t.Fatal("expected open block")
 	}
@@ -78,6 +78,48 @@ func TestFoldSeparatesProjects(t *testing.T) {
 
 	if len(state.Open) != 2 {
 		t.Fatalf("expected 2 open blocks, got %d", len(state.Open))
+	}
+}
+
+func TestFoldMergesCaseVariants(t *testing.T) {
+	state := newScanState()
+	fold(state, "lucy", []Event{
+		{Time: t0, Agent: "claude", Project: "GFConseil", TokensOut: 10},
+		{Time: t0.Add(time.Minute), Agent: "claude", Project: "gfconseil", TokensOut: 20},
+	}, t0.Add(2*time.Minute))
+
+	if len(state.Open) != 1 {
+		t.Fatalf("case variants must merge into one block, got %d", len(state.Open))
+	}
+}
+
+func TestRepoNameFromRemote(t *testing.T) {
+	cases := map[string]string{
+		"git@github.com:FacileStudio/GFConseil.git": "GFConseil",
+		"https://github.com/FacileStudio/Mycelium":    "Mycelium",
+		"https://github.com/owner/repo.name.git":    "repo.name",
+		"ssh://git@host.com/owner/Repo/":            "Repo",
+		"":                                          "",
+		"..":                                        "",
+	}
+	for in, want := range cases {
+		if got := repoNameFromRemote(in); got != want {
+			t.Fatalf("repoNameFromRemote(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestAggregateFoldsCase(t *testing.T) {
+	blocks := []Block{
+		{Project: "GFConseil", StartedAt: t0, EndedAt: t0.Add(time.Hour), TokensOut: 10},
+		{Project: "gfconseil", StartedAt: t0, EndedAt: t0.Add(time.Hour), TokensOut: 20},
+	}
+	rows := Aggregate(blocks, time.Time{}, "project")
+	if len(rows) != 1 {
+		t.Fatalf("case variants must aggregate together, got %d rows", len(rows))
+	}
+	if rows[0].Key != "GFConseil" || rows[0].TokensOut != 30 {
+		t.Fatalf("bad folded row: %+v", rows[0])
 	}
 }
 
@@ -272,10 +314,10 @@ func TestStateRoundTrip(t *testing.T) {
 	if loaded.Files["/x.jsonl"].Offset != 42 {
 		t.Fatal("file state lost")
 	}
-	if loaded.Open["Mycelium|claude"] == nil {
+	if loaded.Open["mycelium|claude"] == nil {
 		t.Fatal("open block lost")
 	}
-	data, _ := json.Marshal(loaded.Open["Mycelium|claude"])
+	data, _ := json.Marshal(loaded.Open["mycelium|claude"])
 	if len(data) == 0 {
 		t.Fatal("open block must marshal")
 	}
