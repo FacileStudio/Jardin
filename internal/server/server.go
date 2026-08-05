@@ -208,7 +208,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/sync/files/{path...}", s.auth(false, s.syncPutFile))
 	mux.HandleFunc("DELETE /api/sync/files/{path...}", s.auth(false, s.syncDeleteFile))
 
-	return mux
+	return recoverer(mux)
 }
 
 func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
