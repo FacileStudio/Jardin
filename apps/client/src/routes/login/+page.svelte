@@ -6,6 +6,14 @@
 
 	const TOKEN_KEY = 'mycelium.token';
 
+	const inputClass =
+		'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
+	const labelClass = 'text-sm font-medium leading-none';
+	const primaryButtonClass =
+		'inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50';
+	const outlineButtonClass =
+		'inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50';
+
 	let password = $state('');
 	let error = $state('');
 	let busy = $state(false);
@@ -50,18 +58,18 @@
 </script>
 
 <svelte:head>
-	<title>Log in — Mycelium</title>
+	<title>Connexion — Mycelium</title>
 </svelte:head>
 
 <div class="flex min-h-screen">
 	<div class="hidden lg:flex lg:w-1/2 flex-col bg-black px-12 py-10">
 		<a href="/" class="flex items-center gap-3 mb-auto">
-			<Icon icon="solar:leaf-bold-duotone" class="size-7 text-white" />
-			<span class="text-xl font-bold tracking-tight text-white">Mycelium</span>
+			<Icon icon="solar:leaf-bold-duotone" class="w-7 h-7 text-white" />
+			<span class="text-xl font-bold font-heading tracking-tight text-white">Mycelium</span>
 		</a>
 
 		<div class="mb-auto">
-			<h2 class="text-4xl font-bold text-white leading-tight tracking-tight">
+			<h2 class="text-4xl font-bold font-heading text-white leading-tight tracking-tight">
 				Un cerveau.<br />Tous vos agents.
 			</h2>
 			<p class="mt-4 text-sm text-white/50 max-w-xs leading-relaxed">
@@ -70,20 +78,20 @@
 		</div>
 
 		<p class="text-xs text-white/30">
-			&copy; {new Date().getFullYear()} Mycelium by Facile.
+			© {new Date().getFullYear()} Mycelium par Facile.
 		</p>
 	</div>
 
 	<div class="flex w-full lg:w-1/2 flex-col items-center justify-center px-8 py-12 bg-background">
 		<div class="w-full max-w-sm">
 			<div class="mb-8">
-				<h1 class="text-2xl font-bold tracking-tight text-foreground">
+				<h1 class="text-2xl font-bold font-heading tracking-tight text-foreground">
 					Bon retour
 				</h1>
 				<p class="mt-1.5 text-sm text-muted-foreground">
 					{ssoOnly
 						? 'Connectez-vous avec votre compte organisation.'
-						: 'Connectez-vous pour accéder à Mycelium.'}
+						: 'Connectez-vous à votre compte Mycelium.'}
 				</p>
 			</div>
 
@@ -93,27 +101,27 @@
 				{#if !ssoOnly}
 					<form onsubmit={submit} class="space-y-4">
 						<div class="space-y-1.5">
-							<label for="password" class="text-sm font-medium leading-none">Mot de passe</label>
+							<label for="password" class={labelClass}>Mot de passe</label>
 							<input
 								id="password"
 								type="password"
 								bind:value={password}
 								placeholder="••••••••"
+								autocomplete="current-password"
 								required
-								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+								disabled={busy}
+								class={inputClass}
 							/>
 						</div>
 
 						{#if error}
-							<p class="text-sm text-destructive">{error}</p>
+							<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+								{error}
+							</p>
 						{/if}
 
-						<button
-							type="submit"
-							disabled={busy}
-							class="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
-						>
-							{busy ? 'Connexion...' : 'Se connecter'}
+						<button type="submit" disabled={busy} class={primaryButtonClass}>
+							{busy ? 'Connexion…' : 'Se connecter'}
 						</button>
 					</form>
 				{/if}
@@ -127,11 +135,8 @@
 						</div>
 					{/if}
 
-					<a
-						href="/api/auth/oidc"
-						class="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-					>
-						Continuer avec SSO
+					<a href="/api/auth/oidc" class="block">
+						<button type="button" class={outlineButtonClass}>Continuer avec SSO</button>
 					</a>
 				{/if}
 			{/if}
