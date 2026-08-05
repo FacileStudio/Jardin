@@ -1,12 +1,15 @@
 package server
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/FacileStudio/Jardin/internal/sessions"
+
+	apierrors "github.com/FacileStudio/tronc/errors"
+	"github.com/FacileStudio/tronc/httpjson"
 )
 
 type sessionsStatsResponse struct {
@@ -17,7 +20,7 @@ type sessionsStatsResponse struct {
 func (s *Server) sessionsStats(w http.ResponseWriter, r *http.Request) {
 	since, err := sessions.ParseSince(r.URL.Query().Get("since"), time.Now())
 	if err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("bad request"))
 		return
 	}
 	by := r.URL.Query().Get("by")
@@ -36,15 +39,15 @@ func (s *Server) sessionsStats(w http.ResponseWriter, r *http.Request) {
 	}
 	blocks, err := sessions.ReadBlocks(root)
 	if err != nil {
-		log.Printf("sessions: read failed: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("sessions: read failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	rows := sessions.Aggregate(blocks, since, by)
 	if rows == nil {
 		rows = []sessions.StatRow{}
 	}
-	jsonReply(w, sessionsStatsResponse{By: by, Rows: rows})
+	httpjson.WriteJSON(w, http.StatusOK, sessionsStatsResponse{By: by, Rows: rows})
 }
 
 func (s *Server) sessionsLive(w http.ResponseWriter, r *http.Request) {
@@ -54,11 +57,11 @@ func (s *Server) sessionsLive(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := sessions.ReadLive(root, time.Now())
 	if err != nil {
-		log.Printf("sessions live: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("sessions: live read failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
-	jsonReply(w, entries)
+	httpjson.WriteJSON(w, http.StatusOK, entries)
 }
 
 func (s *Server) sessionsRecent(w http.ResponseWriter, r *http.Request) {
@@ -72,13 +75,13 @@ func (s *Server) sessionsRecent(w http.ResponseWriter, r *http.Request) {
 	}
 	blocks, err := sessions.ReadBlocks(root)
 	if err != nil {
-		log.Printf("sessions: read failed: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("sessions: read failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	recent := sessions.Recent(blocks, limit)
 	if recent == nil {
 		recent = []sessions.Block{}
 	}
-	jsonReply(w, recent)
+	httpjson.WriteJSON(w, http.StatusOK, recent)
 }

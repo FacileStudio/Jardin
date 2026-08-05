@@ -4,10 +4,14 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	apierrors "github.com/FacileStudio/tronc/errors"
+	"github.com/FacileStudio/tronc/httpjson"
 )
 
 const (
@@ -184,7 +188,7 @@ func (s *Server) baseURL(r *http.Request) string {
 
 func (s *Server) deviceStart(w http.ResponseWriter, r *http.Request) {
 	if !s.devStarts.allow(clientIP(r), time.Now()) {
-		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		httpjson.WriteError(w, apierrors.RateLimited("too many requests"))
 		return
 	}
 
@@ -200,15 +204,16 @@ func (s *Server) deviceStart(w http.ResponseWriter, r *http.Request) {
 	dr, err := s.devices.create(machine, clientIP(r), time.Now().UTC())
 	if err != nil {
 		if errors.Is(err, ErrTooManyDevices) {
-			http.Error(w, "too many pending authorizations", http.StatusTooManyRequests)
+			httpjson.WriteError(w, apierrors.RateLimited("too many pending authorizations"))
 			return
 		}
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("device: create failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 
 	base := s.baseURL(r)
-	jsonReply(w, map[string]any{
+	httpjson.WriteJSON(w, http.StatusOK, map[string]any{
 		"device_code":               dr.DeviceCode,
 		"user_code":                 dr.UserCode,
 		"machine":                   dr.Machine,
@@ -221,7 +226,7 @@ func (s *Server) deviceStart(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) devicePoll(w http.ResponseWriter, r *http.Request) {
 	if !s.devPolls.allow(clientIP(r), time.Now()) {
-		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		httpjson.WriteError(w, apierrors.RateLimited("too many requests"))
 		return
 	}
 
@@ -229,32 +234,32 @@ func (s *Server) devicePoll(w http.ResponseWriter, r *http.Request) {
 		DeviceCode string `json:"device_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("bad request"))
 		return
 	}
 
 	status, token, ok := s.devices.poll(req.DeviceCode)
 	if !ok {
-		http.Error(w, "unknown or expired device code", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("unknown or expired device code"))
 		return
 	}
 	switch status {
 	case deviceApproved:
-		jsonReply(w, map[string]string{"token": token})
+		httpjson.WriteJSON(w, http.StatusOK, map[string]string{"token": token})
 	case deviceDenied:
-		http.Error(w, "authorization denied", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("authorization denied"))
 	default:
-		jsonStatus(w, http.StatusAccepted, map[string]string{"status": "pending"})
+		httpjson.WriteJSON(w, http.StatusAccepted, map[string]string{"status": "pending"})
 	}
 }
 
 func (s *Server) deviceInfo(w http.ResponseWriter, r *http.Request) {
 	req, ok := s.devices.info(r.URL.Query().Get("code"))
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
-	jsonReply(w, map[string]string{
+	httpjson.WriteJSON(w, http.StatusOK, map[string]string{
 		"user_code": req.UserCode,
 		"machine":   req.Machine,
 		"ip":        req.IP,
@@ -267,24 +272,25 @@ func (s *Server) deviceApprove(w http.ResponseWriter, r *http.Request) {
 		UserCode string `json:"user_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("bad request"))
 		return
 	}
 	req, ok := s.devices.info(body.UserCode)
 	if !ok || req.Status != devicePending {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	token, err := s.mintToken(req.Machine, scopeSync, identityFrom(r).Email)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("device: token mint failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	if _, ok := s.devices.approve(body.UserCode, token); !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
-	jsonReply(w, map[string]string{"machine": req.Machine})
+	httpjson.WriteJSON(w, http.StatusOK, map[string]string{"machine": req.Machine})
 }
 
 func (s *Server) deviceDeny(w http.ResponseWriter, r *http.Request) {
@@ -292,18 +298,12 @@ func (s *Server) deviceDeny(w http.ResponseWriter, r *http.Request) {
 		UserCode string `json:"user_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("bad request"))
 		return
 	}
 	if !s.devices.deny(body.UserCode) {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func jsonStatus(w http.ResponseWriter, status int, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
 }

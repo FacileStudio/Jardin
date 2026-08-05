@@ -4,13 +4,16 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	apierrors "github.com/FacileStudio/tronc/errors"
+	"github.com/FacileStudio/tronc/httpjson"
 )
 
 const (
@@ -71,7 +74,7 @@ func (s *Server) loadSpaces() map[string]*Space {
 		return spaces
 	}
 	if err := json.Unmarshal(data, &spaces); err != nil {
-		log.Printf("spaces: corrupt %s: %v", s.spacesPath(), err)
+		s.Log.Error("spaces: corrupt store", slog.String("path", s.spacesPath()), slog.Any("error", err))
 		return make(map[string]*Space)
 	}
 	return spaces
@@ -125,7 +128,7 @@ func spaceResponse(space *Space, role string) SpaceResponse {
 func (s *Server) requireSession(w http.ResponseWriter, r *http.Request) (Identity, bool) {
 	id := identityFrom(r)
 	if id.Email == "" && id.Scope != scopeAdmin {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 		return id, false
 	}
 	return id, true
@@ -145,7 +148,7 @@ func (s *Server) spacesList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	jsonReply(w, map[string]any{"spaces": out})
+	httpjson.WriteJSON(w, http.StatusOK, map[string]any{"spaces": out})
 }
 
 func (s *Server) spacesCreate(w http.ResponseWriter, r *http.Request) {
@@ -158,7 +161,7 @@ func (s *Server) spacesCreate(w http.ResponseWriter, r *http.Request) {
 		Description string `json:"description"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
-		http.Error(w, "name required", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("name required"))
 		return
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -175,15 +178,14 @@ func (s *Server) spacesCreate(w http.ResponseWriter, r *http.Request) {
 	err := s.saveSpaces(spaces)
 	s.mu.Unlock()
 	if err != nil {
-		log.Printf("spaces: save failed: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("spaces: save failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	for _, d := range []string{"memory", "rules", "skills", "sessions"} {
 		os.MkdirAll(filepath.Join(s.spaceDir(space.ID), d), 0o755)
 	}
-	w.WriteHeader(http.StatusCreated)
-	jsonReply(w, spaceResponse(space, roleOwner))
+	httpjson.WriteJSON(w, http.StatusCreated, spaceResponse(space, roleOwner))
 }
 
 func (s *Server) spacesUpdate(w http.ResponseWriter, r *http.Request) {
@@ -193,11 +195,11 @@ func (s *Server) spacesUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	space, role, ok := s.spaceAccess(id, r.PathValue("id"))
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	if role != roleOwner && role != roleAdmin {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 		return
 	}
 	var req struct {
@@ -205,7 +207,7 @@ func (s *Server) spacesUpdate(w http.ResponseWriter, r *http.Request) {
 		Description string `json:"description"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
-		http.Error(w, "name required", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("name required"))
 		return
 	}
 	s.mu.Lock()
@@ -219,10 +221,11 @@ func (s *Server) spacesUpdate(w http.ResponseWriter, r *http.Request) {
 	err := s.saveSpaces(spaces)
 	s.mu.Unlock()
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("spaces: save failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
-	jsonReply(w, spaceResponse(space, role))
+	httpjson.WriteJSON(w, http.StatusOK, spaceResponse(space, role))
 }
 
 func (s *Server) spacesDelete(w http.ResponseWriter, r *http.Request) {
@@ -232,11 +235,11 @@ func (s *Server) spacesDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	space, role, ok := s.spaceAccess(id, r.PathValue("id"))
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	if role != roleOwner {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 		return
 	}
 	s.mu.Lock()
@@ -245,7 +248,8 @@ func (s *Server) spacesDelete(w http.ResponseWriter, r *http.Request) {
 	err := s.saveSpaces(spaces)
 	s.mu.Unlock()
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("spaces: save failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	if _, statErr := os.Stat(s.spaceDir(space.ID)); statErr == nil {
@@ -263,7 +267,7 @@ func (s *Server) spacesMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	space, _, ok := s.spaceAccess(id, r.PathValue("id"))
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	s.mu.RLock()
@@ -274,7 +278,7 @@ func (s *Server) spacesMembers(w http.ResponseWriter, r *http.Request) {
 		out = append(out, MemberResponse{Email: email, Name: users[email].Name, Role: role, JoinedAt: space.CreatedAt})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Email < out[j].Email })
-	jsonReply(w, map[string]any{"members": out})
+	httpjson.WriteJSON(w, http.StatusOK, map[string]any{"members": out})
 }
 
 func (s *Server) spacesMemberAdd(w http.ResponseWriter, r *http.Request) {
@@ -284,11 +288,11 @@ func (s *Server) spacesMemberAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	space, role, ok := s.spaceAccess(id, r.PathValue("id"))
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	if role != roleOwner && role != roleAdmin {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 		return
 	}
 	var req struct {
@@ -296,24 +300,24 @@ func (s *Server) spacesMemberAdd(w http.ResponseWriter, r *http.Request) {
 		Role  string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
-		http.Error(w, "email required", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("email required"))
 		return
 	}
 	if req.Role == "" {
 		req.Role = roleMember
 	}
 	if !validRole(req.Role) {
-		http.Error(w, "invalid role", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("invalid role"))
 		return
 	}
 	if req.Role == roleOwner && role != roleOwner {
-		http.Error(w, "only owners can grant owner", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("only owners can grant owner"))
 		return
 	}
 	s.mu.Lock()
 	if _, exists := s.loadUsers()[req.Email]; !exists {
 		s.mu.Unlock()
-		http.Error(w, "unknown user", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("unknown user"))
 		return
 	}
 	spaces := s.loadSpaces()
@@ -324,7 +328,8 @@ func (s *Server) spacesMemberAdd(w http.ResponseWriter, r *http.Request) {
 	err := s.saveSpaces(spaces)
 	s.mu.Unlock()
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("spaces: save failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -337,11 +342,11 @@ func (s *Server) spacesMemberUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	space, role, ok := s.spaceAccess(id, r.PathValue("id"))
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	if role != roleOwner {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 		return
 	}
 	email := r.PathValue("email")
@@ -349,7 +354,7 @@ func (s *Server) spacesMemberUpdate(w http.ResponseWriter, r *http.Request) {
 		Role string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !validRole(req.Role) {
-		http.Error(w, "invalid role", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("invalid role"))
 		return
 	}
 	s.mu.Lock()
@@ -357,7 +362,7 @@ func (s *Server) spacesMemberUpdate(w http.ResponseWriter, r *http.Request) {
 	sp := spaces[space.ID]
 	if sp == nil || sp.Members[email] == "" {
 		s.mu.Unlock()
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	sp.Members[email] = req.Role
@@ -365,7 +370,8 @@ func (s *Server) spacesMemberUpdate(w http.ResponseWriter, r *http.Request) {
 	err := s.saveSpaces(spaces)
 	s.mu.Unlock()
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("spaces: save failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -378,11 +384,11 @@ func (s *Server) spacesMemberRemove(w http.ResponseWriter, r *http.Request) {
 	}
 	space, role, ok := s.spaceAccess(id, r.PathValue("id"))
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	if role != roleOwner && role != roleAdmin {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 		return
 	}
 	s.removeMember(w, space.ID, r.PathValue("email"))
@@ -395,11 +401,11 @@ func (s *Server) spacesLeave(w http.ResponseWriter, r *http.Request) {
 	}
 	space, _, ok := s.spaceAccess(id, r.PathValue("id"))
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	if id.Email == "" {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 		return
 	}
 	s.removeMember(w, space.ID, id.Email)
@@ -411,7 +417,7 @@ func (s *Server) removeMember(w http.ResponseWriter, spaceID, email string) {
 	spaces := s.loadSpaces()
 	sp := spaces[spaceID]
 	if sp == nil || sp.Members[email] == "" {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	if sp.Members[email] == roleOwner {
@@ -422,14 +428,15 @@ func (s *Server) removeMember(w http.ResponseWriter, spaceID, email string) {
 			}
 		}
 		if owners <= 1 {
-			http.Error(w, "cannot remove the only owner; transfer ownership or delete the space", http.StatusConflict)
+			httpjson.WriteError(w, apierrors.Conflict("cannot remove the only owner; transfer ownership or delete the space"))
 			return
 		}
 	}
 	delete(sp.Members, email)
 	sp.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	if err := s.saveSpaces(spaces); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("spaces: save failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

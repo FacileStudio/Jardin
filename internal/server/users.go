@@ -2,12 +2,15 @@ package server
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
+
+	apierrors "github.com/FacileStudio/tronc/errors"
+	"github.com/FacileStudio/tronc/httpjson"
 )
 
 type User struct {
@@ -28,7 +31,7 @@ func (s *Server) loadUsers() map[string]User {
 		return users
 	}
 	if err := json.Unmarshal(data, &users); err != nil {
-		log.Printf("users: corrupt %s: %v", s.usersPath(), err)
+		s.Log.Error("users: corrupt store", slog.String("path", s.usersPath()), slog.Any("error", err))
 		return make(map[string]User)
 	}
 	return users
@@ -64,7 +67,7 @@ func (s *Server) upsertUser(email, name string) User {
 	}
 	users[email] = user
 	if err := s.saveUsers(users); err != nil {
-		log.Printf("users: save failed: %v", err)
+		s.Log.Error("users: save failed", slog.Any("error", err))
 	}
 	return user
 }
@@ -72,7 +75,7 @@ func (s *Server) upsertUser(email, name string) User {
 func (s *Server) usersList(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
 	if id.Email == "" && id.Scope != scopeAdmin {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 		return
 	}
 	s.mu.RLock()
@@ -83,7 +86,7 @@ func (s *Server) usersList(w http.ResponseWriter, r *http.Request) {
 		out = append(out, u)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Email < out[j].Email })
-	jsonReply(w, out)
+	httpjson.WriteJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
@@ -93,17 +96,17 @@ func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 		user, ok := s.loadUsers()[id.Email]
 		s.mu.RUnlock()
 		if ok {
-			jsonReply(w, map[string]any{"email": user.Email, "name": user.Name, "admin": user.Admin})
+			httpjson.WriteJSON(w, http.StatusOK, map[string]any{"email": user.Email, "name": user.Name, "admin": user.Admin})
 			return
 		}
-		jsonReply(w, map[string]any{"email": id.Email, "name": "", "admin": id.Scope == scopeAdmin})
+		httpjson.WriteJSON(w, http.StatusOK, map[string]any{"email": id.Email, "name": "", "admin": id.Scope == scopeAdmin})
 		return
 	}
 	if id.Scope == scopeAdmin {
-		jsonReply(w, map[string]any{"email": "", "name": "admin", "admin": true})
+		httpjson.WriteJSON(w, http.StatusOK, map[string]any{"email": "", "name": "admin", "admin": true})
 		return
 	}
-	http.Error(w, "forbidden", http.StatusForbidden)
+	httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {

@@ -1,54 +1,54 @@
 services:
-  jardin-api:
+  jardin:
     build:
       context: .
       dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8420"
     environment:
-      - DATA_DIR=/data
-      - PASSWORD=${PASSWORD}
-      - OIDC_ISSUER=${OIDC_ISSUER:-}
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
-      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
-      - OIDC_REDIRECT_URL=${OIDC_REDIRECT_URL:-}
-      - OIDC_SUCCESS_URL=${OIDC_SUCCESS_URL:-}
-      - SSO_ONLY=${SSO_ONLY:-}
+      APP_ENV: ${APP_ENV:-production}
+      PORT: "8420"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATA_DIR: /data
+      PASSWORD: ${PASSWORD}
+      SSO_ONLY: ${SSO_ONLY:-false}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
+      OIDC_SUCCESS_URL: ${OIDC_SUCCESS_URL:-}
+      # Journal log shipping (optional — per-app key from Journal's Keys page;
+      # Jardin is not on journal's docker network, so use https://journal.facile.studio/api)
+      JOURNAL_URL: ${JOURNAL_URL:-}
+      JOURNAL_TOKEN: ${JOURNAL_TOKEN:-}
     volumes:
       - jardin-data:/data
     networks:
-      - internal
+      - default
       - dokploy-network
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.jardin-api.rule=Host(`jardin.facile.studio`) && PathPrefix(`/api`)
-      - traefik.http.routers.jardin-api.entrypoints=websecure
-      - traefik.http.routers.jardin-api.tls.certResolver=letsencrypt
-      - traefik.http.routers.jardin-api.priority=10
-      - traefik.http.services.jardin-api.loadbalancer.server.port=8420
-    restart: unless-stopped
-
-  jardin-client:
-    build:
-      context: ./apps/client
-      dockerfile: Dockerfile
-    environment:
-      - ORIGIN=https://jardin.facile.studio
-      - BODY_SIZE_LIMIT=Infinity
-    networks:
-      - internal
-      - dokploy-network
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.jardin-client.rule=Host(`jardin.facile.studio`)
-      - traefik.http.routers.jardin-client.entrypoints=websecure
-      - traefik.http.routers.jardin-client.tls.certResolver=letsencrypt
-      - traefik.http.routers.jardin-client.priority=1
-      - traefik.http.services.jardin-client.loadbalancer.server.port=3000
-    restart: unless-stopped
+      traefik.enable: "true"
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.jardin-web.rule: "Host(`jardin.facile.studio`)"
+      traefik.http.routers.jardin-web.entrypoints: web
+      traefik.http.routers.jardin-web.middlewares: redirect-to-https@file
+      traefik.http.routers.jardin-web.service: jardin-svc
+      traefik.http.routers.jardin-secure.rule: "Host(`jardin.facile.studio`)"
+      traefik.http.routers.jardin-secure.entrypoints: websecure
+      traefik.http.routers.jardin-secure.tls.certresolver: letsencrypt
+      traefik.http.routers.jardin-secure.service: jardin-svc
+      traefik.http.services.jardin-svc.loadbalancer.server.port: "8420"
+    healthcheck:
+      test: ["CMD", "/jardin", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   jardin-data:
 
 networks:
-  internal:
   dokploy-network:
     external: true

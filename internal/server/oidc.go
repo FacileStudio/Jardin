@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -13,6 +13,10 @@ import (
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
+
+	"github.com/FacileStudio/Jardin/internal/env"
+	apierrors "github.com/FacileStudio/tronc/errors"
+	"github.com/FacileStudio/tronc/httpjson"
 )
 
 const sessionTTL = 30 * 24 * time.Hour
@@ -24,74 +28,48 @@ type oidcRuntime struct {
 	verifier *gooidc.IDTokenVerifier
 }
 
-type oidcEnv struct {
-	Issuer       string
-	ClientID     string
-	ClientSecret string
-	RedirectURL  string
-	SuccessURL   string
-}
-
-func loadOIDCEnv() *oidcEnv {
-	issuer := os.Getenv("OIDC_ISSUER")
-	if issuer == "" {
-		return nil
-	}
-	return &oidcEnv{
-		Issuer:       issuer,
-		ClientID:     os.Getenv("OIDC_CLIENT_ID"),
-		ClientSecret: os.Getenv("OIDC_CLIENT_SECRET"),
-		RedirectURL:  os.Getenv("OIDC_REDIRECT_URL"),
-		SuccessURL:   os.Getenv("OIDC_SUCCESS_URL"),
-	}
-}
-
-func ssoOnly() bool {
-	return strings.ToLower(os.Getenv("SSO_ONLY")) == "true"
-}
-
 // ensureOIDC performs provider discovery lazily so the server still boots
 // when the IdP is unreachable; the first login attempt retries it.
-func (s *Server) ensureOIDC() (*oidcRuntime, *oidcEnv, error) {
-	env := loadOIDCEnv()
-	if env == nil {
+func (s *Server) ensureOIDC() (*oidcRuntime, *env.OIDC, error) {
+	cfg := s.OIDC
+	if cfg == nil {
 		return nil, nil, os.ErrNotExist
 	}
 	s.oidc.mu.Lock()
 	defer s.oidc.mu.Unlock()
 	if s.oidc.provider != nil {
-		return &s.oidc, env, nil
+		return &s.oidc, cfg, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	provider, err := gooidc.NewProvider(ctx, env.Issuer)
+	provider, err := gooidc.NewProvider(ctx, cfg.Issuer)
 	if err != nil {
-		return nil, env, err
+		return nil, cfg, err
 	}
 	s.oidc.provider = provider
 	s.oidc.config = oauth2.Config{
-		ClientID:     env.ClientID,
-		ClientSecret: env.ClientSecret,
-		RedirectURL:  env.RedirectURL,
+		ClientID:     cfg.ClientID,
+		ClientSecret: cfg.ClientSecret,
+		RedirectURL:  cfg.RedirectURL,
 		Endpoint:     provider.Endpoint(),
 		Scopes:       []string{gooidc.ScopeOpenID, "email", "profile"},
 	}
-	s.oidc.verifier = provider.Verifier(&gooidc.Config{ClientID: env.ClientID})
-	return &s.oidc, env, nil
+	s.oidc.verifier = provider.Verifier(&gooidc.Config{ClientID: cfg.ClientID})
+	return &s.oidc, cfg, nil
 }
 
-func (s *Server) successURL(r *http.Request, env *oidcEnv) string {
-	if env.SuccessURL != "" {
-		return env.SuccessURL
+func (s *Server) successURL(r *http.Request, cfg *env.OIDC) string {
+	if cfg.SuccessURL != "" {
+		return cfg.SuccessURL
 	}
 	return s.baseURL(r) + "/auth/callback"
 }
 
 func (s *Server) oidcStart(w http.ResponseWriter, r *http.Request) {
-	rt, env, err := s.ensureOIDC()
+	rt, cfg, err := s.ensureOIDC()
 	if err != nil {
-		log.Printf("oidc: unavailable: %v", err)
-		http.Error(w, "sso unavailable", http.StatusServiceUnavailable)
+		s.Log.Error("oidc: unavailable", slog.Any("error", err))
+		writeStatusError(w, http.StatusServiceUnavailable, "unavailable", "sso unavailable")
 		return
 	}
 	buf := make([]byte, 16)
@@ -100,39 +78,39 @@ func (s *Server) oidcStart(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name: "oidc_state", Value: state, Path: "/", MaxAge: 600,
 		HttpOnly: true, SameSite: http.SameSiteLaxMode,
-		Secure: strings.HasPrefix(s.successURL(r, env), "https://"),
+		Secure: strings.HasPrefix(s.successURL(r, cfg), "https://"),
 	})
 	http.Redirect(w, r, rt.config.AuthCodeURL(state), http.StatusFound)
 }
 
 func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
-	rt, env, err := s.ensureOIDC()
+	rt, cfg, err := s.ensureOIDC()
 	if err != nil {
-		http.Error(w, "sso unavailable", http.StatusServiceUnavailable)
+		writeStatusError(w, http.StatusServiceUnavailable, "unavailable", "sso unavailable")
 		return
 	}
 	cookie, err := r.Cookie("oidc_state")
 	if err != nil || cookie.Value == "" || cookie.Value != r.URL.Query().Get("state") {
-		http.Error(w, "invalid oauth2 state", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("invalid oauth2 state"))
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: "oidc_state", Value: "", Path: "/", MaxAge: -1})
 
 	token, err := rt.config.Exchange(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
-		log.Printf("oidc: exchange failed: %v", err)
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		s.Log.Error("oidc: exchange failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
 		return
 	}
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
 		return
 	}
 	idToken, err := rt.verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
-		log.Printf("oidc: id_token verify failed: %v", err)
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		s.Log.Error("oidc: id_token verify failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
 		return
 	}
 	var claims struct {
@@ -141,7 +119,7 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		PreferredUsername string `json:"preferred_username"`
 	}
 	if err := idToken.Claims(&claims); err != nil || claims.Email == "" {
-		http.Error(w, "email claim required", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("email claim required"))
 		return
 	}
 	name := claims.Name
@@ -156,12 +134,12 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	session, err := s.mintSessionToken(user.Email, scope)
 	if err != nil {
-		log.Printf("oidc: session mint failed: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("oidc: session mint failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 
-	dest := s.successURL(r, env) + "#token=" + session
+	dest := s.successURL(r, cfg) + "#token=" + session
 	http.Redirect(w, r, dest, http.StatusFound)
 }
 
