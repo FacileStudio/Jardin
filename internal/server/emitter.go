@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -151,7 +151,7 @@ func (e *Emitter) connect(ctx context.Context, nook *NookSettings, key string) e
 	e.connected = true
 	e.lastError = ""
 	e.mu.Unlock()
-	log.Printf("emitter: connected to nook pool at %s", nook.Instance)
+	e.srv.Log.Info("emitter: connected to nook pool", slog.String("instance", nook.Instance))
 	return nil
 }
 
@@ -176,7 +176,7 @@ func (e *Emitter) setError(msg string) {
 	e.mu.Lock()
 	e.lastError = msg
 	e.mu.Unlock()
-	log.Printf("emitter: %s", msg)
+	e.srv.Log.Error("emitter", slog.String("error", msg))
 }
 
 func (e *Emitter) emitPending(nook *NookSettings) {
@@ -210,7 +210,7 @@ func (e *Emitter) emitPending(nook *NookSettings) {
 		e.lastError = ""
 		count := e.emitted
 		e.mu.Unlock()
-		log.Printf("emitter: published %d session(s) (%d total)", len(pending), count)
+		e.srv.Log.Info("emitter: published sessions", slog.Int("published", len(pending)), slog.Int("total", count))
 	}
 }
 
@@ -277,7 +277,7 @@ func (e *Emitter) loadLedger() map[string]string {
 		return ledger
 	}
 	if err := json.Unmarshal(data, &ledger); err != nil {
-		log.Printf("emitter: corrupt ledger %s: %v", e.ledgerPath(), err)
+		e.srv.Log.Error("emitter: corrupt ledger", slog.String("path", e.ledgerPath()), slog.Any("error", err))
 		return make(map[string]string)
 	}
 	return ledger

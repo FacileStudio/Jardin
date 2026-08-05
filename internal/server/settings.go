@@ -3,12 +3,15 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"time"
+
+	apierrors "github.com/FacileStudio/tronc/errors"
+	"github.com/FacileStudio/tronc/httpjson"
 )
 
 type NookSettings struct {
@@ -44,7 +47,7 @@ func (s *Server) loadSettings() Settings {
 		return settings
 	}
 	if err := json.Unmarshal(data, &settings); err != nil {
-		log.Printf("settings: failed to parse %s: %v", s.settingsPath(), err)
+		s.Log.Error("settings: failed to parse", slog.String("path", s.settingsPath()), slog.Any("error", err))
 		return Settings{}
 	}
 	return settings
@@ -77,17 +80,17 @@ func (s *Server) settingsGet(w http.ResponseWriter, r *http.Request) {
 	if s.emitter != nil {
 		resp.Status = s.emitter.Status()
 	}
-	jsonReply(w, resp)
+	httpjson.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) settingsPut(w http.ResponseWriter, r *http.Request) {
 	var incoming Settings
 	if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("bad request"))
 		return
 	}
 	if err := validateNook(&incoming.Nook); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid(err.Error()))
 		return
 	}
 	current := s.loadSettings()
@@ -99,8 +102,8 @@ func (s *Server) settingsPut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := s.saveSettings(incoming); err != nil {
-		log.Printf("settings: save failed: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("settings: save failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	if s.emitter != nil {

@@ -4,11 +4,13 @@ Shared agent memory — manage wiki, rules, and skills across AI coding agents a
 
 ## Tech Stack
 
-- **Language**: Go 1.24+
+- **Language**: Go 1.26
 - **CLI framework**: cobra (spf13/cobra)
-- **Config**: TOML (BurntSushi/toml)
+- **Config**: YAML (`~/.mycelium.yml`) for the CLI, environment for the server (`internal/env`)
+- **Server chassis**: [tronc](https://github.com/FacileStudio/tronc) — chi router with the
+  suite's middleware stack, error envelope, structured logger, health probes, SPA handler
 - **Release**: GoReleaser + GitHub Actions (tag-triggered), Homebrew tap via FacileStudio/homebrew-tap
-- **Dependencies**: fatih/color (terminal colors)
+- **Dependencies**: fatih/color (terminal colors), Journal SDK (log shipping)
 
 ## Key Commands
 
@@ -37,13 +39,32 @@ git tag v0.x.x && git push --tags
 │   ├── sessions/       # agent session tracking: transcript scan, sessionize, shards, stats
 │   ├── daemon/         # background sync service (launchd/systemd)
 │   ├── server/         # sync API + dashboard backend + settings + Nook pool emitter
+│   ├── env/            # server configuration, loaded and validated once at startup
 │   └── sync/           # HTTP client: push/pull by checksum
-├── apps/client/       # SvelteKit dashboard
-├── Dockerfile
+├── apps/client/       # SvelteKit dashboard (adapter-static, served by the Go binary)
+├── Dockerfile          # single image: SPA build + Go build + distroless runtime
 ├── docker-compose.yml
 ├── .goreleaser.yml
 └── .github/workflows/release.yml
 ```
+
+## Server shape (mono-container)
+
+- One binary, one container, one Traefik router `Host(mycelium.facile.studio)` — no
+  `PathPrefix`, no `stripprefix`. The Go binary serves `/api/*` and, as the catch-all,
+  the SvelteKit build from `$CLIENT_DIR`. Every API route lives under a single
+  `router.Route("/api", ...)`, so an unknown API path answers a 404 envelope instead of
+  falling through to the SPA and returning 200 + HTML
+- Failures cross the wire as `{"error":{"code","message"}}` via `tronc/httpjson` +
+  `tronc/errors`. `/health` and `/ready` answer at both the root and under `/api`
+- Configuration is read once by `internal/env` and the process exits **1** when it is
+  invalid: `SSO_ONLY` without `OIDC_ISSUER`, `OIDC_ISSUER` without client credentials, or
+  `APP_ENV=production` with neither `PASSWORD` nor `OIDC_ISSUER` (which would serve every
+  request as admin). See `.env.example`
+- chi hands path parameters back **percent-encoded** whenever the request carries any
+  escaping, where the `http.ServeMux` it replaced decoded them. Read them with
+  `pathParam(r, key)`, never `chi.URLParam` directly, or `%2F` walks straight past the
+  traversal guards and an `encodeURIComponent`'d member email never matches a stored one
 
 ## Conventions
 

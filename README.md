@@ -104,10 +104,13 @@ Agents: `claude`, `codex`, `gemini`, `cursor`, `copilot`, `hermes`.
 The server bundles the sync API and the dashboard:
 
 ```bash
-docker compose up -d        # server + SvelteKit dashboard
+docker compose up -d        # one container: sync API + dashboard, port 8420
 # or run the binary directly:
 mycelium serve
 ```
+
+Copy `.env.example` to `.env` first — in `APP_ENV=production` the server refuses to start
+without a `PASSWORD` or an SSO issuer, rather than quietly serving every request as admin.
 
 The dashboard (`apps/client`, SvelteKit) lets you browse and edit memory, rules, and
 skills, manage machines and sync tokens, authorize new devices, and copy the master

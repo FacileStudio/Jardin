@@ -1,54 +1,54 @@
 services:
-  mycelium-api:
+  mycelium:
     build:
       context: .
       dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8420"
     environment:
-      - DATA_DIR=/data
-      - PASSWORD=${PASSWORD}
-      - OIDC_ISSUER=${OIDC_ISSUER:-}
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
-      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
-      - OIDC_REDIRECT_URL=${OIDC_REDIRECT_URL:-}
-      - OIDC_SUCCESS_URL=${OIDC_SUCCESS_URL:-}
-      - SSO_ONLY=${SSO_ONLY:-}
+      APP_ENV: ${APP_ENV:-production}
+      PORT: "8420"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATA_DIR: /data
+      PASSWORD: ${PASSWORD}
+      SSO_ONLY: ${SSO_ONLY:-false}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
+      OIDC_SUCCESS_URL: ${OIDC_SUCCESS_URL:-}
+      # Journal log shipping (optional — per-app key from Journal's Keys page;
+      # Mycelium is not on journal's docker network, so use https://journal.facile.studio/api)
+      JOURNAL_URL: ${JOURNAL_URL:-}
+      JOURNAL_TOKEN: ${JOURNAL_TOKEN:-}
     volumes:
       - mycelium-data:/data
     networks:
-      - internal
+      - default
       - dokploy-network
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.mycelium-api.rule=Host(`mycelium.facile.studio`) && PathPrefix(`/api`)
-      - traefik.http.routers.mycelium-api.entrypoints=websecure
-      - traefik.http.routers.mycelium-api.tls.certResolver=letsencrypt
-      - traefik.http.routers.mycelium-api.priority=10
-      - traefik.http.services.mycelium-api.loadbalancer.server.port=8420
-    restart: unless-stopped
-
-  mycelium-client:
-    build:
-      context: ./apps/client
-      dockerfile: Dockerfile
-    environment:
-      - ORIGIN=https://mycelium.facile.studio
-      - BODY_SIZE_LIMIT=Infinity
-    networks:
-      - internal
-      - dokploy-network
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.mycelium-client.rule=Host(`mycelium.facile.studio`)
-      - traefik.http.routers.mycelium-client.entrypoints=websecure
-      - traefik.http.routers.mycelium-client.tls.certResolver=letsencrypt
-      - traefik.http.routers.mycelium-client.priority=1
-      - traefik.http.services.mycelium-client.loadbalancer.server.port=3000
-    restart: unless-stopped
+      traefik.enable: "true"
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.mycelium-web.rule: "Host(`mycelium.facile.studio`)"
+      traefik.http.routers.mycelium-web.entrypoints: web
+      traefik.http.routers.mycelium-web.middlewares: redirect-to-https@file
+      traefik.http.routers.mycelium-web.service: mycelium-svc
+      traefik.http.routers.mycelium-secure.rule: "Host(`mycelium.facile.studio`)"
+      traefik.http.routers.mycelium-secure.entrypoints: websecure
+      traefik.http.routers.mycelium-secure.tls.certresolver: letsencrypt
+      traefik.http.routers.mycelium-secure.service: mycelium-svc
+      traefik.http.services.mycelium-svc.loadbalancer.server.port: "8420"
+    healthcheck:
+      test: ["CMD", "/mycelium", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   mycelium-data:
 
 networks:
-  internal:
   dokploy-network:
     external: true

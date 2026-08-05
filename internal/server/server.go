@@ -9,9 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,7 +20,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
+	"github.com/FacileStudio/Mycelium/internal/env"
 	"github.com/FacileStudio/Mycelium/internal/memory"
+	apierrors "github.com/FacileStudio/tronc/errors"
+	"github.com/FacileStudio/tronc/health"
+	"github.com/FacileStudio/tronc/httpjson"
+	"github.com/FacileStudio/tronc/httpx"
+	"github.com/FacileStudio/tronc/middleware"
 )
 
 const (
@@ -47,16 +56,20 @@ func identityFrom(r *http.Request) Identity {
 }
 
 type Server struct {
-	DataDir   string
-	Password  string
-	mu        sync.RWMutex
-	tokens    map[string]TokenInfo
-	logins    *rateLimiter
-	devices   *deviceStore
-	devStarts *rateLimiter
-	devPolls  *rateLimiter
-	emitter   *Emitter
-	oidc      oidcRuntime
+	DataDir            string
+	Password           string
+	SSOOnly            bool
+	OIDC               *env.OIDC
+	CORSAllowedOrigins []string
+	Log                *slog.Logger
+	mu                 sync.RWMutex
+	tokens             map[string]TokenInfo
+	logins             *rateLimiter
+	devices            *deviceStore
+	devStarts          *rateLimiter
+	devPolls           *rateLimiter
+	emitter            *Emitter
+	oidc               oidcRuntime
 }
 
 type FileEntry struct {
@@ -86,6 +99,7 @@ func New(dataDir, password string) *Server {
 	s := &Server{
 		DataDir:   dataDir,
 		Password:  password,
+		Log:       slog.Default(),
 		tokens:    make(map[string]TokenInfo),
 		logins:    newRateLimiter(loginMaxAttempts, loginWindow),
 		devices:   newDeviceStore(),
@@ -107,7 +121,7 @@ func (s *Server) loadTokens() {
 	}
 	var raw map[string]TokenInfo
 	if err := json.Unmarshal(data, &raw); err != nil {
-		log.Printf("tokens: failed to parse %s: %v", s.tokensPath(), err)
+		s.Log.Error("tokens: failed to parse", slog.String("path", s.tokensPath()), slog.Any("error", err))
 		return
 	}
 	tokens := make(map[string]TokenInfo, len(raw))
@@ -135,92 +149,143 @@ func (s *Server) loadTokens() {
 func (s *Server) saveTokens() {
 	data, err := json.MarshalIndent(s.tokens, "", "  ")
 	if err != nil {
-		log.Printf("tokens: marshal failed: %v", err)
+		s.Log.Error("tokens: marshal failed", slog.Any("error", err))
 		return
 	}
 	if err := os.MkdirAll(s.DataDir, 0o755); err != nil {
-		log.Printf("tokens: mkdir failed: %v", err)
+		s.Log.Error("tokens: mkdir failed", slog.Any("error", err))
 		return
 	}
 	if err := os.WriteFile(s.tokensPath(), data, 0o600); err != nil {
-		log.Printf("tokens: write failed: %v", err)
+		s.Log.Error("tokens: write failed", slog.Any("error", err))
 	}
 }
 
-func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
+// Handler builds the HTTP router: the suite's standard middleware stack, the
+// liveness and readiness probes at both the root and /api, and every API route
+// under a single /api subtree so an unknown API path answers 404 instead of
+// falling through to the SPA catch-all the caller mounts on the returned mux.
+func (s *Server) Handler() *chi.Mux {
+	router := httpx.NewRouter(httpx.Config{
+		Logger: s.Log,
+		CORS:   middleware.CORSConfig{AllowedOrigins: s.CORSAllowedOrigins},
+	})
+	health.Mount(router, s.dataDirCheck())
 
-	mux.HandleFunc("GET /api/auth/config", s.authConfig)
-	if !ssoOnly() {
-		mux.HandleFunc("POST /api/auth/login", s.login)
+	router.Route("/api", func(r chi.Router) {
+		r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
+			httpjson.WriteError(w, apierrors.NotFound("no such endpoint"))
+		})
+		r.MethodNotAllowed(func(w http.ResponseWriter, _ *http.Request) {
+			writeStatusError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		})
+
+		r.Get("/auth/config", s.authConfig)
+		if !s.SSOOnly {
+			r.Post("/auth/login", s.login)
+		}
+		r.Get("/auth/oidc", s.oidcStart)
+		r.Get("/auth/oidc/callback", s.oidcCallback)
+		r.Get("/auth/me", s.auth(false, s.authMe))
+		r.Post("/auth/logout", s.auth(false, s.logout))
+
+		r.Post("/auth/device/start", s.deviceStart)
+		r.Post("/auth/device/poll", s.devicePoll)
+		r.Get("/auth/device/info", s.auth(true, s.deviceInfo))
+		r.Post("/auth/device/approve", s.auth(true, s.deviceApprove))
+		r.Post("/auth/device/deny", s.auth(true, s.deviceDeny))
+
+		r.Get("/status", s.auth(false, s.status))
+
+		r.Get("/memory/search", s.auth(false, s.memorySearch))
+		r.Get("/memory/index", s.auth(false, s.memoryIndex))
+
+		r.Get("/sessions/stats", s.auth(false, s.sessionsStats))
+		r.Get("/sessions/recent", s.auth(false, s.sessionsRecent))
+		r.Get("/sessions/live", s.auth(false, s.sessionsLive))
+
+		r.Get("/settings", s.auth(true, s.settingsGet))
+		r.Put("/settings", s.auth(true, s.settingsPut))
+
+		r.Get("/rules", s.auth(false, s.rulesList))
+		r.Get("/rules/{name}", s.auth(false, s.ruleGet))
+		r.Put("/rules/{name}", s.auth(false, s.ruleSave))
+		r.Delete("/rules/{name}", s.auth(false, s.ruleDelete))
+
+		r.Get("/skills", s.auth(false, s.skillsList))
+		r.Get("/skills/{name}", s.auth(false, s.skillGet))
+		r.Put("/skills/{name}", s.auth(false, s.skillSave))
+		r.Delete("/skills/{name}", s.auth(false, s.skillDelete))
+
+		r.Get("/users", s.auth(false, s.usersList))
+
+		r.Get("/spaces", s.auth(false, s.spacesList))
+		r.Post("/spaces", s.auth(false, s.spacesCreate))
+		r.Put("/spaces/{id}", s.auth(false, s.spacesUpdate))
+		r.Delete("/spaces/{id}", s.auth(false, s.spacesDelete))
+		r.Get("/spaces/{id}/members", s.auth(false, s.spacesMembers))
+		r.Post("/spaces/{id}/members", s.auth(false, s.spacesMemberAdd))
+		r.Put("/spaces/{id}/members/{email}", s.auth(false, s.spacesMemberUpdate))
+		r.Delete("/spaces/{id}/members/{email}", s.auth(false, s.spacesMemberRemove))
+		r.Post("/spaces/{id}/leave", s.auth(false, s.spacesLeave))
+
+		r.Get("/tokens", s.auth(true, s.tokensList))
+		r.Post("/tokens", s.auth(true, s.tokensCreate))
+		r.Delete("/tokens/{name}", s.auth(true, s.tokensDelete))
+
+		r.Get("/sync/tree", s.auth(false, s.syncTree))
+		r.Get("/sync/files/*", s.auth(false, s.syncGetFile))
+		r.Put("/sync/files/*", s.auth(false, s.syncPutFile))
+		r.Delete("/sync/files/*", s.auth(false, s.syncDeleteFile))
+	})
+
+	return router
+}
+
+// dataDirCheck is the one dependency Mycelium has: a writable data directory. A
+// named volume owned by root under a non-root process fails here rather than
+// at the first write.
+func (s *Server) dataDirCheck() health.Check {
+	return func(context.Context) error {
+		return os.MkdirAll(s.DataDir, 0o755)
 	}
-	mux.HandleFunc("GET /api/auth/oidc", s.oidcStart)
-	mux.HandleFunc("GET /api/auth/oidc/callback", s.oidcCallback)
-	mux.HandleFunc("GET /api/auth/me", s.auth(false, s.authMe))
-	mux.HandleFunc("POST /api/auth/logout", s.auth(false, s.logout))
+}
 
-	mux.HandleFunc("POST /api/auth/device/start", s.deviceStart)
-	mux.HandleFunc("POST /api/auth/device/poll", s.devicePoll)
-	mux.HandleFunc("GET /api/auth/device/info", s.auth(true, s.deviceInfo))
-	mux.HandleFunc("POST /api/auth/device/approve", s.auth(true, s.deviceApprove))
-	mux.HandleFunc("POST /api/auth/device/deny", s.auth(true, s.deviceDeny))
+// writeStatusError answers with the suite's error envelope at a status
+// tronc's code-to-status map does not cover, so 405 and 503 stay themselves
+// instead of collapsing into the generic 500 WriteError would produce.
+func writeStatusError(w http.ResponseWriter, status int, code, message string) {
+	httpjson.WriteJSON(w, status, map[string]any{
+		"error": map[string]string{"code": code, "message": message},
+	})
+}
 
-	mux.HandleFunc("GET /api/status", s.auth(false, s.status))
-
-	mux.HandleFunc("GET /api/memory/search", s.auth(false, s.memorySearch))
-	mux.HandleFunc("GET /api/memory/index", s.auth(false, s.memoryIndex))
-
-	mux.HandleFunc("GET /api/sessions/stats", s.auth(false, s.sessionsStats))
-	mux.HandleFunc("GET /api/sessions/recent", s.auth(false, s.sessionsRecent))
-	mux.HandleFunc("GET /api/sessions/live", s.auth(false, s.sessionsLive))
-
-	mux.HandleFunc("GET /api/settings", s.auth(true, s.settingsGet))
-	mux.HandleFunc("PUT /api/settings", s.auth(true, s.settingsPut))
-
-	mux.HandleFunc("GET /api/rules", s.auth(false, s.rulesList))
-	mux.HandleFunc("GET /api/rules/{name}", s.auth(false, s.ruleGet))
-	mux.HandleFunc("PUT /api/rules/{name}", s.auth(false, s.ruleSave))
-	mux.HandleFunc("DELETE /api/rules/{name}", s.auth(false, s.ruleDelete))
-
-	mux.HandleFunc("GET /api/skills", s.auth(false, s.skillsList))
-	mux.HandleFunc("GET /api/skills/{name}", s.auth(false, s.skillGet))
-	mux.HandleFunc("PUT /api/skills/{name}", s.auth(false, s.skillSave))
-	mux.HandleFunc("DELETE /api/skills/{name}", s.auth(false, s.skillDelete))
-
-	mux.HandleFunc("GET /api/users", s.auth(false, s.usersList))
-
-	mux.HandleFunc("GET /api/spaces", s.auth(false, s.spacesList))
-	mux.HandleFunc("POST /api/spaces", s.auth(false, s.spacesCreate))
-	mux.HandleFunc("PUT /api/spaces/{id}", s.auth(false, s.spacesUpdate))
-	mux.HandleFunc("DELETE /api/spaces/{id}", s.auth(false, s.spacesDelete))
-	mux.HandleFunc("GET /api/spaces/{id}/members", s.auth(false, s.spacesMembers))
-	mux.HandleFunc("POST /api/spaces/{id}/members", s.auth(false, s.spacesMemberAdd))
-	mux.HandleFunc("PUT /api/spaces/{id}/members/{email}", s.auth(false, s.spacesMemberUpdate))
-	mux.HandleFunc("DELETE /api/spaces/{id}/members/{email}", s.auth(false, s.spacesMemberRemove))
-	mux.HandleFunc("POST /api/spaces/{id}/leave", s.auth(false, s.spacesLeave))
-
-	mux.HandleFunc("GET /api/tokens", s.auth(true, s.tokensList))
-	mux.HandleFunc("POST /api/tokens", s.auth(true, s.tokensCreate))
-	mux.HandleFunc("DELETE /api/tokens/{name}", s.auth(true, s.tokensDelete))
-
-	mux.HandleFunc("GET /api/sync/tree", s.auth(false, s.syncTree))
-	mux.HandleFunc("GET /api/sync/files/{path...}", s.auth(false, s.syncGetFile))
-	mux.HandleFunc("PUT /api/sync/files/{path...}", s.auth(false, s.syncPutFile))
-	mux.HandleFunc("DELETE /api/sync/files/{path...}", s.auth(false, s.syncDeleteFile))
-
-	return recoverer(mux)
+// pathParam reads a chi URL parameter and unescapes it.
+//
+// chi matches on the raw path whenever the request carries any percent-encoding
+// and hands the parameter back still encoded, where net/http's ServeMux — which
+// this router replaced — decoded it. Without this, `%2F` would sail past the
+// traversal guards and an encodeURIComponent'd member email would never match a
+// stored one.
+func pathParam(r *http.Request, key string) string {
+	raw := chi.URLParam(r, key)
+	decoded, err := url.PathUnescape(raw)
+	if err != nil {
+		return raw
+	}
+	return decoded
 }
 
 func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.Password == "" && loadOIDCEnv() == nil {
+		if s.Password == "" && s.OIDC == nil {
 			ctx := context.WithValue(r.Context(), identityKey, Identity{Scope: scopeAdmin})
 			next(w, r.WithContext(ctx))
 			return
 		}
 		header := r.Header.Get("Authorization")
 		if !strings.HasPrefix(header, "Bearer ") {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
 			return
 		}
 		hash := hashToken(strings.TrimPrefix(header, "Bearer "))
@@ -246,11 +311,11 @@ func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 		s.mu.Unlock()
 
 		if !ok {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
 			return
 		}
 		if adminOnly && info.Scope != scopeAdmin {
-			http.Error(w, "forbidden", http.StatusForbidden)
+			httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 			return
 		}
 		ctx := context.WithValue(r.Context(), identityKey, Identity{
@@ -288,33 +353,33 @@ func (s *Server) scopeRoot(w http.ResponseWriter, r *http.Request) (string, bool
 	spaceID := r.URL.Query().Get("space_id")
 	if spaceID == "" {
 		if !s.commonAllowed(identityFrom(r)) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+			httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 			return "", false
 		}
 		return s.DataDir, true
 	}
 	if strings.ContainsAny(spaceID, "/\\.") {
-		http.Error(w, "invalid path", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("invalid path"))
 		return "", false
 	}
 	if _, _, ok := s.spaceAccess(identityFrom(r), spaceID); !ok {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 		return "", false
 	}
 	return s.spaceDir(spaceID), true
 }
 
 func (s *Server) authConfig(w http.ResponseWriter, r *http.Request) {
-	jsonReply(w, map[string]bool{
-		"password_auth": s.Password != "" && !ssoOnly(),
-		"sso_only":      ssoOnly(),
-		"oidc_enabled":  loadOIDCEnv() != nil,
+	httpjson.WriteJSON(w, http.StatusOK, map[string]bool{
+		"password_auth": s.Password != "" && !s.SSOOnly,
+		"sso_only":      s.SSOOnly,
+		"oidc_enabled":  s.OIDC != nil,
 	})
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if !s.logins.allow(clientIP(r), time.Now()) {
-		http.Error(w, "too many attempts", http.StatusTooManyRequests)
+		httpjson.WriteError(w, apierrors.RateLimited("too many attempts"))
 		return
 	}
 
@@ -323,11 +388,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		Machine  string `json:"machine"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("bad request"))
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(req.Password), []byte(s.Password)) != 1 {
-		http.Error(w, "invalid password", http.StatusUnauthorized)
+		httpjson.WriteError(w, apierrors.Unauthorized("invalid password"))
 		return
 	}
 
@@ -340,12 +405,12 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 
 	token, err := s.mintToken(name, scope, "")
 	if err != nil {
-		log.Printf("login: token generation failed: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("login: token generation failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 
-	jsonReply(w, map[string]string{"token": token})
+	httpjson.WriteJSON(w, http.StatusOK, map[string]string{"token": token})
 }
 
 // mintToken generates a new bearer token, stores its hash under the given
@@ -381,11 +446,10 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	resp := StatusResponse{
+	httpjson.WriteJSON(w, http.StatusOK, StatusResponse{
 		Rules:  listMdNames(filepath.Join(root, "rules")),
 		Skills: listMdNames(filepath.Join(root, "skills")),
-	}
-	jsonReply(w, resp)
+	})
 }
 
 func (s *Server) memorySearch(w http.ResponseWriter, r *http.Request) {
@@ -395,19 +459,19 @@ func (s *Server) memorySearch(w http.ResponseWriter, r *http.Request) {
 	}
 	query := r.URL.Query().Get("q")
 	if query == "" {
-		jsonReply(w, []memory.SearchResult{})
+		httpjson.WriteJSON(w, http.StatusOK, []memory.SearchResult{})
 		return
 	}
 	results, err := memory.Search(filepath.Join(root, "memory"), query)
 	if err != nil {
-		log.Printf("memory search: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("memory search failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	if results == nil {
 		results = []memory.SearchResult{}
 	}
-	jsonReply(w, results)
+	httpjson.WriteJSON(w, http.StatusOK, results)
 }
 
 func (s *Server) memoryIndex(w http.ResponseWriter, r *http.Request) {
@@ -417,7 +481,7 @@ func (s *Server) memoryIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := memory.ReadIndex(filepath.Join(root, "memory"))
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain")
@@ -429,57 +493,81 @@ func (s *Server) rulesList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	jsonReply(w, listMdNames(filepath.Join(root, "rules")))
+	httpjson.WriteJSON(w, http.StatusOK, listMdNames(filepath.Join(root, "rules")))
 }
 
 func (s *Server) ruleGet(w http.ResponseWriter, r *http.Request) {
-	name, ok := safeName(r.PathValue("name"))
+	s.readNamed(w, r, "rules")
+}
+
+func (s *Server) skillGet(w http.ResponseWriter, r *http.Request) {
+	s.readNamed(w, r, "skills")
+}
+
+func (s *Server) ruleSave(w http.ResponseWriter, r *http.Request) {
+	s.writeNamed(w, r, "rules")
+}
+
+func (s *Server) skillSave(w http.ResponseWriter, r *http.Request) {
+	s.writeNamed(w, r, "skills")
+}
+
+func (s *Server) ruleDelete(w http.ResponseWriter, r *http.Request) {
+	s.deleteNamed(w, r, "rules")
+}
+
+func (s *Server) skillDelete(w http.ResponseWriter, r *http.Request) {
+	s.deleteNamed(w, r, "skills")
+}
+
+func (s *Server) readNamed(w http.ResponseWriter, r *http.Request, kind string) {
+	name, ok := safeName(pathParam(r, "name"))
 	if !ok {
-		http.Error(w, "invalid name", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("invalid name"))
 		return
 	}
 	root, rootOK := s.scopeRoot(w, r)
 	if !rootOK {
 		return
 	}
-	data, err := os.ReadFile(filepath.Join(root, "rules", name+".md"))
+	data, err := os.ReadFile(filepath.Join(root, kind, name+".md"))
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		httpjson.WriteError(w, apierrors.NotFound("not found"))
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write(data)
 }
 
-func (s *Server) ruleSave(w http.ResponseWriter, r *http.Request) {
-	name, ok := safeName(r.PathValue("name"))
+func (s *Server) writeNamed(w http.ResponseWriter, r *http.Request, kind string) {
+	name, ok := safeName(pathParam(r, "name"))
 	if !ok {
-		http.Error(w, "invalid name", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("invalid name"))
 		return
 	}
 	root, rootOK := s.scopeRoot(w, r)
 	if !rootOK {
 		return
 	}
-	if err := writeFile(filepath.Join(root, "rules"), name+".md", r.Body); err != nil {
-		log.Printf("rule save %q: %v", name, err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+	if err := writeFile(filepath.Join(root, kind), name+".md", r.Body); err != nil {
+		s.Log.Error("save failed", slog.String("kind", kind), slog.String("name", name), slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) ruleDelete(w http.ResponseWriter, r *http.Request) {
-	name, ok := safeName(r.PathValue("name"))
+func (s *Server) deleteNamed(w http.ResponseWriter, r *http.Request, kind string) {
+	name, ok := safeName(pathParam(r, "name"))
 	if !ok {
-		http.Error(w, "invalid name", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("invalid name"))
 		return
 	}
 	root, rootOK := s.scopeRoot(w, r)
 	if !rootOK {
 		return
 	}
-	os.Remove(filepath.Join(root, "rules", name+".md"))
+	os.Remove(filepath.Join(root, kind, name+".md"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -488,58 +576,7 @@ func (s *Server) skillsList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	jsonReply(w, listMdNames(filepath.Join(root, "skills")))
-}
-
-func (s *Server) skillGet(w http.ResponseWriter, r *http.Request) {
-	name, ok := safeName(r.PathValue("name"))
-	if !ok {
-		http.Error(w, "invalid name", http.StatusBadRequest)
-		return
-	}
-	root, rootOK := s.scopeRoot(w, r)
-	if !rootOK {
-		return
-	}
-	data, err := os.ReadFile(filepath.Join(root, "skills", name+".md"))
-	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write(data)
-}
-
-func (s *Server) skillSave(w http.ResponseWriter, r *http.Request) {
-	name, ok := safeName(r.PathValue("name"))
-	if !ok {
-		http.Error(w, "invalid name", http.StatusBadRequest)
-		return
-	}
-	root, rootOK := s.scopeRoot(w, r)
-	if !rootOK {
-		return
-	}
-	if err := writeFile(filepath.Join(root, "skills"), name+".md", r.Body); err != nil {
-		log.Printf("skill save %q: %v", name, err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) skillDelete(w http.ResponseWriter, r *http.Request) {
-	name, ok := safeName(r.PathValue("name"))
-	if !ok {
-		http.Error(w, "invalid name", http.StatusBadRequest)
-		return
-	}
-	root, rootOK := s.scopeRoot(w, r)
-	if !rootOK {
-		return
-	}
-	os.Remove(filepath.Join(root, "skills", name+".md"))
-	w.WriteHeader(http.StatusNoContent)
+	httpjson.WriteJSON(w, http.StatusOK, listMdNames(filepath.Join(root, "skills")))
 }
 
 func (s *Server) syncTree(w http.ResponseWriter, r *http.Request) {
@@ -569,7 +606,7 @@ func (s *Server) syncTree(w http.ResponseWriter, r *http.Request) {
 	if files == nil {
 		files = []FileEntry{}
 	}
-	jsonReply(w, files)
+	httpjson.WriteJSON(w, http.StatusOK, files)
 }
 
 func (s *Server) syncGetFile(w http.ResponseWriter, r *http.Request) {
@@ -577,9 +614,9 @@ func (s *Server) syncGetFile(w http.ResponseWriter, r *http.Request) {
 	if !rootOK {
 		return
 	}
-	full, ok := s.resolveSyncPath(root, r.PathValue("path"))
+	full, ok := s.resolveSyncPath(root, pathParam(r, "*"))
 	if !ok {
-		http.Error(w, "invalid path", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("invalid path"))
 		return
 	}
 	http.ServeFile(w, r, full)
@@ -590,24 +627,24 @@ func (s *Server) syncPutFile(w http.ResponseWriter, r *http.Request) {
 	if !rootOK {
 		return
 	}
-	full, ok := s.resolveSyncPath(root, r.PathValue("path"))
+	full, ok := s.resolveSyncPath(root, pathParam(r, "*"))
 	if !ok {
-		http.Error(w, "invalid path", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("invalid path"))
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-		log.Printf("sync put: mkdir: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("sync put: mkdir failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("bad request"))
 		return
 	}
 	if err := os.WriteFile(full, data, 0o644); err != nil {
-		log.Printf("sync put: write: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("sync put: write failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -618,14 +655,14 @@ func (s *Server) syncDeleteFile(w http.ResponseWriter, r *http.Request) {
 	if !rootOK {
 		return
 	}
-	full, ok := s.resolveSyncPath(root, r.PathValue("path"))
+	full, ok := s.resolveSyncPath(root, pathParam(r, "*"))
 	if !ok {
-		http.Error(w, "invalid path", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("invalid path"))
 		return
 	}
 	if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
-		log.Printf("sync delete: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("sync delete failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -639,7 +676,7 @@ func (s *Server) tokensList(w http.ResponseWriter, r *http.Request) {
 		list = append(list, TokenInfo{Name: t.Name, Scope: t.Scope, CreatedAt: t.CreatedAt, LastSeen: t.LastSeen})
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name })
-	jsonReply(w, list)
+	httpjson.WriteJSON(w, http.StatusOK, list)
 }
 
 func (s *Server) tokensCreate(w http.ResponseWriter, r *http.Request) {
@@ -648,12 +685,12 @@ func (s *Server) tokensCreate(w http.ResponseWriter, r *http.Request) {
 		UserEmail string `json:"user_email"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "name required", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("name required"))
 		return
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
-		http.Error(w, "name required", http.StatusBadRequest)
+		httpjson.WriteError(w, apierrors.Invalid("name required"))
 		return
 	}
 	email := strings.TrimSpace(req.UserEmail)
@@ -663,8 +700,8 @@ func (s *Server) tokensCreate(w http.ResponseWriter, r *http.Request) {
 
 	token, err := generateToken()
 	if err != nil {
-		log.Printf("tokens: generation failed: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		s.Log.Error("tokens: generation failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
 	info := TokenInfo{
@@ -679,7 +716,7 @@ func (s *Server) tokensCreate(w http.ResponseWriter, r *http.Request) {
 	s.saveTokens()
 	s.mu.Unlock()
 
-	jsonReply(w, map[string]string{
+	httpjson.WriteJSON(w, http.StatusOK, map[string]string{
 		"token":      token,
 		"name":       info.Name,
 		"scope":      info.Scope,
@@ -688,7 +725,7 @@ func (s *Server) tokensCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tokensDelete(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	name := pathParam(r, "name")
 	s.mu.Lock()
 	for k, v := range s.tokens {
 		if v.Name == name {
@@ -765,11 +802,6 @@ func clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
-}
-
-func jsonReply(w http.ResponseWriter, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(v)
 }
 
 func listMdNames(dir string) []string {

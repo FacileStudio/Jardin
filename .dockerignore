@@ -1,0 +1,9 @@
+.git
+.github
+.githooks
+.gstack
+dist
+mycelium
+apps/client/node_modules
+apps/client/build
+apps/client/.svelte-kit
