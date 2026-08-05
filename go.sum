@@ -4,8 +4,8 @@ github.com/FacileStudio/enveloppe/go v0.0.0-20260804090730-02b0f4b20c6f h1:UW21M
 github.com/FacileStudio/enveloppe/go v0.0.0-20260804090730-02b0f4b20c6f/go.mod h1:OxizkzJhMaBPcuHVba9z1wem5oROgwaEPikYowDQbmo=
 github.com/FacileStudio/pool/go v0.0.0-20260703193105-683b8b5581af h1:qxCzoM+pfs4m1znjHdnuNjgoqXX4kCmoVp12zCeQP2s=
 github.com/FacileStudio/pool/go v0.0.0-20260703193105-683b8b5581af/go.mod h1:Z8RkyyIO/3jWrG7mfoCTfnUrOCJG25LdTLjEO3/jJsY=
-github.com/FacileStudio/tronc v0.7.0 h1:4GaU+pI4ZK4PIJTQUGDyWXUNhlQg8P5gBERw068YSoI=
-github.com/FacileStudio/tronc v0.7.0/go.mod h1:n+msHH6RQLvhcIQfFzeWaAgwqL8UkNuLPTqbu+C02so=
+github.com/FacileStudio/tronc v0.8.0 h1:l3cXcj4nl9fW5k1RZNUDP6541e9HXY5OnlSaOhAg7Qg=
+github.com/FacileStudio/tronc v0.8.0/go.mod h1:n+msHH6RQLvhcIQfFzeWaAgwqL8UkNuLPTqbu+C02so=
 github.com/coreos/go-oidc/v3 v3.20.0 h1:EtE0WIBHk03N+DqGkY4+UONzzZHk7amKt6IyNd7OsZE=
 github.com/coreos/go-oidc/v3 v3.20.0/go.mod h1:DYCf24+ncYi+XkIH97GY1+dqoRlbaSI26KVTCI9SrY4=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
