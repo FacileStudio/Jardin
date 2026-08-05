@@ -1,12 +1,13 @@
 # Jardin
 
-**One brain for all your AI coding agents, synced across every machine.**
+One brain for all your AI coding agents, synced across every machine.
 
-Jardin (French for *garden*) keeps a single canonical store of agent **memory**,
-**rules**, and **skills**, then generates the native config each agent expects —
-Claude Code's `CLAUDE.md`, Codex's `AGENTS.md`, Gemini, Cursor, Copilot, Hermes —
-and syncs the whole garden over HTTP. Teach one agent something on one machine, and
-every other agent on every other machine knows it too.
+Jardin (French for *garden*) keeps a single canonical store of agent memory, rules, and
+skills, generates the native config each agent expects, and syncs the whole garden over
+HTTP. Teach one agent something on one machine, and every other agent on every other
+machine knows it too.
+
+Live at [jardin.facile.studio](https://jardin.facile.studio).
 
 ```
    rules ─┐
@@ -16,114 +17,122 @@ every other agent on every other machine knows it too.
   memory  ◀──▶  jardin sync  ◀──▶  Jardin server  ◀──▶  every other machine
 ```
 
-## Why
+Every coding agent reinvents the same context: your conventions, the bug you fixed last
+week, the gotcha in that one deploy script. Jardin stores that once, as plain markdown,
+and fans it out. The agents stay thin; the brain is shared.
 
-Every coding agent reinvents the same context: your conventions, the bug you fixed
-last week, the gotcha in that one deploy script. Jardin stores that **once**, as plain
-markdown, and fans it out. The agents stay thin; the brain is shared.
+## What it does
 
-- **Portable** — rules and skills are written once and adapted to each agent's format.
-- **Persistent** — a tiered, MemGPT-style wiki (`overview` → `index` → topic pages)
-  that agents read before acting and write back to after.
-- **Synced** — markdown over HTTP, one Bearer token per machine. Background daemon
-  keeps every machine in sync every 5 minutes.
-- **Plain files** — no database, no lock-in. It's just markdown in `~/.jardin`.
+- Stores memory, rules, and skills as plain markdown under `~/.jardin`, with no database
+- Generates native config for `claude`, `codex`, `gemini`, `cursor`, `copilot` and `hermes`
+- Syncs every machine against a Jardin server with a three-way reconcile that never drops
+  a version
+- Runs a background daemon that scans agent activity, syncs, and refreshes configs
+- Tracks Claude Code sessions into sealed time blocks, with live presence across machines
+- Serves a SvelteKit dashboard for browsing and editing the whole brain from a browser
+- Authorizes new machines from the browser, with per-machine scoped tokens hashed at rest
+- Publishes sealed sessions to the Nook pool as `agent_session.created` events
 
-## Install
+## Stack
 
-```bash
+| Layer | Tech |
+|---|---|
+| CLI | Go 1.26, cobra, YAML config at `~/.jardin.yml` |
+| API | Go 1.26, Chi, [tronc](https://github.com/FacileStudio/tronc) 0.8.0, no database |
+| Client | SvelteKit 2, Svelte 5 (runes), Tailwind CSS 4, `adapter-static` |
+| Storage | Plain markdown files on disk |
+| Deploy | Docker Compose, single distroless container behind Traefik |
+
+## Quick start
+
+Install the CLI:
+
+```sh
 brew install FacileStudio/tap/jardin
-# or
+```
+
+```sh
 go install github.com/FacileStudio/Jardin@latest
 ```
 
-## Quickstart
+Then set up this machine:
 
-```bash
-jardin init                              # scaffold ~/.jardin (memory, rules, skills, machines)
-jardin login https://jardin.facile.studio # opens your browser to authorize this machine
-jardin sync                              # pull the shared brain
-jardin install --all                     # generate config for every agent (or: jardin install claude)
-jardin daemon install                    # optional: background sync every 5 min
+```sh
+jardin init                                # scaffold ~/.jardin
+jardin login https://jardin.facile.studio  # opens a browser to authorize this machine
+jardin sync                                # pull the shared brain
+jardin install --all                       # generate config for every agent
+jardin daemon install                      # optional: background sync
 ```
 
-Then open the dashboard (**Settings → Connect your agents**) and paste the master
-prompt into each agent so it knows how to read, write, and sync the shared brain.
+Open the dashboard and copy the master prompt from **Settings → Connect your agents** into
+each agent so it knows how to read, write, and sync the shared brain.
 
-## Commands
+### Self-hosting the server
 
-| Command | Does |
-| --- | --- |
-| `jardin init` | Scaffold the `~/.jardin` data directory |
-| `jardin login <url>` | Authenticate with a Jardin server, save sync config |
-| `jardin sync` / `push` / `pull` | Sync memory, rules, and skills with the server |
-| `jardin status` | Show machine, sync state, and content summary |
-| `jardin memory search <query>` | Substring search across all memory (`path:line`) |
-| `jardin memory index` | Print `index.md`, the memory router |
-| `jardin rules list` / `edit <name>` | Manage shared rules (`~/.jardin/rules/`) |
-| `jardin skills list` / `add <name>` | Manage shared skills (`~/.jardin/skills/`) |
-| `jardin install [agent] \| --all` | Generate agent config from rules + skills + machine |
-| `jardin diff <agent>` | Preview what `install` would change |
-| `jardin daemon install` / `uninstall` / `status` | Manage the background sync service |
-| `jardin update` (alias `upgrade`) | Self-update to the latest release |
-| `jardin serve` | Run the sync server + dashboard API (self-host) |
-
-Agents: `claude`, `codex`, `gemini`, `cursor`, `copilot`, `hermes`.
-
-## How it works
-
-```
-~/.jardin/
-├── memory/          # the brain — durable, non-obvious knowledge
-│   ├── overview.md  #   always-read summary (core memory)
-│   ├── index.md     #   one-line-per-page router
-│   ├── log.md       #   append-only history
-│   └── bugs/ tools/ projects/ conventions/ syntheses/
-├── rules/           # ordered policy files (00-…, 10-…, 20-…)
-├── skills/          # reusable agent skills
-└── machines/        # per-machine context blocks
+```sh
+cp .env.example .env
+docker compose up -d
 ```
 
-- **Memory** is a tiered wiki modeled on MemGPT/Letta: a compact always-in-context
-  overview, a scannable index that routes to topic pages, and archival pages
-  retrieved on demand. Agents read `overview → index → 1-3 pages`, never the whole
-  thing.
-- **Adapters** are pure functions: `(rules + skills + machine) → agent config`.
-  Each one writes the format its agent expects — `claude` → `~/.claude/CLAUDE.md`
-  with skills as commands; `codex` → `~/.codex/AGENTS.md` with skills as
-  `~/.codex/skills/<name>/SKILL.md`; and so on. Adding an agent is one small file
-  in `internal/adapter/`.
-- **Sync** is plain markdown over HTTP with a per-machine Bearer token (tokens are
-  hashed at rest, scoped, and rate-limited on the server). It's a three-way reconcile
-  against a local base manifest: your edits push, others' edits pull, deletions
-  propagate, and a true edit-vs-edit conflict keeps a `.conflict` backup instead of
-  losing a version. `jardin push` / `pull` force one direction when you want it.
+One container serves the API and the dashboard on port `8420`. In `APP_ENV=production` the
+server refuses to start without `PASSWORD` or `OIDC_ISSUER`, rather than quietly serving
+every request as admin.
 
-## Self-hosting
+### Local development
 
-The server bundles the sync API and the dashboard:
-
-```bash
-docker compose up -d        # one container: sync API + dashboard, port 8420
-# or run the binary directly:
-jardin serve
-```
-
-Copy `.env.example` to `.env` first — in `APP_ENV=production` the server refuses to start
-without a `PASSWORD` or an SSO issuer, rather than quietly serving every request as admin.
-
-The dashboard (`apps/client`, SvelteKit) lets you browse and edit memory, rules, and
-skills, manage machines and sync tokens, authorize new devices, and copy the master
-prompt — the whole brain, from the browser.
-
-## Development
-
-See [AGENTS.md](AGENTS.md) for the tech stack, project layout, and conventions.
-
-```bash
+```sh
+mise run hooks
 go build -o jardin .
-go test ./...
+mise run check
 ```
 
-Releases are tag-triggered via GoReleaser + GitHub Actions, published to the
-`FacileStudio/homebrew-tap` Homebrew tap.
+## Configuration
+
+The CLI reads `~/.jardin.yml`, written by `jardin login`. The server reads its
+configuration from the environment, once, at startup.
+
+| Variable | What it does |
+|---|---|
+| `APP_ENV` | `development`, `staging`, or `production` |
+| `PASSWORD` | Shared password for `jardin login --password` |
+| `DATA_DIR` | Where the markdown tree lives, default `~/.jardin` |
+| `OIDC_ISSUER` | Authentik issuer URL; setting it makes the client credentials required |
+| `SSO_ONLY` | Disables password login, requires `OIDC_ISSUER` |
+
+Full reference: [docs/configuration.md](docs/configuration.md).
+
+## Structure
+
+```
+main.go      Entry point — tronc healthcheck, then the cobra tree
+cmd/         One file per command (init, login, sync, install, serve, sessions, spaces)
+internal/
+  adapter/   One file per agent: (rules + skills + machine) -> agent config
+  cell/      Local store: scaffold and read the markdown tree
+  config/    ~/.jardin.yml and the data directory paths
+  daemon/    Background sync service (launchd / systemd)
+  env/       Server configuration, loaded and validated once at startup
+  memory/    Memory search and index
+  server/    Sync API, dashboard backend, spaces, OIDC, Nook pool emitter
+  sessions/  Transcript scanning, sessionization, shards, stats, live presence
+  sync/      HTTP client: three-way reconcile by checksum
+apps/client/ SvelteKit dashboard, served by the Go binary
+docs/        Architecture, configuration, usage, development, deployment, API
+```
+
+## Documentation
+
+| Doc | What's in it |
+|---|---|
+| [Architecture](docs/architecture.md) | Request flow, the data tree, adapters, sync, spaces |
+| [Configuration](docs/configuration.md) | Every environment variable and default |
+| [Usage](docs/usage.md) | Every CLI command and flag |
+| [Development](docs/development.md) | Local setup, tests, the quality gate |
+| [Deployment](docs/deployment.md) | Docker Compose, Dokploy, Traefik routing, releases |
+| [API](docs/api.md) | HTTP endpoints and payloads |
+
+---
+
+Part of the [Facile Suite](https://facile.studio) — self-hosted tools for creative studios
+and freelancers. One login, zero cloud dependency.
