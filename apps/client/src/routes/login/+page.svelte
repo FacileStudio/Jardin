@@ -2,9 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { backend } from '$lib/backend';
-
-	const TOKEN_KEY = 'mycelium.token';
+	import { backend, TOKEN_KEY } from '$lib/backend';
 
 	const inputClass =
 		'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
@@ -27,8 +25,13 @@
 		const target = new URL(window.location.href).searchParams.get('redirect');
 		if (target && target.startsWith('/')) redirect = target;
 		if (localStorage.getItem(TOKEN_KEY)) {
-			goto(redirect);
-			return;
+			try {
+				await backend.authMe();
+				goto(redirect);
+				return;
+			} catch {
+				localStorage.removeItem(TOKEN_KEY);
+			}
 		}
 		try {
 			const res = await fetch('/api/auth/config');

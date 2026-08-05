@@ -2,6 +2,8 @@ import { getActiveSpaceId } from './space.svelte';
 
 const BASE = '/api';
 
+export const TOKEN_KEY = 'mycelium.token';
+
 function spaceQuery(sep: '?' | '&' = '?'): string {
 	const id = getActiveSpaceId();
 	return id ? `${sep}space_id=${encodeURIComponent(id)}` : '';
@@ -9,7 +11,20 @@ function spaceQuery(sep: '?' | '&' = '?'): string {
 
 function getToken(): string | null {
 	if (typeof window === 'undefined') return null;
-	return localStorage.getItem('mycelium.token');
+	return localStorage.getItem(TOKEN_KEY);
+}
+
+type ApiErrorPayload = {
+	error?: { message?: string };
+};
+
+function errorMessage(text: string, status: number): string {
+	try {
+		const payload = JSON.parse(text) as ApiErrorPayload;
+		if (payload?.error?.message) return payload.error.message;
+	} catch {}
+	if (text && text.length <= 200) return text;
+	return `Request failed with status ${status}`;
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -30,9 +45,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 	if (!res.ok) {
 		const text = await res.text();
 		if (res.status === 401 && typeof window !== 'undefined') {
-			localStorage.removeItem('mycelium.token');
+			localStorage.removeItem(TOKEN_KEY);
 		}
-		throw new Error(text || res.statusText);
+		throw new Error(errorMessage(text.trim(), res.status));
 	}
 
 	const contentType = res.headers.get('content-type');
