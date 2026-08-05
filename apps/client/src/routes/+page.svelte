@@ -2,12 +2,13 @@
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { TOKEN_KEY } from '$lib/backend';
 	import type { Action } from 'svelte/action';
 
 	let visible = $state(false);
 
 	onMount(() => {
-		if (localStorage.getItem('jardin.token')) {
+		if (localStorage.getItem(TOKEN_KEY)) {
 			goto('/memory');
 			return;
 		}

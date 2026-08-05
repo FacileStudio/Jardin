@@ -2,7 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { backend } from '$lib/backend';
+	import { backend, TOKEN_KEY } from '$lib/backend';
 
 	let code = $state('');
 	let machine = $state('');
@@ -14,7 +14,7 @@
 	let done: '' | 'approved' | 'denied' = $state('');
 
 	onMount(async () => {
-		const token = localStorage.getItem('jardin.token');
+		const token = localStorage.getItem(TOKEN_KEY);
 		const url = new URL(window.location.href);
 		code = url.searchParams.get('code') ?? '';
 

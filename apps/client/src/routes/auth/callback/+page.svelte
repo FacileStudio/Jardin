@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-
-	const TOKEN_KEY = 'jardin.token';
+	import { TOKEN_KEY } from '$lib/backend';
 
 	onMount(() => {
 		const params = new URLSearchParams(location.hash.replace(/^#/, ''));

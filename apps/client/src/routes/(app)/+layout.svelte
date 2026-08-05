@@ -2,7 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { backend, type AuthUser, type JardinStatus } from '$lib/backend';
+	import { backend, TOKEN_KEY, type AuthUser, type JardinStatus } from '$lib/backend';
 	import { getActiveSpaceId, getSpaces, setActiveSpaceId, setSpaces } from '$lib/space.svelte';
 	import { setContext } from 'svelte';
 
@@ -22,7 +22,7 @@
 	];
 
 	$effect(() => {
-		const token = localStorage.getItem('jardin.token');
+		const token = localStorage.getItem(TOKEN_KEY);
 		if (!token) {
 			goto('/login');
 			return;
@@ -57,7 +57,7 @@
 				await backend.logout();
 			} catch {}
 		}
-		localStorage.removeItem('jardin.token');
+		localStorage.removeItem(TOKEN_KEY);
 		goto('/login');
 	}
 
