@@ -5,7 +5,7 @@ go 1.26.1
 require (
 	github.com/FacileStudio/Journal/sdk/journal v0.0.0-20260805204822-d5d1dc94d458
 	github.com/FacileStudio/enveloppe/go v0.0.0-20260804090730-02b0f4b20c6f
-	github.com/FacileStudio/pool/go v0.0.0-20260703193105-683b8b5581af
+	github.com/FacileStudio/pool/go v0.0.0-20260806201013-6060c19a3259
 	github.com/FacileStudio/tronc v0.9.0
 	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/fatih/color v1.19.0

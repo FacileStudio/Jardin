@@ -32,6 +32,11 @@ type Emitter struct {
 	confKey string
 	kick    chan struct{}
 
+	// gen names the current client. Its callbacks fire from the client's own
+	// goroutines and can land after the emitter has already replaced it, so a
+	// discarded client's parting "disconnected" would otherwise mark a healthy
+	// successor as down and get it torn back down on the next tick.
+	gen       int
 	connected bool
 	lastError string
 	emitted   int
@@ -125,7 +130,7 @@ func (e *Emitter) tick(ctx context.Context) {
 }
 
 func (e *Emitter) connect(ctx context.Context, nook *NookSettings, key string) error {
-	e.disconnect()
+	gen := e.disconnect()
 
 	cfg := &pool.Config{
 		App:      "Jardin",
@@ -136,13 +141,14 @@ func (e *Emitter) connect(ctx context.Context, nook *NookSettings, key string) e
 		},
 	}
 	client := pool.NewClient(cfg,
-		pool.WithOnConnect(func() { e.setConnected(true) }),
-		pool.WithOnDisconnect(func() { e.setConnected(false) }),
-		pool.WithOnError(func(err error) { e.setError(err.Error()) }),
+		pool.WithOnConnect(func() { e.setConnected(gen, true) }),
+		pool.WithOnDisconnect(func() { e.setConnected(gen, false) }),
+		pool.WithOnError(func(err error) { e.clientError(gen, err.Error()) }),
 	)
 	connectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	if err := client.Connect(connectCtx); err != nil {
+		client.Disconnect()
 		return err
 	}
 	e.mu.Lock()
@@ -155,21 +161,42 @@ func (e *Emitter) connect(ctx context.Context, nook *NookSettings, key string) e
 	return nil
 }
 
-func (e *Emitter) disconnect() {
+// disconnect drops the current client and returns the generation the next one
+// will carry, retiring every callback the old client has yet to fire.
+func (e *Emitter) disconnect() int {
 	e.mu.Lock()
 	client := e.client
 	e.client = nil
 	e.connected = false
+	e.gen++
+	gen := e.gen
 	e.mu.Unlock()
 	if client != nil {
 		client.Disconnect()
 	}
+	return gen
 }
 
-func (e *Emitter) setConnected(v bool) {
+func (e *Emitter) setConnected(gen int, v bool) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
+	if gen != e.gen {
+		return
+	}
 	e.connected = v
+}
+
+func (e *Emitter) clientError(gen int, msg string) {
+	e.mu.Lock()
+	stale := gen != e.gen
+	if !stale {
+		e.lastError = msg
+	}
 	e.mu.Unlock()
+	if stale {
+		return
+	}
+	e.srv.Log.Error("emitter", slog.String("error", msg))
 }
 
 func (e *Emitter) setError(msg string) {
