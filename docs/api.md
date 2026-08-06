@@ -1,5 +1,12 @@
 # Mycelium — API
 
+A Scalar reference is served at `GET /docs`, with the OpenAPI 3.1 document at
+`GET /docs/openapi.json` — the same two paths as every other Facile backend. Both are built
+by `tronc/apiref` from the registry in `internal/documentation`, and a test walks the real
+router and fails when a route is missing from it. The `/sync/files/*` routes are the one
+exception: they take a trailing wildcard because wiki paths contain slashes, and OpenAPI has
+no way to spell that.
+
 Every HTTP route `mycelium serve` exposes, read from `internal/server`. The CLI and the
 dashboard are the only clients, and both speak this.
 

@@ -22,9 +22,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	docs "github.com/FacileStudio/Mycelium/internal/documentation"
 	"github.com/FacileStudio/Mycelium/internal/env"
 	"github.com/FacileStudio/Mycelium/internal/memory"
 	apierrors "github.com/FacileStudio/tronc/errors"
+
+	"github.com/FacileStudio/tronc/apiref"
 	"github.com/FacileStudio/tronc/health"
 	"github.com/FacileStudio/tronc/httpjson"
 	"github.com/FacileStudio/tronc/httpx"
@@ -171,6 +174,7 @@ func (s *Server) Handler() *chi.Mux {
 		CORS:   middleware.CORSConfig{AllowedOrigins: s.CORSAllowedOrigins},
 	})
 	health.Mount(router, s.dataDirCheck())
+	apiref.Mount(router, docs.Reference())
 
 	router.Route("/api", func(r chi.Router) {
 		r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
