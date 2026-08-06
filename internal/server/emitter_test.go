@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +17,27 @@ var e0 = time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 func mkBlock(id, machine string, end time.Time) sessions.Block {
 	return sessions.Block{ID: id, Project: "Mycelium", Machine: machine, Agent: "claude",
 		StartedAt: end.Add(-10 * time.Minute), EndedAt: end}
+}
+
+// A replaced pool client keeps firing callbacks from its own goroutines. If the
+// emitter listened to them it would record the retired client's disconnect as
+// its own, tear down a healthy connection on the next tick, and churn the pool.
+func TestRetiredClientCallbacksAreIgnored(t *testing.T) {
+	e := &Emitter{srv: &Server{Log: slog.Default()}}
+
+	retired := e.disconnect()
+	current := e.disconnect()
+
+	e.setConnected(current, true)
+	e.setConnected(retired, false)
+	e.clientError(retired, "websocket: close 1006")
+
+	if !e.connected {
+		t.Fatal("a retired client's disconnect marked the live client as down")
+	}
+	if e.lastError != "" {
+		t.Fatalf("a retired client's error surfaced as %q", e.lastError)
+	}
 }
 
 func TestPendingBlocksFiltersLedgerAndWatermark(t *testing.T) {
