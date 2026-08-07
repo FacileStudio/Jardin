@@ -21,7 +21,7 @@
 		"vite": "^7.0.0"
 	},
 	"dependencies": {
-		"@facile/muse": "github:FacileStudio/muse#v0.3.0",
+		"@facile/muse": "github:FacileStudio/muse#v0.3.2",
 		"iconify-icon": "^3.0.2"
 	}
 }

@@ -23,6 +23,14 @@
 	const MOBILE_HIDDEN = ['/machines', '/spaces'];
 
 	/*
+	 * The unscoped tree is the *common* tree — that is what the API and its tests call it
+	 * (`internal/server/server.go`, `scopeRoot`), and it is the instance owner's own data
+	 * rather than a shared bucket. The switcher defaults to "Personal", which named the wrong
+	 * thing; until muse v0.3.1 the label was unreachable through SideBar at all.
+	 */
+	const COMMON_TREE_LABEL = 'Common';
+
+	/*
 	 * No Settings row: settings is reached from the user card at the bottom of the rail and
 	 * from the avatar in MobileNav. See CHARTE §14.
 	 */
@@ -115,6 +123,7 @@
 				activeSpaceId={getActiveSpaceId()}
 				onSpaceSelect={pickSpace}
 				manageSpacesHref="/spaces"
+				personalSpaceLabel={COMMON_TREE_LABEL}
 				{user}
 				userHref="/settings"
 				userActive={onSettings}
@@ -139,6 +148,7 @@
 							activeId={getActiveSpaceId()}
 							onSelect={pickSpace}
 							manageHref="/spaces"
+							personalLabel={COMMON_TREE_LABEL}
 						/>
 					</div>
 				{/if}
