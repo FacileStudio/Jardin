@@ -13,7 +13,7 @@ Internet ──▶ Traefik ──▶ jardin serve (:8420) ──┬──▶ /he
                                                               $DATA_DIR (a volume)
                                                               markdown + JSON state
                                                                        │
-                                                              Nook pool (WebSocket, out)
+                                                              Antenne (WebSocket, out)
 ```
 
 There is no database. Every byte the server owns is a file under `DATA_DIR`: the markdown
@@ -36,7 +36,7 @@ tree under `~/.jardin` and talks to the server over HTTP.
 | `internal/sessions` | Transcript scanning, sessionization, shards, stats, live presence |
 | `internal/daemon` | launchd / systemd service that ticks scan, sync, and install |
 | `internal/env` | Server configuration, read and validated once at startup |
-| `internal/server` | Sync API, dashboard backend, spaces, OIDC, Nook emitter |
+| `internal/server` | Sync API, dashboard backend, spaces, OIDC, Antenne emitter |
 | `apps/client` | SvelteKit dashboard, built to static files and served by the binary |
 
 ## The data tree
@@ -181,8 +181,8 @@ advertise itself as working forever.
 
 - **Journal.** When `JOURNAL_URL` and `JOURNAL_TOKEN` are both set, the tronc logger is
   wrapped with the Journal SDK handler and structured logs ship to Journal.
-- **Nook pool.** When enabled in Settings, an emitter loop publishes sealed session blocks
-  to the Nook pool as `agent_session.created` events on the
+- **Antenne.** When enabled in Settings, an emitter loop publishes sealed session blocks
+  to the Antenne as `agent_session.created` events on the
   [enveloppe](https://github.com/FacileStudio/enveloppe) contract, every 30 seconds or on
   demand. Blocks shorter than a minute are skipped, as are blocks with no resolvable
   `user_email` — the event contract keys on it. The shards are the durable outbox and

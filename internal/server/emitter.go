@@ -10,7 +10,7 @@ import (
 	"time"
 
 	enveloppe "github.com/FacileStudio/enveloppe/go"
-	pool "github.com/FacileStudio/pool/go"
+	antenneclient "github.com/FacileStudio/antenne-client/go"
 
 	"github.com/FacileStudio/Jardin/internal/sessions"
 )
@@ -20,7 +20,7 @@ const (
 	minEmitDuration = time.Minute
 )
 
-// Emitter publishes sealed session blocks to the Nook pool as
+// Emitter publishes sealed session blocks to the Antenne as
 // agent_session.created events. The shards are the durable outbox; the ledger
 // records which block IDs already went out. Block IDs are deterministic, so a
 // crash between emit and ledger write yields a duplicate that Sablier's
@@ -28,7 +28,7 @@ const (
 type Emitter struct {
 	srv     *Server
 	mu      sync.Mutex
-	client  *pool.Client
+	client  *antenneclient.Client
 	confKey string
 	kick    chan struct{}
 
@@ -68,7 +68,7 @@ func (e *Emitter) Status() EmitterStatus {
 	status := EmitterStatus{Connected: e.connected, LastError: e.lastError, Emitted: e.emitted}
 	settings := e.srv.loadSettings()
 	ledger := e.loadLedger()
-	status.Pending = len(pendingBlocks(e.allBlocks(), ledger, &settings.Nook))
+	status.Pending = len(pendingBlocks(e.allBlocks(), ledger, &settings.Antenne))
 	return status
 }
 
@@ -109,41 +109,41 @@ func (e *Emitter) Run(ctx context.Context) {
 
 func (e *Emitter) tick(ctx context.Context) {
 	settings := e.srv.loadSettings()
-	nook := settings.Nook
+	antenne := settings.Antenne
 
-	if !nook.Enabled {
+	if !antenne.Enabled {
 		e.disconnect()
 		return
 	}
 
-	key := nook.Instance + "|" + nook.Secret
+	key := antenne.Instance + "|" + antenne.Secret
 	e.mu.Lock()
 	needsConnect := e.client == nil || e.confKey != key || !e.connected
 	e.mu.Unlock()
 	if needsConnect {
-		if err := e.connect(ctx, &nook, key); err != nil {
+		if err := e.connect(ctx, &antenne, key); err != nil {
 			e.setError("connect: " + err.Error())
 			return
 		}
 	}
-	e.emitPending(&nook)
+	e.emitPending(&antenne)
 }
 
-func (e *Emitter) connect(ctx context.Context, nook *NookSettings, key string) error {
+func (e *Emitter) connect(ctx context.Context, antenne *AntenneSettings, key string) error {
 	gen := e.disconnect()
 
-	cfg := &pool.Config{
+	cfg := &antenneclient.Config{
 		App:      "Jardin",
-		Instance: nook.Instance,
-		Secret:   nook.Secret,
-		Events: pool.EventConfig{
+		Instance: antenne.Instance,
+		Secret:   antenne.Secret,
+		Events: antenneclient.EventConfig{
 			Emit: []string{"agent_session.created"},
 		},
 	}
-	client := pool.NewClient(cfg,
-		pool.WithOnConnect(func() { e.setConnected(gen, true) }),
-		pool.WithOnDisconnect(func() { e.setConnected(gen, false) }),
-		pool.WithOnError(func(err error) { e.clientError(gen, err.Error()) }),
+	client := antenneclient.NewClient(cfg,
+		antenneclient.WithOnConnect(func() { e.setConnected(gen, true) }),
+		antenneclient.WithOnDisconnect(func() { e.setConnected(gen, false) }),
+		antenneclient.WithOnError(func(err error) { e.clientError(gen, err.Error()) }),
 	)
 	connectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -157,7 +157,7 @@ func (e *Emitter) connect(ctx context.Context, nook *NookSettings, key string) e
 	e.connected = true
 	e.lastError = ""
 	e.mu.Unlock()
-	e.srv.Log.Info("emitter: connected to nook pool", slog.String("instance", nook.Instance))
+	e.srv.Log.Info("emitter: connected to antenne pool", slog.String("instance", antenne.Instance))
 	return nil
 }
 
@@ -206,7 +206,7 @@ func (e *Emitter) setError(msg string) {
 	e.srv.Log.Error("emitter", slog.String("error", msg))
 }
 
-func (e *Emitter) emitPending(nook *NookSettings) {
+func (e *Emitter) emitPending(antenne *AntenneSettings) {
 	e.mu.Lock()
 	client := e.client
 	e.mu.Unlock()
@@ -215,10 +215,10 @@ func (e *Emitter) emitPending(nook *NookSettings) {
 	}
 
 	ledger := e.loadLedger()
-	pending := pendingBlocks(e.allBlocks(), ledger, nook)
+	pending := pendingBlocks(e.allBlocks(), ledger, antenne)
 
 	for _, b := range pending {
-		evt := envelopeFor(&b, nook.EmailFor(b.Machine))
+		evt := envelopeFor(&b, antenne.EmailFor(b.Machine))
 		if err := client.EmitNow("agent_session.created", evt); err != nil {
 			e.setError("emit: " + err.Error())
 			return
@@ -245,10 +245,10 @@ func (e *Emitter) emitPending(nook *NookSettings) {
 // minute long, ended after the emit watermark, and not yet in the ledger,
 // oldest first. Sub-minute blocks are excluded outright — they stay in local
 // stats but never become billing noise.
-func pendingBlocks(blocks []sessions.Block, ledger map[string]string, nook *NookSettings) []sessions.Block {
+func pendingBlocks(blocks []sessions.Block, ledger map[string]string, antenne *AntenneSettings) []sessions.Block {
 	var since time.Time
-	if nook.EmitSince != "" {
-		since, _ = time.Parse(time.RFC3339, nook.EmitSince)
+	if antenne.EmitSince != "" {
+		since, _ = time.Parse(time.RFC3339, antenne.EmitSince)
 	}
 	var out []sessions.Block
 	for _, b := range blocks {
@@ -261,7 +261,7 @@ func pendingBlocks(blocks []sessions.Block, ledger map[string]string, nook *Nook
 		if !since.IsZero() && b.EndedAt.Before(since) {
 			continue
 		}
-		if nook.EmailFor(b.Machine) == "" {
+		if antenne.EmailFor(b.Machine) == "" {
 			continue
 		}
 		out = append(out, b)

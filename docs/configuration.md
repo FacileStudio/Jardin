@@ -103,10 +103,10 @@ These live under `DATA_DIR` and are excluded from the file sync:
 | `tokens.json` | Token hashes, name, scope, user email, timestamps. Mode `0600` |
 | `.users.json` | OIDC users keyed by email, first one flagged admin |
 | `.spaces.json` | Spaces and their membership roles |
-| `.settings.json` | Nook pool settings, managed through `PUT /api/settings` |
-| `.pool-ledger.json` | Block IDs already emitted to the Nook pool |
+| `.settings.json` | Antenne settings, managed through `PUT /api/settings` |
+| `.pool-ledger.json` | Block IDs already emitted to the Antenne |
 
-## Nook pool settings
+## Antenne settings
 
 Not environment variables — these are edited from the dashboard's Settings page and stored
 in `.settings.json`.
@@ -114,7 +114,7 @@ in `.settings.json`.
 | Field | What it does |
 |---|---|
 | `enabled` | Turns the emitter on. Requires `instance` and `secret` |
-| `instance` | Nook instance URL. Must parse as `http` or `https` with a host |
+| `instance` | Antenne instance URL. Must parse as `http` or `https` with a host |
 | `secret` | Pool secret |
 | `user_email` | Default `user_email` on emitted events |
 | `machine_emails` | Per-machine override of `user_email` |
