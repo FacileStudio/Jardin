@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { Card, StatCard, StatusDot, icons } from '@facile/muse';
+	import { Card, EmptyState, StatCard, StatusDot, icons } from '@facile/muse';
 	import { backend, type TokenInfo } from '$lib/backend';
-	import EmptyState from '$lib/components/EmptyState.svelte';
 
 	const ONLINE_WINDOW_MS = 11 * 60 * 1000;
 

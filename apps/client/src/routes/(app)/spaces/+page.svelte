@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { Badge, Button, Field, Input, Modal, Textarea, icons, toast } from '@facile/muse';
+	import { Badge, Button, EmptyState, Field, Input, Modal, Textarea, icons, toast } from '@facile/muse';
 	import { backend, type Space, type SpaceRole } from '$lib/backend';
 	import { setSpaces } from '$lib/space.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
 	import EntityCard from '$lib/components/EntityCard.svelte';
 
 	const roleTone = { owner: 'owner', admin: 'admin', member: 'neutral' } as const;
