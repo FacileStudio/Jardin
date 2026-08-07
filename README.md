@@ -31,7 +31,7 @@ and fans it out. The agents stay thin; the brain is shared.
 - Tracks Claude Code sessions into sealed time blocks, with live presence across machines
 - Serves a SvelteKit dashboard for browsing and editing the whole brain from a browser
 - Authorizes new machines from the browser, with per-machine scoped tokens hashed at rest
-- Publishes sealed sessions to the Nook pool as `agent_session.created` events
+- Publishes sealed sessions to the Antenne as `agent_session.created` events
 
 ## Stack
 
@@ -114,7 +114,7 @@ internal/
   daemon/    Background sync service (launchd / systemd)
   env/       Server configuration, loaded and validated once at startup
   memory/    Memory search and index
-  server/    Sync API, dashboard backend, spaces, OIDC, Nook pool emitter
+  server/    Sync API, dashboard backend, spaces, OIDC, Antenne emitter
   sessions/  Transcript scanning, sessionization, shards, stats, live presence
   sync/      HTTP client: three-way reconcile by checksum
 apps/client/ SvelteKit dashboard, served by the Go binary
