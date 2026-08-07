@@ -41,7 +41,7 @@ func TestRetiredClientCallbacksAreIgnored(t *testing.T) {
 }
 
 func TestPendingBlocksFiltersLedgerAndWatermark(t *testing.T) {
-	nook := &NookSettings{
+	antenne := &AntenneSettings{
 		Enabled:   true,
 		UserEmail: "sara@example.com",
 		EmitSince: e0.Format(time.RFC3339),
@@ -53,31 +53,31 @@ func TestPendingBlocksFiltersLedgerAndWatermark(t *testing.T) {
 	}
 	ledger := map[string]string{"done": e0.Format(time.RFC3339)}
 
-	pending := pendingBlocks(blocks, ledger, nook)
+	pending := pendingBlocks(blocks, ledger, antenne)
 	if len(pending) != 1 || pending[0].ID != "new" {
 		t.Fatalf("expected only 'new' pending, got %+v", pending)
 	}
 }
 
 func TestPendingBlocksSkipsSubMinuteBlocks(t *testing.T) {
-	nook := &NookSettings{Enabled: true, UserEmail: "yann@facile.studio"}
+	antenne := &AntenneSettings{Enabled: true, UserEmail: "yann@facile.studio"}
 	short := mkBlock("short", "lucy", e0)
 	short.StartedAt = short.EndedAt.Add(-30 * time.Second)
 	long := mkBlock("long", "lucy", e0)
 
-	pending := pendingBlocks([]sessions.Block{short, long}, map[string]string{}, nook)
+	pending := pendingBlocks([]sessions.Block{short, long}, map[string]string{}, antenne)
 	if len(pending) != 1 || pending[0].ID != "long" {
 		t.Fatalf("sub-minute block must be excluded, got %+v", pending)
 	}
 }
 
 func TestPendingBlocksSkipsUnattributable(t *testing.T) {
-	nook := &NookSettings{Enabled: true, MachineEmails: map[string]string{"lucy": "sara@example.com"}}
+	antenne := &AntenneSettings{Enabled: true, MachineEmails: map[string]string{"lucy": "sara@example.com"}}
 	blocks := []sessions.Block{
 		mkBlock("a", "lucy", e0),
 		mkBlock("b", "ruche", e0),
 	}
-	pending := pendingBlocks(blocks, map[string]string{}, nook)
+	pending := pendingBlocks(blocks, map[string]string{}, antenne)
 	if len(pending) != 1 || pending[0].Machine != "lucy" {
 		t.Fatalf("machine without email must be skipped, got %+v", pending)
 	}
@@ -117,7 +117,7 @@ func TestSettingsAPIRoundTrip(t *testing.T) {
 	h := srv.Handler()
 	token := loginAs(t, h, "pw", "")
 
-	body := `{"nook":{"enabled":true,"instance":"https://nook.example.com","secret":"s3cret","user_email":"sara@example.com"}}`
+	body := `{"antenne":{"enabled":true,"instance":"https://antenne.example.com","secret":"s3cret","user_email":"sara@example.com"}}`
 	req := httptest.NewRequest("PUT", "/api/settings", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
@@ -130,11 +130,11 @@ func TestSettingsAPIRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if resp.Nook.EmitSince == "" {
+	if resp.Antenne.EmitSince == "" {
 		t.Fatal("enabling must set the emit watermark")
 	}
-	if !resp.Nook.Enabled || resp.Nook.Secret != "s3cret" {
-		t.Fatalf("settings not persisted: %+v", resp.Nook)
+	if !resp.Antenne.Enabled || resp.Antenne.Secret != "s3cret" {
+		t.Fatalf("settings not persisted: %+v", resp.Antenne)
 	}
 
 	req = httptest.NewRequest("GET", "/api/settings", nil)
@@ -166,9 +166,9 @@ func TestSettingsValidation(t *testing.T) {
 	token := loginAs(t, h, "pw", "")
 
 	for _, body := range []string{
-		`{"nook":{"enabled":true}}`,
-		`{"nook":{"enabled":true,"instance":"not a url","secret":"x"}}`,
-		`{"nook":{"enabled":true,"instance":"https://x.com","secret":"x","emit_since":"yesterday"}}`,
+		`{"antenne":{"enabled":true}}`,
+		`{"antenne":{"enabled":true,"instance":"not a url","secret":"x"}}`,
+		`{"antenne":{"enabled":true,"instance":"https://x.com","secret":"x","emit_since":"yesterday"}}`,
 	} {
 		req := httptest.NewRequest("PUT", "/api/settings", strings.NewReader(body))
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -183,7 +183,7 @@ func TestSettingsValidation(t *testing.T) {
 func TestSettingsFileNotSynced(t *testing.T) {
 	dir := t.TempDir()
 	srv := New(dir, "pw")
-	if err := srv.saveSettings(Settings{Nook: NookSettings{Secret: "hidden"}}); err != nil {
+	if err := srv.saveSettings(Settings{Antenne: AntenneSettings{Secret: "hidden"}}); err != nil {
 		t.Fatal(err)
 	}
 	h := srv.Handler()

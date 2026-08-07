@@ -38,7 +38,7 @@ git tag v0.x.x && git push --tags
 │   ├── memory/         # memory search + index
 │   ├── sessions/       # agent session tracking: transcript scan, sessionize, shards, stats
 │   ├── daemon/         # background sync service (launchd/systemd)
-│   ├── server/         # sync API + dashboard backend + settings + Nook pool emitter
+│   ├── server/         # sync API + dashboard backend + settings + Antenne emitter
 │   ├── env/            # server configuration, loaded and validated once at startup
 │   └── sync/           # HTTP client: push/pull by checksum
 ├── apps/client/       # SvelteKit dashboard (adapter-static, served by the Go binary)
@@ -90,4 +90,4 @@ git tag v0.x.x && git push --tags
 - Live presence: each scan republishes `sessions/<machine>/live.json` (open blocks + heartbeat) which rides the normal sync, so every machine and the dashboard can see work in progress. Liveness is **computed at read time**, never stored — a sleeping machine would otherwise advertise itself as working forever. A block is live when its last event is inside the 15 min gap timeout AND the machine's heartbeat is inside `StaleAfter` (3 daemon ticks); `mycelium sessions live` and `GET /api/sessions/live` surface active / idle / machine-offline
 - The daemon ticks every 60s so liveness stays fresh, but regenerating agent configs is write-heavy, so `install` is gated to every 5 min by the `.last-install` stamp
 - The daemon runs `sessions scan` before each sync; `mycelium install claude` merges a SessionStart hook into `~/.claude/settings.json` that injects `mycelium recap` output as agent context
-- The server (`mycelium serve`) can publish sealed blocks to the Nook pool as `agent_session.created` (enveloppe contract) for Sablier to turn into time entries. Config lives in the server data dir as `.settings.json`, managed via `PUT /api/settings` (admin scope, dashboard Settings page); the emit ledger is `.pool-ledger.json`; on first enable the `emit_since` watermark defaults to now (no surprise backfill)
+- The server (`mycelium serve`) can publish sealed blocks to the Antenne as `agent_session.created` (enveloppe contract) for Sablier to turn into time entries. Config lives in the server data dir as `.settings.json`, managed via `PUT /api/settings` (admin scope, dashboard Settings page); the emit ledger is `.pool-ledger.json`; on first enable the `emit_since` watermark defaults to now (no surprise backfill)

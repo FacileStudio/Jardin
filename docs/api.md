@@ -152,7 +152,7 @@ admin.
 | GET | `/api/settings` | admin | — | `{nook, status}` |
 | PUT | `/api/settings` | admin | `{nook: {...}}` | The same shape, after saving |
 
-`status` is the Nook emitter's `{connected, last_error, emitted, pending}`. Enabling the
+`status` is the Antenne emitter's `{connected, last_error, emitted, pending}`. Enabling the
 emitter requires `instance` (an `http` or `https` URL) and `secret`; `emit_since` must be
 RFC3339 and defaults to now on first enable, so turning it on never backfills. A `PUT` kicks
 the emitter loop immediately rather than waiting for its 30-second tick.

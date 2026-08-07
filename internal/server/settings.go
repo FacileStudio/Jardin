@@ -14,7 +14,7 @@ import (
 	"github.com/FacileStudio/tronc/httpjson"
 )
 
-type NookSettings struct {
+type AntenneSettings struct {
 	Enabled       bool              `json:"enabled"`
 	Instance      string            `json:"instance"`
 	Secret        string            `json:"secret"`
@@ -24,10 +24,21 @@ type NookSettings struct {
 }
 
 type Settings struct {
-	Nook NookSettings `json:"nook"`
+	Antenne AntenneSettings  `json:"antenne"`
+	Legacy  *AntenneSettings `json:"nook,omitempty"`
 }
 
-func (n *NookSettings) EmailFor(machine string) string {
+func (s *Settings) adoptLegacy() {
+	if s.Legacy == nil {
+		return
+	}
+	if s.Antenne.Instance == "" && !s.Antenne.Enabled {
+		s.Antenne = *s.Legacy
+	}
+	s.Legacy = nil
+}
+
+func (n *AntenneSettings) EmailFor(machine string) string {
 	if email, ok := n.MachineEmails[machine]; ok && email != "" {
 		return email
 	}
@@ -50,6 +61,7 @@ func (s *Server) loadSettings() Settings {
 		s.Log.Error("settings: failed to parse", slog.String("path", s.settingsPath()), slog.Any("error", err))
 		return Settings{}
 	}
+	settings.adoptLegacy()
 	return settings
 }
 
@@ -67,15 +79,15 @@ func (s *Server) saveSettings(settings Settings) error {
 }
 
 type settingsResponse struct {
-	Nook   NookSettings  `json:"nook"`
-	Status EmitterStatus `json:"status"`
+	Antenne AntenneSettings `json:"antenne"`
+	Status  EmitterStatus   `json:"status"`
 }
 
 func (s *Server) settingsGet(w http.ResponseWriter, r *http.Request) {
 	settings := s.loadSettings()
-	resp := settingsResponse{Nook: settings.Nook}
-	if settings.Nook.MachineEmails == nil {
-		resp.Nook.MachineEmails = map[string]string{}
+	resp := settingsResponse{Antenne: settings.Antenne}
+	if settings.Antenne.MachineEmails == nil {
+		resp.Antenne.MachineEmails = map[string]string{}
 	}
 	if s.emitter != nil {
 		resp.Status = s.emitter.Status()
@@ -89,16 +101,16 @@ func (s *Server) settingsPut(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, apierrors.Invalid("bad request"))
 		return
 	}
-	if err := validateNook(&incoming.Nook); err != nil {
+	if err := validateAntenne(&incoming.Antenne); err != nil {
 		httpjson.WriteError(w, apierrors.Invalid(err.Error()))
 		return
 	}
 	current := s.loadSettings()
-	if incoming.Nook.Enabled && incoming.Nook.EmitSince == "" {
-		if current.Nook.EmitSince != "" {
-			incoming.Nook.EmitSince = current.Nook.EmitSince
+	if incoming.Antenne.Enabled && incoming.Antenne.EmitSince == "" {
+		if current.Antenne.EmitSince != "" {
+			incoming.Antenne.EmitSince = current.Antenne.EmitSince
 		} else {
-			incoming.Nook.EmitSince = time.Now().UTC().Format(time.RFC3339)
+			incoming.Antenne.EmitSince = time.Now().UTC().Format(time.RFC3339)
 		}
 	}
 	if err := s.saveSettings(incoming); err != nil {
@@ -112,7 +124,7 @@ func (s *Server) settingsPut(w http.ResponseWriter, r *http.Request) {
 	s.settingsGet(w, r)
 }
 
-func validateNook(n *NookSettings) error {
+func validateAntenne(n *AntenneSettings) error {
 	if !n.Enabled {
 		return nil
 	}
