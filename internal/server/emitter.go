@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	enveloppe "github.com/FacileStudio/enveloppe/go"
 	antenneclient "github.com/FacileStudio/antenne-client/go"
+	enveloppe "github.com/FacileStudio/enveloppe/go"
 
 	"github.com/FacileStudio/Mycelium/internal/sessions"
 )
