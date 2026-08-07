@@ -4,6 +4,7 @@
 	import { backend, type Space, type SpaceRole } from '$lib/backend';
 	import { setSpaces } from '$lib/space.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import EntityCard from '$lib/components/EntityCard.svelte';
 
 	const roleTone = { owner: 'owner', admin: 'admin', member: 'neutral' } as const;
 
@@ -76,26 +77,17 @@
 	{:else}
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{#each spaces as space (space.id)}
-				<a
+				<EntityCard
 					href="/spaces/{space.id}"
-					class="group flex flex-col gap-4 rounded-fc-md bg-fc-component p-5 transition-colors hover:bg-fc-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
+					icon={icons.usersGroup}
+					title={space.name}
+					meta={space.description || 'No description'}
+					mono={false}
 				>
-					<div class="flex items-center justify-between gap-3">
-						<span
-							class="flex size-9 items-center justify-center rounded-fc-sm bg-fc-surface text-fc-fg transition-colors group-hover:bg-fc-component"
-						>
-							<iconify-icon icon={icons.usersGroup} width="18" height="18" class="block"
-							></iconify-icon>
-						</span>
+					{#snippet trailing()}
 						<Badge tone={tone(space.role)}>{space.role}</Badge>
-					</div>
-					<div class="min-w-0">
-						<p class="truncate text-fc-sm font-medium text-fc-fg">{space.name}</p>
-						<p class="truncate text-fc-xs text-fc-fg-muted">
-							{space.description || 'No description'}
-						</p>
-					</div>
-				</a>
+					{/snippet}
+				</EntityCard>
 			{/each}
 		</div>
 	{/if}

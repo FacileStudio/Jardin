@@ -124,15 +124,14 @@
 					{@const rel = result.path.startsWith('memory/')
 						? result.path.slice('memory/'.length)
 						: result.path}
-					<a
-						href="/memory/{rel}"
-						class="flex flex-col gap-1 rounded-fc-md bg-fc-component px-4 py-3 transition-colors hover:bg-fc-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
-					>
+					<!-- A result row is a card that navigates, just a denser one than the file
+					     grid: px-4/py-3 overrides Card's p-5 rather than restating the surface. -->
+					<Card href="/memory/{rel}" class="flex flex-col gap-1 px-4 py-3">
 						<span class="font-fc-mono text-fc-xs text-fc-fg-muted">
 							{result.path}:{result.line}
 						</span>
 						<span class="truncate text-fc-sm text-fc-fg">{result.content}</span>
-					</a>
+					</Card>
 				{/each}
 			</div>
 		{:else if searched && !searching}

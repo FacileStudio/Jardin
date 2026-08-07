@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { Card, WordReveal, icons } from '@facile/muse';
+	import { Button, Card, WordReveal, icons } from '@facile/muse';
 	import { TOKEN_KEY } from '$lib/backend';
 
 	let visible = $state(false);
@@ -13,16 +13,6 @@
 		}
 		visible = true;
 	});
-
-	/*
-	 * The CTAs are links, not buttons — a marketing page's primary action has to survive a
-	 * middle-click. muse's Button is a <button>, so these carry its shape by hand; class
-	 * constants rather than repetition, the same way the auth screens do it.
-	 */
-	const primaryLink =
-		'inline-flex h-11 items-center justify-center gap-2 rounded-fc-md bg-fc-accent px-6 text-fc-sm font-medium text-fc-accent-fg transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring';
-	const outlineLink =
-		'inline-flex h-11 items-center justify-center gap-2 rounded-fc-md border border-fc-border px-6 text-fc-sm font-medium text-fc-fg transition-colors hover:bg-fc-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring';
 
 	/* Inside an inverted band nothing may read `fc-fg`: the ink there is `fc-accent-fg`. */
 	const invertedDim = 'color-mix(in oklab, var(--color-fc-accent-fg) 25%, transparent)';
@@ -85,10 +75,7 @@
 					></iconify-icon>
 					<span class="text-fc-xl font-semibold text-fc-fg">Mycelium</span>
 				</a>
-				<a href="/login" class="{primaryLink} h-9 px-4">
-					Se connecter
-					<iconify-icon icon={icons.arrow} width="16" height="16" class="block"></iconify-icon>
-				</a>
+				<Button href="/login" iconRight={icons.arrow}>Se connecter</Button>
 			</div>
 		</header>
 
@@ -109,19 +96,17 @@
 					vos machines. Un seul endroit, zéro friction.
 				</p>
 				<div class="mt-10 flex flex-wrap items-center gap-4">
-					<a href="/login" class={primaryLink}>
-						Commencer
-						<iconify-icon icon={icons.arrow} width="16" height="16" class="block"></iconify-icon>
-					</a>
-					<a
+					<Button href="/login" size="lg" iconRight={icons.arrow}>Commencer</Button>
+					<Button
 						href="https://github.com/FacileStudio/Mycelium"
 						target="_blank"
 						rel="noopener noreferrer"
-						class={outlineLink}
+						variant="outline"
+						size="lg"
+						iconRight={icons.code}
 					>
 						GitHub
-						<iconify-icon icon={icons.code} width="16" height="16" class="block"></iconify-icon>
-					</a>
+					</Button>
 				</div>
 			</section>
 
@@ -257,16 +242,17 @@
 						Un binaire Go. Zéro dépendance. Vos données restent chez vous.
 					</p>
 					<div class="mt-10 flex flex-wrap justify-center gap-3">
-						<a href="/login" class={primaryLink}>Se connecter</a>
-						<a
+						<Button href="/login" size="lg">Se connecter</Button>
+						<Button
 							href="https://github.com/FacileStudio/Mycelium"
 							target="_blank"
 							rel="noopener noreferrer"
-							class={outlineLink}
+							variant="outline"
+							size="lg"
+							iconRight={icons.code}
 						>
 							Voir le code
-							<iconify-icon icon={icons.code} width="16" height="16" class="block"></iconify-icon>
-						</a>
+						</Button>
 					</div>
 				</div>
 			</section>
