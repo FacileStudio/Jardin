@@ -1,14 +1,27 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
+	import { Card, StatCard, StatusDot, icons } from '@facile/muse';
 	import { backend, type TokenInfo } from '$lib/backend';
+	import EmptyState from '$lib/components/EmptyState.svelte';
+
+	const ONLINE_WINDOW_MS = 11 * 60 * 1000;
 
 	let tokens: TokenInfo[] = $state([]);
-	let machines = $derived(tokens.filter((t) => t.scope !== 'admin' && t.scope !== 'user' && !t.name.startsWith('session')));
+
+	const machines = $derived(
+		tokens.filter(
+			(t) => t.scope !== 'admin' && t.scope !== 'user' && !t.name.startsWith('session')
+		)
+	);
+	const online = $derived(machines.filter((m) => machineState(m) === 'connected').length);
 
 	$effect(() => {
-		const load = () => backend.tokensList().then((t) => (tokens = t)).catch(() => {});
+		const load = () =>
+			backend
+				.tokensList()
+				.then((t) => (tokens = t))
+				.catch(() => {});
 		load();
-		const id = setInterval(load, 30000);
+		const id = setInterval(load, 30_000);
 		return () => clearInterval(id);
 	});
 
@@ -23,45 +36,83 @@
 		return `${Math.floor(s / 86400)}d ago`;
 	}
 
-	function online(iso: string): boolean {
-		if (!iso) return false;
-		const then = new Date(iso).getTime();
-		return !isNaN(then) && Date.now() - then < 11 * 60 * 1000;
+	/* Three states, not a boolean: a machine that has never checked in needs a different fix
+	   from one that checked in this morning and stopped. */
+	function machineState(m: TokenInfo): 'connected' | 'idle' | 'never' {
+		const then = new Date(m.last_seen).getTime();
+		if (!m.last_seen || isNaN(then)) return 'never';
+		return Date.now() - then < ONLINE_WINDOW_MS ? 'connected' : 'idle';
+	}
+
+	const tones = { connected: 'success', idle: 'neutral', never: 'warning' } as const;
+
+	function statusLabel(m: TokenInfo): string {
+		const s = machineState(m);
+		if (s === 'connected') return 'connected';
+		if (s === 'never') return 'never synced';
+		return `idle · ${ago(m.last_seen)}`;
 	}
 </script>
 
-<div class="space-y-6">
-	<div>
-		<h2 class="text-2xl font-semibold tracking-tight">Machines</h2>
-		<p class="text-sm text-muted-foreground">Machines and agents syncing with this brain. Connected = synced in the last ~10 min.</p>
+<div class="flex flex-col gap-10">
+	<div class="flex flex-col gap-2">
+		<h1 class="text-fc-2xl font-semibold text-fc-fg">Machines</h1>
+		<p class="text-fc-sm text-fc-fg-muted">
+			Machines and agents syncing with this brain. Connected means a sync in the last ten
+			minutes.
+		</p>
 	</div>
 
 	{#if machines.length === 0}
-		<div class="rounded-lg border border-dashed border-border p-8 text-center">
-			<p class="text-sm text-muted-foreground">
-				No machines connected yet. Run <code class="rounded bg-accent px-1 py-0.5 text-xs">mycelium login https://mycelium.facile.studio</code> on a machine.
+		<EmptyState icon={icons.server} title="No machines connected yet">
+			<p class="text-fc-sm text-fc-fg-muted">
+				Run <code class="rounded-fc-xs bg-fc-surface px-1.5 py-0.5 font-fc-mono text-fc-xs"
+					>mycelium login https://mycelium.facile.studio</code
+				> on a machine to pair it.
 			</p>
-		</div>
+		</EmptyState>
 	{:else}
-		<div class="grid gap-3 sm:grid-cols-2">
-			{#each machines as m}
-				<div class="rounded-lg border border-border p-4">
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<Icon icon={m.name.startsWith('session') ? 'solar:laptop-linear' : 'solar:server-square-linear'} class="size-5 text-muted-foreground" />
-							<span class="font-medium">{m.name}</span>
+		<section class="flex flex-col gap-4">
+			<div class="grid gap-4 sm:grid-cols-2">
+				<StatCard label="Machines" value={machines.length} />
+				<StatCard label="Connected now" value={online} delta="synced in the last 10 minutes" />
+			</div>
+
+			<div class="grid gap-4 sm:grid-cols-2">
+				{#each machines as machine (machine.name)}
+					<Card class="flex flex-col gap-4">
+						<div class="flex items-start justify-between gap-3">
+							<div class="flex min-w-0 items-center gap-2.5">
+								<iconify-icon
+									icon={icons.server}
+									width="18"
+									height="18"
+									class="block shrink-0 text-fc-fg-muted"
+								></iconify-icon>
+								<span class="truncate font-fc-mono text-fc-sm font-medium text-fc-fg">
+									{machine.name}
+								</span>
+							</div>
+							<StatusDot
+								tone={tones[machineState(machine)]}
+								label={statusLabel(machine)}
+								pulse={machineState(machine) === 'connected'}
+								class="shrink-0"
+							/>
 						</div>
-						<span class="flex items-center gap-1.5 text-xs {online(m.last_seen) ? 'text-green-600' : 'text-muted-foreground'}">
-							<span class="size-2 rounded-full {online(m.last_seen) ? 'bg-green-500' : 'bg-muted-foreground/40'}"></span>
-							{online(m.last_seen) ? 'connected' : 'idle'}
-						</span>
-					</div>
-					<dl class="mt-3 space-y-1 text-xs text-muted-foreground">
-						<div class="flex justify-between"><dt>Last sync</dt><dd>{ago(m.last_seen)}</dd></div>
-						<div class="flex justify-between"><dt>Added</dt><dd>{m.created_at?.slice(0, 10) || '—'}</dd></div>
-					</dl>
-				</div>
-			{/each}
-		</div>
+						<dl class="flex flex-col gap-1 text-fc-xs text-fc-fg-muted">
+							<div class="flex justify-between gap-3">
+								<dt>Last sync</dt>
+								<dd class="tabular-nums">{ago(machine.last_seen)}</dd>
+							</div>
+							<div class="flex justify-between gap-3">
+								<dt>Paired</dt>
+								<dd class="tabular-nums">{machine.created_at?.slice(0, 10) || '—'}</dd>
+							</div>
+						</dl>
+					</Card>
+				{/each}
+			</div>
+		</section>
 	{/if}
 </div>

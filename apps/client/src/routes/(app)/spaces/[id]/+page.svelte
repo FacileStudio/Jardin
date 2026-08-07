@@ -1,22 +1,56 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { backend, type Space, type SpaceMember, type SpaceRole, type UserInfo } from '$lib/backend';
+	import { page } from '$app/state';
+	import {
+		Badge,
+		Button,
+		Card,
+		ConfirmModal,
+		Field,
+		Input,
+		Modal,
+		Select,
+		Spinner,
+		Table,
+		Textarea,
+		icons,
+		toast
+	} from '@facile/muse';
+	import {
+		backend,
+		type Space,
+		type SpaceMember,
+		type SpaceRole,
+		type UserInfo
+	} from '$lib/backend';
 	import { setSpaces } from '$lib/space.svelte';
 
-	let id = $derived($page.params.id ?? '');
+	const roleTone = { owner: 'owner', admin: 'admin', member: 'neutral' } as const;
+
+	const id = $derived(page.params.id ?? '');
 	let space = $state<Space | null>(null);
 	let members: SpaceMember[] = $state([]);
 	let users: UserInfo[] = $state([]);
 	let loading = $state(true);
-	let error = $state('');
+
+	let editOpen = $state(false);
+	let draftName = $state('');
+	let draftDescription = $state('');
+	let savingEdit = $state(false);
+	let editError = $state('');
+
 	let newMemberEmail = $state('');
 	let newMemberRole = $state<SpaceRole>('member');
+	let adding = $state(false);
 
-	let isOwner = $derived(space?.role === 'owner');
-	let canManage = $derived(space?.role === 'owner' || space?.role === 'admin');
-	let candidates = $derived(users.filter((u) => !members.some((m) => m.email === u.email)));
+	let removeTarget = $state<SpaceMember | null>(null);
+	let removeOpen = $state(false);
+	let leaveOpen = $state(false);
+	let deleteOpen = $state(false);
+
+	const isOwner = $derived(space?.role === 'owner');
+	const canManage = $derived(space?.role === 'owner' || space?.role === 'admin');
+	const candidates = $derived(users.filter((u) => !members.some((m) => m.email === u.email)));
 
 	$effect(() => {
 		const spaceId = id;
@@ -27,9 +61,12 @@
 				space = list.find((s) => s.id === spaceId) ?? null;
 			}),
 			backend.spaceMembers(spaceId).then((m) => (members = m)),
-			backend.usersList().then((u) => (users = u ?? [])).catch(() => (users = []))
+			backend
+				.usersList()
+				.then((u) => (users = u ?? []))
+				.catch(() => (users = []))
 		])
-			.catch(() => {})
+			.catch((e) => toast.danger(e instanceof Error ? e.message : 'Could not load this space.'))
 			.finally(() => (loading = false));
 	});
 
@@ -37,205 +74,298 @@
 		members = await backend.spaceMembers(id);
 	}
 
-	async function editSpace() {
+	function openEdit() {
 		if (!space) return;
-		const name = prompt('Space name:', space.name);
-		if (!name) return;
-		const description = prompt('Description (optional):', space.description) ?? '';
-		error = '';
+		draftName = space.name;
+		draftDescription = space.description;
+		editError = '';
+		editOpen = true;
+	}
+
+	async function saveEdit(event: Event) {
+		event.preventDefault();
+		if (!draftName.trim()) return;
+		savingEdit = true;
+		editError = '';
 		try {
-			space = await backend.spaceUpdate(id, name, description);
+			space = await backend.spaceUpdate(id, draftName.trim(), draftDescription.trim());
+			editOpen = false;
+			toast.success('Space updated.');
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Update failed';
+			editError = e instanceof Error ? e.message : 'Update failed';
+		} finally {
+			savingEdit = false;
 		}
 	}
 
-	async function addMember() {
+	async function addMember(event: Event) {
+		event.preventDefault();
 		if (!newMemberEmail) return;
-		error = '';
+		adding = true;
 		try {
 			await backend.spaceMemberAdd(id, newMemberEmail, newMemberRole);
+			toast.success(`${newMemberEmail} added to ${space?.name ?? 'the space'}.`);
 			newMemberEmail = '';
 			newMemberRole = 'member';
 			await refreshMembers();
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to add member';
+			toast.danger(e instanceof Error ? e.message : 'Could not add that member.');
+		} finally {
+			adding = false;
 		}
 	}
 
 	async function changeRole(email: string, role: SpaceRole) {
-		error = '';
 		try {
 			await backend.spaceMemberUpdate(id, email, role);
-			await refreshMembers();
+			toast.success(`${email} is now ${role}.`);
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to change role';
+			toast.danger(e instanceof Error ? e.message : 'Could not change that role.');
+		} finally {
 			await refreshMembers();
 		}
 	}
 
-	async function removeMember(email: string) {
-		if (!confirm(`Remove ${email} from this space?`)) return;
-		error = '';
+	async function removeMember() {
+		const target = removeTarget;
+		if (!target) return;
 		try {
-			await backend.spaceMemberRemove(id, email);
+			await backend.spaceMemberRemove(id, target.email);
+			toast.success(`${target.email} removed.`);
+			removeTarget = null;
 			await refreshMembers();
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to remove member';
+			toast.danger(e instanceof Error ? e.message : 'Could not remove that member.');
+			throw e;
 		}
 	}
 
 	async function leaveSpace() {
-		if (!confirm('Leave this space?')) return;
-		error = '';
 		try {
 			await backend.spaceLeave(id);
+			toast.success('You left the space.');
 			goto('/spaces');
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to leave space';
+			toast.danger(e instanceof Error ? e.message : 'Could not leave this space.');
+			throw e;
 		}
 	}
 
 	async function deleteSpace() {
-		if (!space) return;
-		if (!confirm(`Delete space "${space.name}"? This cannot be undone.`)) return;
-		error = '';
 		try {
 			await backend.spaceDelete(id);
+			toast.success('Space deleted.');
 			goto('/spaces');
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to delete space';
+			toast.danger(e instanceof Error ? e.message : 'Could not delete this space.');
+			throw e;
 		}
 	}
 </script>
 
-<div class="space-y-6">
-	<a href="/spaces" class="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
-		<Icon icon="solar:alt-arrow-left-linear" class="size-4" />
+<div class="flex flex-col gap-10">
+	<a
+		href="/spaces"
+		class="inline-flex w-fit items-center gap-1 text-fc-sm text-fc-fg-muted transition-colors hover:text-fc-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
+	>
+		<iconify-icon icon={icons.chevronLeft} width="16" height="16" class="block"></iconify-icon>
 		Spaces
 	</a>
 
 	{#if loading}
-		<p class="text-sm text-muted-foreground">Loading…</p>
+		<div class="flex items-center gap-3 text-fc-sm text-fc-fg-muted">
+			<Spinner size="sm" /> Loading…
+		</div>
 	{:else if !space}
-		<p class="text-sm text-muted-foreground">Space not found.</p>
+		<Card class="text-fc-sm text-fc-fg-muted">This space does not exist, or you left it.</Card>
 	{:else}
-		<div class="flex items-start justify-between gap-4">
-			<div class="flex items-center gap-3">
-				<div class="flex size-10 items-center justify-center rounded-xl bg-accent">
-					<Icon icon="solar:users-group-rounded-linear" class="size-5 text-foreground" />
-				</div>
-				<div>
+		<div class="flex flex-wrap items-start justify-between gap-4">
+			<div class="flex min-w-0 items-center gap-3">
+				<span
+					class="flex size-10 shrink-0 items-center justify-center rounded-fc-md bg-fc-surface text-fc-fg"
+				>
+					<iconify-icon icon={icons.usersGroup} width="20" height="20" class="block"
+					></iconify-icon>
+				</span>
+				<div class="min-w-0">
 					<div class="flex items-center gap-2">
-						<h2 class="text-xl font-semibold tracking-tight">{space.name}</h2>
-						<span class="rounded border border-border px-1.5 py-0.5 text-xs text-muted-foreground">{space.role}</span>
+						<h1 class="truncate text-fc-xl font-semibold text-fc-fg">{space.name}</h1>
+						<Badge tone={roleTone[space.role]}>{space.role}</Badge>
 					</div>
-					<p class="text-sm text-muted-foreground">{space.description || 'No description'}</p>
+					<p class="truncate text-fc-sm text-fc-fg-muted">
+						{space.description || 'No description'}
+					</p>
 				</div>
 			</div>
-			<div class="flex shrink-0 items-center gap-2">
+
+			<div class="flex shrink-0 flex-wrap items-center gap-2">
 				{#if canManage}
-					<button onclick={editSpace} class="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent">
-						<Icon icon="solar:pen-linear" class="size-4" />
-						Edit
-					</button>
+					<Button variant="outline" icon={icons.edit} onclick={openEdit}>Edit</Button>
 				{/if}
-				<button onclick={leaveSpace} class="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent">
-					<Icon icon="solar:logout-2-linear" class="size-4" />
+				<Button variant="ghost" icon={icons.logout} onclick={() => (leaveOpen = true)}>
 					Leave
-				</button>
+				</Button>
 				{#if isOwner}
-					<button onclick={deleteSpace} class="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10">
-						<Icon icon="solar:trash-bin-trash-linear" class="size-4" />
+					<Button variant="ghost-danger" icon={icons.remove} onclick={() => (deleteOpen = true)}>
 						Delete
-					</button>
+					</Button>
 				{/if}
 			</div>
 		</div>
 
-		{#if error}
-			<p class="text-sm text-destructive">{error}</p>
-		{/if}
-
-		<section class="space-y-3">
-			<h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Members</h3>
-
-			<div class="overflow-x-auto">
-				<table class="w-full text-sm">
-					<thead>
-						<tr class="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-							<th class="px-2 py-2 font-semibold">Email</th>
-							<th class="px-2 py-2 font-semibold">Name</th>
-							<th class="px-2 py-2 font-semibold">Role</th>
-							{#if canManage}
-								<th class="px-2 py-2"></th>
-							{/if}
-						</tr>
-					</thead>
-					<tbody>
-						{#each members as member}
-							<tr class="border-b border-border/50">
-								<td class="px-2 py-2 font-medium">{member.email}</td>
-								<td class="px-2 py-2 text-muted-foreground">{member.name}</td>
-								<td class="px-2 py-2">
-									{#if isOwner}
-										<select
-											value={member.role}
-											onchange={(e) => changeRole(member.email, e.currentTarget.value as SpaceRole)}
-											class="rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-										>
-											<option value="member">member</option>
-											<option value="admin">admin</option>
-											<option value="owner">owner</option>
-										</select>
-									{:else}
-										<span class="rounded border border-border px-1.5 py-0.5 text-xs text-muted-foreground">{member.role}</span>
-									{/if}
-								</td>
-								{#if canManage}
-									<td class="px-2 py-2 text-right">
-										<button onclick={() => removeMember(member.email)} class="text-xs text-destructive hover:underline">
-											Remove
-										</button>
-									</td>
-								{/if}
-							</tr>
-						{/each}
-					</tbody>
-				</table>
+		<section class="flex flex-col gap-4">
+			<div class="flex flex-col gap-1">
+				<h2 class="text-fc-lg font-semibold text-fc-fg">Members</h2>
+				<p class="text-fc-sm text-fc-fg-muted">
+					Everyone here reads and writes the same memory, rules and skills.
+				</p>
 			</div>
 
-			{#if canManage}
-				<form onsubmit={(e) => { e.preventDefault(); addMember(); }} class="flex flex-wrap gap-2">
-					<select
-						bind:value={newMemberEmail}
-						class="min-w-52 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					>
-						<option value="" disabled>Select a user…</option>
-						{#each candidates as user}
-							<option value={user.email}>{user.name ? `${user.name} — ${user.email}` : user.email}</option>
-						{/each}
-					</select>
-					<select
-						bind:value={newMemberRole}
-						class="rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					>
-						<option value="member">member</option>
-						<option value="admin">admin</option>
-						{#if isOwner}
-							<option value="owner">owner</option>
+			<Table>
+				<thead>
+					<tr>
+						<th scope="col">Email</th>
+						<th scope="col">Name</th>
+						<th scope="col">Role</th>
+						{#if canManage}
+							<th scope="col" class="text-right" aria-label="Actions"></th>
 						{/if}
-					</select>
-					<button
-						type="submit"
-						disabled={!newMemberEmail}
-						class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-					>
-						<Icon icon="mdi:plus" class="size-4" />
-						Add
-					</button>
-				</form>
+					</tr>
+				</thead>
+				<tbody>
+					{#each members as member (member.email)}
+						<tr>
+							<td class="font-medium text-fc-fg">{member.email}</td>
+							<td class="text-fc-fg-muted">{member.name}</td>
+							<td>
+								{#if isOwner}
+									<Select
+										value={member.role}
+										aria-label="Role for {member.email}"
+										class="h-9 min-w-28"
+										onchange={(e) =>
+											changeRole(member.email, e.currentTarget.value as SpaceRole)}
+									>
+										<option value="member">member</option>
+										<option value="admin">admin</option>
+										<option value="owner">owner</option>
+									</Select>
+								{:else}
+									<Badge tone={roleTone[member.role]}>{member.role}</Badge>
+								{/if}
+							</td>
+							{#if canManage}
+								<td class="text-right">
+									<Button
+										variant="ghost-danger"
+										size="sm"
+										icon={icons.remove}
+										aria-label="Remove {member.email}"
+										onclick={() => {
+											removeTarget = member;
+											removeOpen = true;
+										}}
+									>
+										Remove
+									</Button>
+								</td>
+							{/if}
+						</tr>
+					{/each}
+				</tbody>
+			</Table>
+
+			{#if canManage}
+				<Card class="flex flex-col gap-4">
+					<p class="text-fc-sm font-medium text-fc-fg">Add a member</p>
+					<form class="flex flex-col gap-3 sm:flex-row sm:items-end" onsubmit={addMember}>
+						<div class="min-w-0 flex-1">
+							<Field label="User" helper="Only people with a Mycelium account can be added.">
+								<Select bind:value={newMemberEmail} disabled={adding || candidates.length === 0}>
+									<option value="" disabled>Select a user…</option>
+									{#each candidates as user (user.email)}
+										<option value={user.email}>
+											{user.name ? `${user.name} — ${user.email}` : user.email}
+										</option>
+									{/each}
+								</Select>
+							</Field>
+						</div>
+						<Field label="Role">
+							<Select bind:value={newMemberRole} class="min-w-32" disabled={adding}>
+								<option value="member">member</option>
+								<option value="admin">admin</option>
+								{#if isOwner}
+									<option value="owner">owner</option>
+								{/if}
+							</Select>
+						</Field>
+						<Button type="submit" icon={icons.plus} disabled={adding || !newMemberEmail}>
+							{adding ? 'Adding…' : 'Add'}
+						</Button>
+					</form>
+				</Card>
 			{/if}
 		</section>
 	{/if}
 </div>
+
+<Modal bind:open={editOpen} title="Edit space" showClose>
+	<form class="flex flex-col gap-4" onsubmit={saveEdit}>
+		<Field label="Name" error={editError || undefined}>
+			<Input bind:value={draftName} disabled={savingEdit} required />
+		</Field>
+		<Field label="Description">
+			<Textarea bind:value={draftDescription} rows={3} disabled={savingEdit} />
+		</Field>
+		<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+			<Button
+				type="button"
+				variant="ghost"
+				class="w-full sm:w-auto"
+				onclick={() => (editOpen = false)}
+			>
+				Cancel
+			</Button>
+			<Button
+				type="submit"
+				icon={icons.check}
+				class="w-full sm:w-auto"
+				disabled={savingEdit || draftName.trim().length === 0}
+			>
+				{savingEdit ? 'Saving…' : 'Save changes'}
+			</Button>
+		</div>
+	</form>
+</Modal>
+
+<ConfirmModal
+	bind:open={removeOpen}
+	tone="danger"
+	title="Remove {removeTarget?.email ?? 'this member'}?"
+	description="They lose access to this space's memory, rules and skills on their next sync. Anything they wrote stays."
+	confirmLabel="Remove member"
+	cancelLabel="Keep them"
+	onConfirm={removeMember}
+	onCancel={() => (removeTarget = null)}
+/>
+
+<ConfirmModal
+	bind:open={leaveOpen}
+	tone="danger"
+	title="Leave {space?.name ?? 'this space'}?"
+	description="This space disappears from your machines on the next sync. An owner has to invite you back."
+	confirmLabel="Leave space"
+	cancelLabel="Stay"
+	onConfirm={leaveSpace}
+/>
+
+<ConfirmModal
+	bind:open={deleteOpen}
+	tone="danger"
+	title="Delete {space?.name ?? 'this space'}?"
+	description="Every member loses it, and the memory, rules and skills stored in it are gone. This cannot be undone."
+	confirmLabel="Delete space"
+	cancelLabel="Keep it"
+	onConfirm={deleteSpace}
+/>

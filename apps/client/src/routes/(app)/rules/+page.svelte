@@ -1,56 +1,107 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
 	import { goto } from '$app/navigation';
+	import { Button, Field, Input, Modal, icons, toast } from '@facile/muse';
 	import { backend } from '$lib/backend';
+	import EmptyState from '$lib/components/EmptyState.svelte';
+	import EntityCard from '$lib/components/EntityCard.svelte';
 
 	let rules: string[] = $state([]);
+	let createOpen = $state(false);
+	let draftName = $state('');
+	let creating = $state(false);
+	let error = $state('');
 
 	$effect(() => {
-		backend.rulesList().then((r) => (rules = r)).catch(() => {});
+		backend
+			.rulesList()
+			.then((r) => (rules = r))
+			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load rules'));
 	});
 
-	async function addRule() {
-		const name = prompt('Rule name (prefix to order, e.g. 30-testing):');
+	function openCreate() {
+		draftName = '';
+		error = '';
+		createOpen = true;
+	}
+
+	async function createRule(event: Event) {
+		event.preventDefault();
+		const name = draftName.trim();
 		if (!name) return;
-		await backend.ruleSave(name, `# ${name}\n`);
-		goto(`/rules/${name}`);
+		creating = true;
+		error = '';
+		try {
+			await backend.ruleSave(name, `# ${name}\n`);
+			createOpen = false;
+			toast.success(`Rule “${name}” created.`);
+			goto(`/rules/${name}`);
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Could not create the rule';
+		} finally {
+			creating = false;
+		}
 	}
 </script>
 
-<div class="space-y-7">
-	<div class="flex items-end justify-between gap-4">
-		<div>
-			<h2 class="text-2xl font-semibold tracking-tight">Rules</h2>
-			<p class="mt-1 text-sm text-muted-foreground">Modular instructions, concatenated into every agent config in filename order.</p>
+<div class="flex flex-col gap-10">
+	<div class="flex flex-wrap items-start justify-between gap-4">
+		<div class="flex min-w-0 flex-col gap-2">
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">Rules</h1>
+			<p class="text-fc-sm text-fc-fg-muted">
+				Modular instructions, concatenated into every agent config in filename order.
+			</p>
 		</div>
-		<button onclick={addRule} class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-			<Icon icon="mdi:plus" class="size-4" />
-			New rule
-		</button>
+		<Button icon={icons.plus} onclick={openCreate}>New rule</Button>
 	</div>
 
 	{#if rules.length === 0}
-		<div class="rounded-xl border border-dashed border-border p-12 text-center">
-			<Icon icon="solar:ruler-angular-linear" class="mx-auto size-6 text-muted-foreground/50" />
-			<p class="mt-2 text-sm text-muted-foreground">No rules yet. Create one to shape your agents.</p>
-		</div>
+		<EmptyState
+			icon={icons.shield}
+			title="No rules yet"
+			description="Create one to shape how every agent behaves."
+		>
+			<Button variant="outline" icon={icons.plus} onclick={openCreate}>New rule</Button>
+		</EmptyState>
 	{:else}
-		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-			{#each rules as rule}
-				<a
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			{#each rules as rule (rule)}
+				<EntityCard
 					href="/rules/{rule}"
-					class="group rounded-xl border border-border bg-background p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-sm"
-				>
-					<div class="flex items-center justify-between">
-						<div class="flex size-9 items-center justify-center rounded-lg bg-accent">
-							<Icon icon="solar:ruler-angular-linear" class="size-[18px] text-foreground" />
-						</div>
-						<Icon icon="solar:alt-arrow-right-linear" class="size-4 text-muted-foreground/30 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
-					</div>
-					<p class="mt-3 truncate font-medium">{rule}</p>
-					<p class="font-mono text-xs text-muted-foreground">rules/{rule}.md</p>
-				</a>
+					icon={icons.shield}
+					title={rule}
+					meta="rules/{rule}.md"
+				/>
 			{/each}
 		</div>
 	{/if}
 </div>
+
+<Modal bind:open={createOpen} title="New rule" showClose>
+	<form class="flex flex-col gap-4" onsubmit={createRule}>
+		<Field
+			label="Name"
+			helper="Prefix it to control the order agents read it in — 30-testing, 40-git."
+			error={error || undefined}
+		>
+			<Input bind:value={draftName} placeholder="30-testing" disabled={creating} required />
+		</Field>
+		<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+			<Button
+				type="button"
+				variant="ghost"
+				class="w-full sm:w-auto"
+				onclick={() => (createOpen = false)}
+			>
+				Cancel
+			</Button>
+			<Button
+				type="submit"
+				icon={icons.plus}
+				class="w-full sm:w-auto"
+				disabled={creating || draftName.trim().length === 0}
+			>
+				{creating ? 'Creating…' : 'Create rule'}
+			</Button>
+		</div>
+	</form>
+</Modal>

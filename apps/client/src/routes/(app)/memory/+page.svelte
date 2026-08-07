@@ -1,140 +1,214 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
 	import { goto } from '$app/navigation';
+	import { Button, Card, Field, Input, Modal, Select, icons, toast } from '@facile/muse';
 	import { backend, type FileEntry } from '$lib/backend';
+	import EmptyState from '$lib/components/EmptyState.svelte';
+	import EntityCard from '$lib/components/EntityCard.svelte';
 
-	const FOLDERS = ['', 'bugs', 'tools', 'projects', 'conventions', 'syntheses'];
+	const FOLDERS = ['bugs', 'tools', 'projects', 'conventions', 'syntheses'];
 
 	let query = $state('');
 	let results: { path: string; line: number; content: string }[] = $state([]);
+	let searched = $state(false);
 	let searching = $state(false);
-
 	let files: FileEntry[] = $state([]);
+
+	let createOpen = $state(false);
+	let creating = $state(false);
+	let draftFolder = $state('');
+	let draftName = $state('');
+	let createError = $state('');
 
 	$effect(() => {
 		backend
 			.syncTree()
-			.then((t) => (files = t.filter((f) => f.path.startsWith('memory/')).sort((a, b) => a.path.localeCompare(b.path))))
-			.catch(() => {});
+			.then(
+				(t) =>
+					(files = t
+						.filter((f) => f.path.startsWith('memory/'))
+						.sort((a, b) => a.path.localeCompare(b.path)))
+			)
+			.catch((e) =>
+				toast.danger(e instanceof Error ? e.message : 'Could not load the memory tree.')
+			);
 	});
 
-	let grouped = $derived.by(() => {
+	const grouped = $derived.by(() => {
 		const groups: Record<string, FileEntry[]> = {};
 		for (const f of files) {
 			const parts = f.path.split('/');
 			const folder = parts.length > 2 ? parts[1] : '/';
 			(groups[folder] ??= []).push(f);
 		}
-		return Object.entries(groups).sort(([a], [b]) => (a === '/' ? -1 : b === '/' ? 1 : a.localeCompare(b)));
+		return Object.entries(groups).sort(([a], [b]) =>
+			a === '/' ? -1 : b === '/' ? 1 : a.localeCompare(b)
+		);
 	});
 
 	function label(path: string) {
 		return path.split('/').pop()!.replace(/\.md$/, '');
 	}
 
-	async function addPage() {
-		const folder = prompt(`Folder (${FOLDERS.slice(1).join(', ')}, or leave empty for root):`, '');
-		if (folder === null) return;
-		const f = folder.trim().replace(/^\/+|\/+$/g, '');
-		if (f && !FOLDERS.includes(f)) {
-			alert(`Unknown folder "${f}". Use one of: ${FOLDERS.slice(1).join(', ')} or leave empty.`);
-			return;
-		}
-		const rawName = prompt('Page name (e.g. my-finding):');
-		if (!rawName) return;
-		let name = rawName.trim().replace(/^\/+/, '');
-		if (!name.endsWith('.md')) name += '.md';
-		const path = f ? `memory/${f}/${name}` : `memory/${name}`;
-		await backend.syncFilePut(path, `# ${name.replace(/\.md$/, '')}\n`);
-		goto(`/memory/${path.slice('memory/'.length)}`);
+	function openCreate() {
+		draftFolder = '';
+		draftName = '';
+		createError = '';
+		createOpen = true;
 	}
 
-	async function search() {
+	async function createPage(event: Event) {
+		event.preventDefault();
+		let name = draftName.trim().replace(/^\/+/, '');
+		if (!name) return;
+		if (!name.endsWith('.md')) name += '.md';
+		const path = draftFolder ? `memory/${draftFolder}/${name}` : `memory/${name}`;
+		creating = true;
+		createError = '';
+		try {
+			await backend.syncFilePut(path, `# ${name.replace(/\.md$/, '')}\n`);
+			createOpen = false;
+			toast.success(`Created ${path}.`);
+			goto(`/memory/${path.slice('memory/'.length)}`);
+		} catch (e) {
+			createError = e instanceof Error ? e.message : 'Could not create the page';
+		} finally {
+			creating = false;
+		}
+	}
+
+	async function search(event: Event) {
+		event.preventDefault();
 		if (!query.trim()) return;
 		searching = true;
 		try {
 			results = await backend.memorySearch(query);
-		} catch {
+		} catch (e) {
 			results = [];
+			toast.danger(e instanceof Error ? e.message : 'Search failed.');
 		} finally {
 			searching = false;
+			searched = true;
 		}
 	}
 </script>
 
-<div class="space-y-7">
-	<div class="flex items-end justify-between gap-4">
-		<div>
-			<h2 class="text-2xl font-semibold tracking-tight">Memory</h2>
-			<p class="mt-1 text-sm text-muted-foreground">Browse, search, and curate your shared agent memory.</p>
+<div class="flex flex-col gap-10">
+	<div class="flex flex-wrap items-start justify-between gap-4">
+		<div class="flex min-w-0 flex-col gap-2">
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">Memory</h1>
+			<p class="text-fc-sm text-fc-fg-muted">
+				Browse, search and curate the wiki your agents read from and write back to.
+			</p>
 		</div>
-		<button onclick={addPage} class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-			<Icon icon="mdi:plus" class="size-4" />
-			New page
-		</button>
+		<Button icon={icons.plus} onclick={openCreate}>New page</Button>
 	</div>
 
-	<form onsubmit={(e) => { e.preventDefault(); search(); }} class="flex gap-2">
-		<input
-			type="text"
-			bind:value={query}
-			placeholder="Search memory..."
-			class="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-		/>
-		<button
-			type="submit"
-			disabled={searching}
-			class="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-		>
-			<Icon icon="solar:magnifer-linear" class="size-4" />
-			{searching ? '...' : 'Search'}
-		</button>
-	</form>
+	<section class="flex flex-col gap-4">
+		<form class="flex flex-col gap-3 sm:flex-row" onsubmit={search}>
+			<div class="min-w-0 flex-1">
+				<Input bind:value={query} placeholder="Search memory…" aria-label="Search memory" />
+			</div>
+			<Button
+				type="submit"
+				variant="outline"
+				icon={icons.search}
+				disabled={searching || query.trim().length === 0}
+			>
+				{searching ? 'Searching…' : 'Search'}
+			</Button>
+		</form>
 
-	{#if results.length > 0}
-		<div class="space-y-1">
-			{#each results as r}
-				{@const rp = r.path.startsWith('memory/') ? r.path.slice('memory/'.length) : r.path}
-				<a href="/memory/{rp}" class="block w-full rounded-lg border border-border px-3 py-2 text-left hover:bg-accent">
-					<span class="text-xs font-medium text-primary">{r.path}:{r.line}</span>
-					<p class="text-sm">{r.content}</p>
-				</a>
-			{/each}
-		</div>
-	{/if}
+		{#if results.length > 0}
+			<div class="flex flex-col gap-2">
+				{#each results as result (result.path + ':' + result.line)}
+					{@const rel = result.path.startsWith('memory/')
+						? result.path.slice('memory/'.length)
+						: result.path}
+					<a
+						href="/memory/{rel}"
+						class="flex flex-col gap-1 rounded-fc-md bg-fc-component px-4 py-3 transition-colors hover:bg-fc-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
+					>
+						<span class="font-fc-mono text-fc-xs text-fc-fg-muted">
+							{result.path}:{result.line}
+						</span>
+						<span class="truncate text-fc-sm text-fc-fg">{result.content}</span>
+					</a>
+				{/each}
+			</div>
+		{:else if searched && !searching}
+			<Card class="text-fc-sm text-fc-fg-muted">Nothing matched “{query}”.</Card>
+		{/if}
+	</section>
 
 	{#if files.length === 0}
-		<div class="rounded-xl border border-dashed border-border p-12 text-center">
-			<Icon icon="solar:notebook-linear" class="mx-auto size-6 text-muted-foreground/50" />
-			<p class="mt-2 text-sm text-muted-foreground">No memories yet. Create one or let your agents fill this in as they learn.</p>
-		</div>
+		<EmptyState
+			icon={icons.folder}
+			title="No memories yet"
+			description="Create a page, or let your agents fill this in as they learn."
+		>
+			<Button variant="outline" icon={icons.plus} onclick={openCreate}>New page</Button>
+		</EmptyState>
 	{:else}
-		<div class="space-y-6">
-			{#each grouped as [folder, entries]}
-				<div>
-					<p class="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-						<Icon icon={folder === '/' ? 'solar:notebook-linear' : 'solar:folder-linear'} class="size-3.5" />
-						{folder === '/' ? 'root' : folder}
-					</p>
-					<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-						{#each entries as f}
-							<a
-								href="/memory/{f.path.slice('memory/'.length)}"
-								class="group rounded-xl border border-border bg-background p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-sm"
-							>
-								<div class="flex items-center justify-between">
-									<div class="flex size-9 items-center justify-center rounded-lg bg-accent">
-										<Icon icon="solar:document-text-linear" class="size-[18px] text-foreground" />
-									</div>
-									<Icon icon="solar:alt-arrow-right-linear" class="size-4 text-muted-foreground/30 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
-								</div>
-								<p class="mt-3 truncate font-medium">{label(f.path)}</p>
-								<p class="truncate font-mono text-xs text-muted-foreground">{f.path}</p>
-							</a>
-						{/each}
-					</div>
+		{#each grouped as [folder, entries] (folder)}
+			<section class="flex flex-col gap-4">
+				<h2 class="flex items-center gap-2 text-fc-lg font-semibold text-fc-fg">
+					<iconify-icon
+						icon={icons.folder}
+						width="18"
+						height="18"
+						class="block text-fc-fg-muted"
+					></iconify-icon>
+					{folder === '/' ? 'root' : folder}
+				</h2>
+				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					{#each entries as file (file.path)}
+						<EntityCard
+							href="/memory/{file.path.slice('memory/'.length)}"
+							icon={icons.folder}
+							title={label(file.path)}
+							meta={file.path}
+						/>
+					{/each}
 				</div>
-			{/each}
-		</div>
+			</section>
+		{/each}
 	{/if}
 </div>
+
+<Modal bind:open={createOpen} title="New memory page" showClose>
+	<form class="flex flex-col gap-4" onsubmit={createPage}>
+		<Field label="Folder" helper="Leave it on root for a page that fits nowhere else.">
+			<Select bind:value={draftFolder} disabled={creating}>
+				<option value="">root</option>
+				{#each FOLDERS as folder (folder)}
+					<option value={folder}>{folder}</option>
+				{/each}
+			</Select>
+		</Field>
+		<Field
+			label="Name"
+			helper="The .md extension is added if you leave it off."
+			error={createError || undefined}
+		>
+			<Input bind:value={draftName} placeholder="dokploy-redeploy" disabled={creating} required />
+		</Field>
+		<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+			<Button
+				type="button"
+				variant="ghost"
+				class="w-full sm:w-auto"
+				onclick={() => (createOpen = false)}
+			>
+				Cancel
+			</Button>
+			<Button
+				type="submit"
+				icon={icons.plus}
+				class="w-full sm:w-auto"
+				disabled={creating || draftName.trim().length === 0}
+			>
+				{creating ? 'Creating…' : 'Create page'}
+			</Button>
+		</div>
+	</form>
+</Modal>
