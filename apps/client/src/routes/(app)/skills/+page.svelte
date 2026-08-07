@@ -1,57 +1,108 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
 	import { goto } from '$app/navigation';
+	import { Button, Field, Input, Modal, icons, toast } from '@facile/muse';
 	import { backend } from '$lib/backend';
+	import EmptyState from '$lib/components/EmptyState.svelte';
+	import EntityCard from '$lib/components/EntityCard.svelte';
 
 	let skills: string[] = $state([]);
+	let createOpen = $state(false);
+	let draftName = $state('');
+	let creating = $state(false);
+	let error = $state('');
 
 	$effect(() => {
-		backend.skillsList().then((s) => (skills = s)).catch(() => {});
+		backend
+			.skillsList()
+			.then((s) => (skills = s))
+			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load skills'));
 	});
 
-	async function addSkill() {
-		const name = prompt('Skill name:');
+	function openCreate() {
+		draftName = '';
+		error = '';
+		createOpen = true;
+	}
+
+	async function createSkill(event: Event) {
+		event.preventDefault();
+		const name = draftName.trim();
 		if (!name) return;
-		const template = `---\nname: ${name}\ndescription: ""\ntriggers: ["/${name}"]\n---\n\n# ${name}\n`;
-		await backend.skillSave(name, template);
-		goto(`/skills/${name}`);
+		creating = true;
+		error = '';
+		try {
+			const template = `---\nname: ${name}\ndescription: ""\ntriggers: ["/${name}"]\n---\n\n# ${name}\n`;
+			await backend.skillSave(name, template);
+			createOpen = false;
+			toast.success(`Skill “${name}” created.`);
+			goto(`/skills/${name}`);
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Could not create the skill';
+		} finally {
+			creating = false;
+		}
 	}
 </script>
 
-<div class="space-y-7">
-	<div class="flex items-end justify-between gap-4">
-		<div>
-			<h2 class="text-2xl font-semibold tracking-tight">Skills</h2>
-			<p class="mt-1 text-sm text-muted-foreground">Agent-agnostic capabilities, installed into each agent's skill format.</p>
+<div class="flex flex-col gap-10">
+	<div class="flex flex-wrap items-start justify-between gap-4">
+		<div class="flex min-w-0 flex-col gap-2">
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">Skills</h1>
+			<p class="text-fc-sm text-fc-fg-muted">
+				Agent-agnostic capabilities, installed into each agent's own skill format.
+			</p>
 		</div>
-		<button onclick={addSkill} class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-			<Icon icon="mdi:plus" class="size-4" />
-			New skill
-		</button>
+		<Button icon={icons.plus} onclick={openCreate}>New skill</Button>
 	</div>
 
 	{#if skills.length === 0}
-		<div class="rounded-xl border border-dashed border-border p-12 text-center">
-			<Icon icon="solar:bolt-circle-linear" class="mx-auto size-6 text-muted-foreground/50" />
-			<p class="mt-2 text-sm text-muted-foreground">No skills yet. Add one to teach every agent a new trick.</p>
-		</div>
+		<EmptyState
+			icon={icons.bolt}
+			title="No skills yet"
+			description="Add one to teach every agent the same trick."
+		>
+			<Button variant="outline" icon={icons.plus} onclick={openCreate}>New skill</Button>
+		</EmptyState>
 	{:else}
-		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-			{#each skills as skill}
-				<a
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			{#each skills as skill (skill)}
+				<EntityCard
 					href="/skills/{skill}"
-					class="group rounded-xl border border-border bg-background p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-sm"
-				>
-					<div class="flex items-center justify-between">
-						<div class="flex size-9 items-center justify-center rounded-lg bg-accent">
-							<Icon icon="solar:bolt-circle-linear" class="size-[18px] text-foreground" />
-						</div>
-						<Icon icon="solar:alt-arrow-right-linear" class="size-4 text-muted-foreground/30 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
-					</div>
-					<p class="mt-3 truncate font-medium">{skill}</p>
-					<p class="font-mono text-xs text-muted-foreground">skills/{skill}.md</p>
-				</a>
+					icon={icons.bolt}
+					title={skill}
+					meta="skills/{skill}.md"
+				/>
 			{/each}
 		</div>
 	{/if}
 </div>
+
+<Modal bind:open={createOpen} title="New skill" showClose>
+	<form class="flex flex-col gap-4" onsubmit={createSkill}>
+		<Field
+			label="Name"
+			helper="Becomes the slash command agents invoke it with."
+			error={error || undefined}
+		>
+			<Input bind:value={draftName} placeholder="changelog" disabled={creating} required />
+		</Field>
+		<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+			<Button
+				type="button"
+				variant="ghost"
+				class="w-full sm:w-auto"
+				onclick={() => (createOpen = false)}
+			>
+				Cancel
+			</Button>
+			<Button
+				type="submit"
+				icon={icons.plus}
+				class="w-full sm:w-auto"
+				disabled={creating || draftName.trim().length === 0}
+			>
+				{creating ? 'Creating…' : 'Create skill'}
+			</Button>
+		</div>
+	</form>
+</Modal>

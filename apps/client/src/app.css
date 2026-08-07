@@ -1,52 +1,32 @@
-@import "tailwindcss";
+@import '@facile/muse/styles';
+@source '../node_modules/@facile/muse/src';
 
-@font-face { font-family: 'Inter'; src: url('/fonts/Inter-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
-@font-face { font-family: 'Inter'; src: url('/fonts/Inter-Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; }
-@font-face { font-family: 'Inter'; src: url('/fonts/Inter-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; }
-@font-face { font-family: 'Inter'; src: url('/fonts/Inter-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
-
-@font-face { font-family: 'Goga'; src: url('/fonts/GogaTest-Regular-BF6646d5d84f69b.otf') format('opentype'); font-weight: 400; font-style: normal; }
-@font-face { font-family: 'Goga'; src: url('/fonts/GogaTest-Medium-BF6646d5d84754e.otf') format('opentype'); font-weight: 500; font-style: normal; }
-@font-face { font-family: 'Goga'; src: url('/fonts/GogaTest-Semibold-BF6646d5d8544cf.otf') format('opentype'); font-weight: 600; font-style: normal; }
-@font-face { font-family: 'Goga'; src: url('/fonts/GogaTest-Bold-BF6646d5d83c978.otf') format('opentype'); font-weight: 700; font-style: normal; }
-@font-face { font-family: 'Goga'; src: url('/fonts/GogaTest-Extrabold-BF6646d5d7d0a2b.otf') format('opentype'); font-weight: 800; font-style: normal; }
-@font-face { font-family: 'Goga'; src: url('/fonts/GogaTest-Black-BF6646d5d78e551.otf') format('opentype'); font-weight: 900; font-style: normal; }
-
+/*
+ * The suite's semantic names, aliased onto muse's tokens. The auth screens are raw
+ * elements by convention (they must render identically in every repo), so they speak
+ * `bg-background` / `border-input` / `text-muted-foreground` — this block is what keeps
+ * that vocabulary alive now that the fc-* tokens own the palette. Nothing new is defined
+ * here: every value is a muse token, so both spellings flip together in dark mode.
+ */
 @theme inline {
-	--font-sans: 'Goga', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-	--font-heading: 'Goga', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-	--font-mono: 'Inter', ui-monospace, monospace;
-	--color-background: oklch(1 0 0);
-	--color-foreground: oklch(0.145 0 0);
-	--color-primary: oklch(0.145 0 0);
-	--color-primary-foreground: oklch(1 0 0);
-	--color-secondary: oklch(0.97 0 0);
-	--color-secondary-foreground: oklch(0.205 0 0);
-	--color-muted: oklch(0.97 0 0);
-	--color-muted-foreground: oklch(0.556 0 0);
-	--color-border: oklch(0.9 0 0);
-	--color-input: oklch(0.9 0 0);
-	--color-ring: oklch(0.4 0 0);
-	--color-destructive: oklch(0.55 0.22 29);
-	--color-destructive-foreground: oklch(1 0 0);
-	--color-accent: oklch(0.97 0 0);
-	--color-accent-foreground: oklch(0.205 0 0);
-}
-
-@layer base {
-	* {
-		@apply border-border;
-	}
-	body {
-		@apply bg-background text-foreground;
-		margin: 0;
-		min-height: 100vh;
-	}
-	html {
-		@apply font-sans;
-		-webkit-font-smoothing: antialiased;
-	}
-	h1, h2, h3, h4, h5, h6 {
-		font-family: var(--font-heading);
-	}
+	--color-background: var(--color-fc-page);
+	--color-foreground: var(--color-fc-fg);
+	--color-card: var(--color-fc-component);
+	--color-card-foreground: var(--color-fc-fg);
+	--color-popover: var(--color-fc-component);
+	--color-popover-foreground: var(--color-fc-fg);
+	--color-muted: var(--color-fc-surface);
+	--color-muted-foreground: var(--color-fc-fg-muted);
+	--color-border: var(--color-fc-border);
+	--color-input: var(--color-fc-border);
+	--color-ring: var(--color-fc-ring);
+	--color-primary: var(--color-fc-accent);
+	--color-primary-foreground: var(--color-fc-accent-fg);
+	--color-secondary: var(--color-fc-surface);
+	--color-secondary-foreground: var(--color-fc-fg);
+	--color-accent: var(--color-fc-surface);
+	--color-accent-foreground: var(--color-fc-fg);
+	--color-destructive: var(--color-fc-danger);
+	--color-destructive-foreground: var(--color-fc-danger-fg);
+	--font-heading: var(--font-fc-title);
 }

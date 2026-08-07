@@ -21,6 +21,7 @@
 		"vite": "^7.0.0"
 	},
 	"dependencies": {
-		"@iconify/svelte": "^5.2.2"
+		"@facile/muse": "github:FacileStudio/muse#v0.3.0",
+		"iconify-icon": "^3.0.2"
 	}
 }

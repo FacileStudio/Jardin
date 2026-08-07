@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { backend, TOKEN_KEY } from '$lib/backend';
@@ -67,7 +66,8 @@
 <div class="flex min-h-screen">
 	<div class="hidden lg:flex lg:w-1/2 flex-col bg-black px-12 py-10">
 		<a href="/" class="flex items-center gap-3 mb-auto">
-			<Icon icon="solar:leaf-bold-duotone" class="w-7 h-7 text-white" />
+			<iconify-icon icon="solar:leaf-bold-duotone" width="28" height="28" class="block text-white"
+			></iconify-icon>
 			<span class="text-xl font-bold font-heading tracking-tight text-white">Jardin</span>
 		</a>
 

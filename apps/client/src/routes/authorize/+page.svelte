@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { backend, TOKEN_KEY } from '$lib/backend';
@@ -74,7 +73,7 @@
 <div class="flex min-h-screen items-center justify-center bg-background px-6 py-12">
 	<div class="w-full max-w-sm">
 		<a href="/memory" class="mb-8 flex items-center justify-center gap-2.5">
-			<Icon icon="solar:leaf-bold-duotone" class="size-7 text-foreground" />
+			<iconify-icon icon="solar:leaf-bold-duotone" width="28" height="28" class="block text-foreground"></iconify-icon>
 			<span class="text-xl font-bold tracking-tight">Jardin</span>
 		</a>
 
@@ -82,7 +81,7 @@
 			<div class="h-40"></div>
 		{:else if done === 'approved'}
 			<div class="rounded-xl border border-border bg-card p-6 text-center">
-				<Icon icon="solar:check-circle-bold" class="mx-auto size-10 text-green-600" />
+				<iconify-icon icon="solar:check-circle-bold" width="40" height="40" class="mx-auto block text-green-600"></iconify-icon>
 				<h1 class="mt-3 text-lg font-semibold">Machine authorized</h1>
 				<p class="mt-1 text-sm text-muted-foreground">
 					<span class="font-medium text-foreground">{machine}</span> can now sync. Return to your
@@ -91,7 +90,7 @@
 			</div>
 		{:else if done === 'denied'}
 			<div class="rounded-xl border border-border bg-card p-6 text-center">
-				<Icon icon="solar:close-circle-bold" class="mx-auto size-10 text-muted-foreground" />
+				<iconify-icon icon="solar:close-circle-bold" width="40" height="40" class="mx-auto block text-muted-foreground"></iconify-icon>
 				<h1 class="mt-3 text-lg font-semibold">Request denied</h1>
 				<p class="mt-1 text-sm text-muted-foreground">No token was issued.</p>
 			</div>
@@ -128,7 +127,7 @@
 				<div class="rounded-xl border border-border bg-card p-5">
 					<div class="flex items-center gap-3">
 						<div class="flex size-10 items-center justify-center rounded-lg bg-accent">
-							<Icon icon="solar:server-square-linear" class="size-5" />
+							<iconify-icon icon="solar:server-square-linear" width="20" height="20" class="block"></iconify-icon>
 						</div>
 						<div>
 							<p class="text-sm text-muted-foreground">Machine requesting access</p>
@@ -147,6 +146,7 @@
 
 					<div class="mt-5 flex gap-2">
 						<button
+							type="button"
 							onclick={deny}
 							disabled={busy}
 							class="inline-flex h-10 flex-1 items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium hover:bg-accent disabled:opacity-50"
@@ -154,6 +154,7 @@
 							Deny
 						</button>
 						<button
+							type="button"
 							onclick={approve}
 							disabled={busy}
 							class="inline-flex h-10 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
