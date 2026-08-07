@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { BarChart, Card, StatCard, StatusDot, Table, Tabs, icons } from '@facile/muse';
+	import { BarChart, Card, EmptyState, StatCard, StatusDot, Table, Tabs, icons } from '@facile/muse';
 	import { backend, type LiveSession, type SessionBlock, type SessionStats } from '$lib/backend';
-	import EmptyState from '$lib/components/EmptyState.svelte';
 
 	const RANGES = [
 		{ id: '7d', label: '7 days' },

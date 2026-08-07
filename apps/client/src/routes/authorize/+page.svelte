@@ -81,7 +81,7 @@
 			<div class="h-40"></div>
 		{:else if done === 'approved'}
 			<div class="rounded-xl border border-border bg-card p-6 text-center">
-				<iconify-icon icon="solar:check-circle-bold" width="40" height="40" class="mx-auto block text-green-600"></iconify-icon>
+				<iconify-icon icon="solar:check-circle-bold" width="40" height="40" class="mx-auto block text-fc-success"></iconify-icon>
 				<h1 class="mt-3 text-lg font-semibold">Machine authorized</h1>
 				<p class="mt-1 text-sm text-muted-foreground">
 					<span class="font-medium text-foreground">{machine}</span> can now sync. Return to your
@@ -139,7 +139,7 @@
 						{#if ip}<p>from <span class="text-foreground">{ip}</span></p>{/if}
 					</div>
 
-					<p class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+					<p class="mt-4 rounded-md bg-fc-warning/10 px-3 py-2 text-xs text-fc-warning">
 						Only authorize if you just ran <code>mycelium login</code> on this machine. Approving grants
 						it ongoing sync access to your shared brain.
 					</p>

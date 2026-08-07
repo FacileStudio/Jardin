@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { Button, Field, Input, Modal, icons, toast } from '@facile/muse';
+	import { Button, EmptyState, Field, Input, Modal, icons, toast } from '@facile/muse';
 	import { backend } from '$lib/backend';
-	import EmptyState from '$lib/components/EmptyState.svelte';
 	import EntityCard from '$lib/components/EntityCard.svelte';
 
 	let rules: string[] = $state([]);

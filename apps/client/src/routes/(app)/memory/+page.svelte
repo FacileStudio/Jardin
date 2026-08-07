@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { Button, Card, Field, Input, Modal, Select, icons, toast } from '@facile/muse';
+	import { Button, Card, EmptyState, Field, Input, Modal, Select, icons, toast } from '@facile/muse';
 	import { backend, type FileEntry } from '$lib/backend';
-	import EmptyState from '$lib/components/EmptyState.svelte';
 	import EntityCard from '$lib/components/EntityCard.svelte';
 
 	const FOLDERS = ['bugs', 'tools', 'projects', 'conventions', 'syntheses'];
