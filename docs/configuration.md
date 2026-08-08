@@ -152,6 +152,10 @@ An absent or `0` `usage_threshold` resolves to 80, never to "alert at 0%", and t
 clamped to 1–100 with nonsense ignored rather than rejected. Every call site reads it through one
 accessor, so no path can pick up the raw zero value.
 
+`machine_emails` does more than label usage alerts: their dedupe key is keyed on the resolved
+email, because a subscription limit is per Anthropic account. Two machines mapped to the same
+email therefore produce **one** alert per window instance, not two.
+
 `usage_alerts` publishes an event and nothing else — no email, no push, no webhook. Antenne is the
 alert aggregator and owns delivery.
 

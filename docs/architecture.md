@@ -241,15 +241,34 @@ check would re-emit forever. `resets_at` is what uniquely identifies a window *i
 dedupe key is
 
 ```
-sha256("usage_alert|" + machine + "|" + window + "|" + resets_at + "|" + threshold)
+sha256("usage_alert|" + email + "|" + window + "|" + resets_at + "|" + threshold)
 ```
 
 truncated to 16 hex like `sessions.Block.ID`, and stored in the shared `.pool-ledger.json` under a
-`usage:` prefix so it can never collide with a block ID. It doubles as the envelope's idempotency
-key, so a crash between emit and ledger write yields a duplicate the downstream absorbs rather
-than a lost alert. When the window rolls over Anthropic returns a new `resets_at`, the identity
-changes, and the next crossing legitimately alerts again. Including the threshold in the key means
-lowering the setting re-arms the alert, which is what a user changing it expects.
+`usage:` prefix so it can never collide with a block ID. `jardin_usage_alert_created_` + those 16
+hex is the envelope's `idempotency_key` — a prefixed derivative in the same house style as
+`sessions.Block.IdempotencyKey()`, not the raw key. So a crash between emit and ledger write yields
+a duplicate the downstream absorbs rather than a lost alert. When the window rolls over Anthropic
+returns a new `resets_at`, the identity changes, and the next crossing legitimately alerts again.
+Including the threshold in the key means lowering the setting re-arms the alert, which is what a
+user changing it expects.
+
+**The key is emailed, not machined**, because a subscription limit belongs to an Anthropic account
+and the resolved email is that account's identity here. Two machines on the same plan observe the
+same window with the same `resets_at`, so keying on `machine` fired two alerts for one crossing —
+one event per laptop, for one limit. The key rests on one load-bearing property: `resets_at` is an
+absolute instant handed back by Anthropic, not a computed now-plus-remaining, so every machine on
+the account observes it identically and no quantization is needed to make the keys match.
+
+Two machines mapped to *different* emails still alert separately, which is correct — those are two
+people to tell.
+
+Eligible snapshots are therefore grouped by that identity and each group emits **one** alert
+carrying the **highest** `used_percentage` in it, with `machine` set to the snapshot that supplied
+that maximum and ties broken by the lexicographically smallest machine name. The readings all
+describe one shared account, so the maximum is the closest thing to the truth — a threshold
+decision should not rest on a lower stale reading when a higher one is available. `machine` is
+consequently metadata about where the winning reading came from, never part of the identity.
 
 Five conditions suppress an otherwise-crossing window:
 
@@ -277,7 +296,8 @@ one tree still yields a single alert per window instance, because the dedupe key
 `internal/server`. Adopting the type into `enveloppe` is a deliberate follow-up decision, not a
 side effect of this change — `enveloppe` is a cross-repo contract consumed by Opus and Sablier.
 The pool client announces what it emits, so `usage_alert.created` is declared in the `Emit` list
-alongside `agent_session.created`; an undeclared type may be dropped.
+alongside `agent_session.created`; an undeclared type may be dropped. Both payloads are specified
+in [Published events](api.md#published-events).
 
 ## Cross-app integration
 

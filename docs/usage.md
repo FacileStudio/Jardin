@@ -197,8 +197,9 @@ last-observed rather than current, and a snapshot older than 15 minutes is marke
 
 With `usage_alerts` on in the dashboard's Settings, the server publishes a `usage_alert.created`
 event to the Antenne the first time a window crosses `usage_threshold` (default 80), once per
-window instance — see [configuration.md](configuration.md#antenne-settings). Jardin only publishes
-the event; Antenne owns delivery.
+window instance per account, not per machine — see
+[configuration.md](configuration.md#antenne-settings). Jardin only publishes the event; Antenne
+owns delivery.
 
 ### `jardin usage login` / `jardin usage logout`
 

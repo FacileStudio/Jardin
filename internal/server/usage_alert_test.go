@@ -176,6 +176,167 @@ func TestPendingUsageAlertsEdgeTriggered(t *testing.T) {
 	}
 }
 
+// A subscription limit is per Anthropic account, not per machine: lucy and ruche
+// signed into the same plan see the same window with the same resets_at, so one
+// real crossing must produce one alert. Both machines report to this instance,
+// so a machine-keyed identity double-alerted for every crossing.
+func TestPendingUsageAlertsSameEmailAlertsOncePerTick(t *testing.T) {
+	antenne := alertSettings(80)
+	resets := at(u0.Add(3 * time.Hour))
+	snapshots := []usage.Snapshot{
+		mkSnapshot("lucy", u0, mkWindow("five_hour", 82.4, resets)),
+		mkSnapshot("ruche", u0, mkWindow("five_hour", 82.4, resets)),
+	}
+
+	ledger := map[string]string{}
+	pending := pendingUsageAlerts(snapshots, ledger, antenne, u0)
+	if len(pending) != 1 {
+		t.Fatalf("two machines on one account must alert once, got %d: %+v", len(pending), pending)
+	}
+	ledger[pending[0].LedgerKey()] = u0.Format(time.RFC3339)
+	if len(ledger) != 1 {
+		t.Fatalf("one alert must write one ledger entry: %+v", ledger)
+	}
+	if pending[0].Email != "yann@facile.studio" {
+		t.Fatalf("alert must carry the resolved email: %q", pending[0].Email)
+	}
+	if pending[0].Machine != "lucy" {
+		t.Fatalf("equal readings tie-break on the smallest machine name: %q", pending[0].Machine)
+	}
+	if again := pendingUsageAlerts(snapshots, ledger, antenne, u0.Add(time.Minute)); len(again) != 0 {
+		t.Fatalf("the ledger must suppress the next tick, got %+v", again)
+	}
+}
+
+// The in-tick seen set and the ledger are two mechanisms and only the ledger
+// survives a tick boundary. Feeding the machines in separate ticks takes seen out
+// of the picture entirely, so a pass here proves the ledger is doing the work.
+func TestPendingUsageAlertsSameEmailAlertsOnceAcrossTicks(t *testing.T) {
+	antenne := alertSettings(80)
+	resets := at(u0.Add(3 * time.Hour))
+	lucy := []usage.Snapshot{mkSnapshot("lucy", u0, mkWindow("five_hour", 82.4, resets))}
+	ruche := []usage.Snapshot{mkSnapshot("ruche", u0.Add(time.Minute), mkWindow("five_hour", 84, resets))}
+	ledger := map[string]string{}
+
+	first := pendingUsageAlerts(lucy, ledger, antenne, u0)
+	if len(first) != 1 {
+		t.Fatalf("the first machine must alert, got %d", len(first))
+	}
+	ledger[first[0].LedgerKey()] = u0.Format(time.RFC3339)
+
+	second := pendingUsageAlerts(ruche, ledger, antenne, u0.Add(time.Minute))
+	if len(second) != 0 {
+		t.Fatalf("the other machine on the same account must not alert again, got %+v", second)
+	}
+	if len(ledger) != 1 {
+		t.Fatalf("still exactly one ledger entry: %+v", ledger)
+	}
+
+	rolled := []usage.Snapshot{mkSnapshot("ruche", u0.Add(4*time.Hour), mkWindow("five_hour", 88, at(u0.Add(8*time.Hour))))}
+	rolledPending := pendingUsageAlerts(rolled, ledger, antenne, u0.Add(4*time.Hour))
+	if len(rolledPending) != 1 {
+		t.Fatalf("a new resets_at must re-arm the email-keyed alert, got %d", len(rolledPending))
+	}
+	if rolledPending[0].LedgerKey() == first[0].LedgerKey() {
+		t.Fatal("the rolled-over window must not reuse the previous ledger key")
+	}
+}
+
+// One alert stands for one account, so the group reports its highest reading:
+// the machines describe a single shared limit and the maximum is closest to the
+// truth. Ties fall to the smallest machine name so the payload does not depend on
+// walk order.
+func TestPendingUsageAlertsReportsHighestReadingInGroup(t *testing.T) {
+	antenne := alertSettings(80)
+	resets := at(u0.Add(3 * time.Hour))
+
+	cases := []struct {
+		name        string
+		snapshots   []usage.Snapshot
+		wantPct     float64
+		wantMachine string
+	}{
+		{
+			name: "the maximum wins over walk order",
+			snapshots: []usage.Snapshot{
+				mkSnapshot("lucy", u0, mkWindow("five_hour", 82, resets)),
+				mkSnapshot("ruche", u0, mkWindow("five_hour", 85, resets)),
+			},
+			wantPct:     85,
+			wantMachine: "ruche",
+		},
+		{
+			name: "the maximum wins when it is walked first",
+			snapshots: []usage.Snapshot{
+				mkSnapshot("lucy", u0, mkWindow("five_hour", 91, resets)),
+				mkSnapshot("ruche", u0, mkWindow("five_hour", 85, resets)),
+			},
+			wantPct:     91,
+			wantMachine: "lucy",
+		},
+		{
+			name: "a tie falls to the smallest machine name",
+			snapshots: []usage.Snapshot{
+				mkSnapshot("ruche", u0, mkWindow("five_hour", 88, resets)),
+				mkSnapshot("lucy", u0, mkWindow("five_hour", 88, resets)),
+			},
+			wantPct:     88,
+			wantMachine: "lucy",
+		},
+		{
+			name: "a machine below the threshold does not drag the alert down",
+			snapshots: []usage.Snapshot{
+				mkSnapshot("lucy", u0, mkWindow("five_hour", 40, resets)),
+				mkSnapshot("ruche", u0, mkWindow("five_hour", 84, resets)),
+			},
+			wantPct:     84,
+			wantMachine: "ruche",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pending := pendingUsageAlerts(tc.snapshots, map[string]string{}, antenne, u0)
+			if len(pending) != 1 {
+				t.Fatalf("one account must yield one alert, got %d: %+v", len(pending), pending)
+			}
+			if pending[0].UsedPercentage != tc.wantPct {
+				t.Fatalf("used_percentage: got %v want %v", pending[0].UsedPercentage, tc.wantPct)
+			}
+			if pending[0].Machine != tc.wantMachine {
+				t.Fatalf("machine: got %q want %q", pending[0].Machine, tc.wantMachine)
+			}
+		})
+	}
+}
+
+// Two machines mapped to different emails are two different people to tell, so
+// the collapse must not go too far.
+func TestPendingUsageAlertsDifferentEmailsAlertSeparately(t *testing.T) {
+	antenne := alertSettings(80)
+	antenne.MachineEmails = map[string]string{"ruche": "ops@facile.studio"}
+	resets := at(u0.Add(3 * time.Hour))
+	snapshots := []usage.Snapshot{
+		mkSnapshot("lucy", u0, mkWindow("five_hour", 91, resets)),
+		mkSnapshot("ruche", u0, mkWindow("five_hour", 91, resets)),
+	}
+
+	ledger := map[string]string{}
+	pending := pendingUsageAlerts(snapshots, ledger, antenne, u0)
+	if len(pending) != 2 {
+		t.Fatalf("two accounts must alert twice, got %d: %+v", len(pending), pending)
+	}
+	for _, a := range pending {
+		ledger[a.LedgerKey()] = u0.Format(time.RFC3339)
+	}
+	if len(ledger) != 2 {
+		t.Fatalf("two alerts must write two distinct ledger entries: %+v", ledger)
+	}
+	if pending[0].Email == pending[1].Email {
+		t.Fatalf("both alerts resolved to the same email: %q", pending[0].Email)
+	}
+}
+
 // Lowering the threshold is a deliberate user action, so it re-arms: the key
 // includes the threshold, which is what makes that work.
 func TestPendingUsageAlertsThresholdChangeReArms(t *testing.T) {
@@ -231,7 +392,7 @@ func TestPendingUsageAlertsSkipDoesNotConsumeWindow(t *testing.T) {
 	if len(pending) != 1 {
 		t.Fatalf("the same window must emit once an email resolves, got %d", len(pending))
 	}
-	if got := usageEnvelopeFor(&pending[0], attributed.EmailFor(pending[0].Machine)).Payload.UserEmail; got != "ops@facile.studio" {
+	if got := usageEnvelopeFor(&pending[0]).Payload.UserEmail; got != "ops@facile.studio" {
 		t.Fatalf("per-machine override must win: %s", got)
 	}
 }
@@ -259,7 +420,7 @@ func TestThresholdAccessorClamps(t *testing.T) {
 // The alert ledger shares .pool-ledger.json with session blocks, whose IDs are
 // bare 16-hex. The usage: prefix is what keeps the two namespaces apart.
 func TestUsageLedgerKeyCannotCollideWithBlockID(t *testing.T) {
-	alert := usageAlert{Machine: "lucy", Window: "five_hour", Threshold: 80, ResetsAt: u0.Add(3 * time.Hour)}
+	alert := usageAlert{Machine: "lucy", Email: "yann@facile.studio", Window: "five_hour", Threshold: 80, ResetsAt: u0.Add(3 * time.Hour)}
 	key := alert.LedgerKey()
 	if !strings.HasPrefix(key, "usage:") {
 		t.Fatalf("ledger key must be namespaced: %s", key)
@@ -287,6 +448,7 @@ func TestUsageLedgerKeyCannotCollideWithBlockID(t *testing.T) {
 func TestUsageEnvelopeShape(t *testing.T) {
 	alert := usageAlert{
 		Machine:        "lucy",
+		Email:          "yann@facile.studio",
 		Window:         "five_hour",
 		WindowLabel:    usage.Label("five_hour"),
 		UsedPercentage: 82.4,
@@ -294,7 +456,7 @@ func TestUsageEnvelopeShape(t *testing.T) {
 		ResetsAt:       u0.Add(3 * time.Hour),
 		Source:         usage.SourceStatusLine,
 	}
-	evt := usageEnvelopeFor(&alert, "yann@facile.studio")
+	evt := usageEnvelopeFor(&alert)
 	if evt.FacileID != "fac_"+alert.ID() || evt.Payload.FacileID != evt.FacileID {
 		t.Fatalf("facile id mismatch: %s / %s", evt.FacileID, evt.Payload.FacileID)
 	}
