@@ -29,7 +29,10 @@ and fans it out. The agents stay thin; the brain is shared.
   a version
 - Runs a background daemon that scans agent activity, syncs, and refreshes configs
 - Tracks Claude Code sessions into sealed time blocks, with live presence across machines
-- Serves a SvelteKit dashboard for browsing and editing the whole brain from a browser
+- Reports Claude subscription limits per machine, straight from Claude Code, no credential
+  needed
+- Serves a SvelteKit dashboard for browsing and editing the whole brain from a browser, with
+  charts on the Memory, Machines and Sessions pages
 - Authorizes new machines from the browser, with per-machine scoped tokens hashed at rest
 - Publishes sealed sessions to the Antenne as `agent_session.created` events
 
@@ -114,7 +117,7 @@ Full reference: [docs/configuration.md](docs/configuration.md).
 
 ```
 main.go      Entry point — tronc healthcheck, then the cobra tree
-cmd/         One file per command (init, login, sync, install, serve, sessions, spaces)
+cmd/         One file per command (init, login, sync, install, serve, sessions, spaces, usage)
 internal/
   adapter/   One file per agent: (rules + skills + machine) -> agent config
   cell/      Local store: scaffold and read the markdown tree
@@ -125,6 +128,7 @@ internal/
   server/    Sync API, dashboard backend, spaces, OIDC, Antenne emitter
   sessions/  Transcript scanning, sessionization, shards, stats, live presence
   sync/      HTTP client: three-way reconcile by checksum
+  usage/     Claude subscription limits: status-line ingest, OAuth cross-check
 apps/client/ SvelteKit dashboard, served by the Go binary
 docs/        Architecture, configuration, usage, development, deployment, API
 ```

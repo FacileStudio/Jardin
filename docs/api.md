@@ -77,7 +77,7 @@ email.
 | Method | Path | Auth | Query | Returns |
 |---|---|---|---|---|
 | GET | `/api/status` | any | `space_id` | `{machine, rules, skills}` |
-| GET | `/api/memory/search` | any | `q`, `space_id` | `[{Path, Line, Content}]` |
+| GET | `/api/memory/search` | any | `q`, `space_id` | `[{path, line, content}]` |
 | GET | `/api/memory/index` | any | `space_id` | `index.md` as `text/plain` |
 
 An empty `q` returns an empty array rather than every line in the tree.
@@ -105,6 +105,7 @@ backslash, or `..`, and maps to `<kind>/<name>.md` inside the resolved tree.
 | GET | `/api/sessions/stats` | any | `since`, `by`, `space_id` | `{by, rows}` |
 | GET | `/api/sessions/recent` | any | `limit`, `space_id` | `[Block]` |
 | GET | `/api/sessions/live` | any | `space_id` | Live entries, computed at read time |
+| GET | `/api/sessions/timeline` | any | `since`, `bucket`, `by`, `space_id` | `{bucket, by, labels, series}` |
 
 `since` accepts `7d`, `30d`, `12h`, or `all`. `by` accepts `project`, `machine`, `agent`,
 `branch` or `model` and silently falls back to `project` when unrecognized. `limit` is 20 by
@@ -112,6 +113,45 @@ default, clamped to 1–200.
 
 A `Block` carries `id`, `project`, `machine`, `agent`, `branch`, `model`, `started_at`,
 `ended_at`, `events`, `tokens_in`, `tokens_out`, `cache_read` and `cache_write`.
+
+`/api/sessions/timeline` buckets the same blocks `/api/sessions/stats` aggregates, over time.
+`since` defaults to `30d`, `bucket` to `day` (`day` or `month`), and `by` to `total` (`total`,
+`project`, `machine`, `agent`, `branch` or `model`). An unrecognized `bucket` or `by` falls
+back to the default rather than erroring, so a chart with a stale query string still renders;
+an unparseable `since` is a `400`.
+
+`labels` are gap-filled UTC buckets from the start of the window to the current one —
+`YYYY-MM-DD` for `day`, `YYYY-MM` for `month` — so every bucket in range is present even with
+no activity in it. Each series is `{key, seconds, sessions, tokens_in, tokens_out,
+cache_read}`, with one array entry per label. `tokens_in` folds cache writes in.
+
+Series are ranked by total active seconds and capped at six: the top five plus a trailing
+`Other` holding the remainder, because muse's chart palette wraps past six colours. `by=total`
+answers with a single series keyed `All`, and a block whose group value is empty lands under
+`(none)`.
+
+## Usage limits
+
+| Method | Path | Auth | Query | Returns |
+|---|---|---|---|---|
+| GET | `/api/usage` | any | `space_id` | `[SnapshotView]`, one per machine |
+| GET | `/api/usage/history` | any | `since`, `machine`, `space_id` | `{labels, series}` |
+
+A `SnapshotView` carries `machine`, `updated_at`, `age_seconds`, `stale`, `source`
+(`statusline` or `oauth`), an optional `model`, and `windows`. Each window is `{key, label,
+used_percentage, resets_at, resets_in_seconds, expired}`. `age_seconds`, `stale`,
+`resets_in_seconds` and `expired` are derived against the current clock on every read and
+never stored; `used_percentage` is always what was last observed, and `expired` is the flag
+that says not to present it as current.
+
+`/api/usage` answers `[]` rather than an error when nothing has been recorded yet — which is
+the normal state until Claude Code's status line has run once on some machine.
+
+`/api/usage/history` is the burn-down: `since` defaults to `7d` and accepts the same values as
+`/api/sessions/stats`, `machine` narrows to one machine. Samples are irregular, so `labels`
+are the RFC3339 sample instants themselves rather than fixed buckets, and each series is
+`{key, label, values}` with `null` wherever that window was absent from the sample at that
+label.
 
 ## Users and spaces
 

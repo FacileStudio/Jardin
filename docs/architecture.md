@@ -33,7 +33,8 @@ tree under `~/.mycelium` and talks to the server over HTTP.
 | `internal/adapter` | One pure function per agent: `(rules + skills + machine) -> files` |
 | `internal/memory` | Substring search and `index.md` reads over the memory tree |
 | `internal/sync` | HTTP client, three-way reconcile against a local base manifest |
-| `internal/sessions` | Transcript scanning, sessionization, shards, stats, live presence |
+| `internal/sessions` | Transcript scanning, sessionization, shards, stats, timelines, live presence |
+| `internal/usage` | Subscription-limit snapshots: status-line ingest, OAuth cross-check, history |
 | `internal/daemon` | launchd / systemd service that ticks scan, sync, and install |
 | `internal/env` | Server configuration, read and validated once at startup |
 | `internal/server` | Sync API, dashboard backend, spaces, OIDC, Antenne emitter |
@@ -53,6 +54,7 @@ rules/           ordered policy files
 skills/          reusable agent skills
 machines/        per-machine context blocks
 sessions/        <machine>/<YYYY-MM>.jsonl sealed session blocks, plus live.json
+usage/           <machine>/current.json latest snapshot, <YYYY-MM>.jsonl history
 ```
 
 `mycelium init` creates the directories and seeds `overview.md`, `index.md`, and `log.md`.
@@ -157,8 +159,11 @@ self-registers in `internal/adapter`, so adding an agent is one small file.
 | `copilot` | `.github/copilot-instructions.md` |
 | `cursor` | `.cursor/rules/<name>.mdc` |
 
-The `claude` adapter also merges a `SessionStart` hook into `~/.claude/settings.json` that
-injects `mycelium recap` output as agent context.
+The `claude` adapter also merges two things into `~/.claude/settings.json`: a `SessionStart`
+hook that injects `mycelium recap` output as agent context, and a `statusLine` running
+`mycelium usage --statusline`. Both merges are additive — unknown keys, existing hooks and a
+`statusLine` the user configured themselves all survive, and an install with nothing left to
+add writes nothing.
 
 ## Session tracking
 
@@ -176,6 +181,49 @@ downstream.
 
 Liveness is computed at read time, never stored — a sleeping machine would otherwise
 advertise itself as working forever.
+
+`sessions.Timeline` buckets the same sealed blocks over time for the dashboard's charts,
+gap-filling every UTC day or month in range so a quiet week is a flat stretch rather than a
+missing point. Series are ranked by total active seconds and capped at `MaxSeries` (6): the top
+five plus a folded `Other`, because muse's `chartColor` wraps past six and a seventh series
+would reuse the first colour.
+
+## Usage limits
+
+`internal/usage` tracks how much of each Claude subscription window is spent, per machine. Two
+rules shape the whole package.
+
+**It needs no credential.** Claude Code hands its status-line command a JSON payload on stdin
+carrying a `rate_limits` object — `used_percentage` and `resets_at` as epoch seconds, per
+window — for subscribers. `mycelium usage --statusline` parses it, records it, and prints the
+one-line status. That payload only appears after the session's first API response, so a
+brand-new session shows nothing for a few seconds and `/api/usage` legitimately answers `[]`
+until the hook has run once. An OAuth token from `claude setup-token` enables `--live` as an
+optional exact cross-check against Anthropic's usage endpoint; a standard `sk-ant-api…` API key
+cannot read subscription limits at all and is rejected with a pointer to `setup-token`.
+
+**Freshness is computed at read time, never stored** — the same rule liveness follows, for the
+same reason. A recorded percentage is only a claim about a moment: it stops being true the
+instant its window resets, and a stored freshness flag would keep reporting 68% for hours after
+the window rolled over. So `expired`, `resets_in_seconds`, `age_seconds` and `stale` (older
+than `StaleAfter`, 15 minutes) are all derived against the current clock on every read.
+`used_percentage` is never rewritten: an expired window still reports what was last observed,
+and `expired` is what tells the client not to present it as current. Stored samples are never
+back-filled or mutated, so the history shards stay an append-only record of what was observed
+when. `Record` keeps the newer of the stored and incoming snapshot, so the OAuth path answering
+from its 5-minute cache cannot overwrite a fresher status-line reading.
+
+Storage mirrors `sessions/`: `usage/<machine>/current.json`, written atomically through a
+temp file and a rename, and `usage/<machine>/<YYYY-MM>.jsonl`, append-only and single-writer
+per machine, so both ride the normal file sync with no conflict risk. The status line runs on
+nearly every keystroke, so a history line lands only when a window moved at least
+`HistoryDelta` (1 point), the window set changed, or the last sample aged past
+`HistoryThrottle` (5 minutes). `usage/.oauth-cache.json` is dot-prefixed and therefore fenced
+out of the sync.
+
+The daemon runs `usage --live` on each tick, but only on machines where a token resolves —
+without one the numbers already arrive from the status line, and the endpoint rate-limits hard
+enough that polling it unasked would be rude.
 
 ## Cross-app integration
 
