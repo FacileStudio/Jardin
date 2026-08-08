@@ -322,12 +322,27 @@ func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 			httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
 			return
 		}
-		if adminOnly && info.Scope != scopeAdmin {
+		// A session token's scope is frozen at mint time, but admin status can
+		// change afterward (promotion, demotion, .users.json edits). For any
+		// token bound to a user email, re-derive the scope from the live user
+		// record instead of trusting what was baked in at login.
+		scope := info.Scope
+		if info.UserEmail != "" {
+			s.mu.RLock()
+			user, known := s.loadUsers()[info.UserEmail]
+			s.mu.RUnlock()
+			if known && user.Admin {
+				scope = scopeAdmin
+			} else if scope == scopeAdmin {
+				scope = scopeUser
+			}
+		}
+		if adminOnly && scope != scopeAdmin {
 			httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 			return
 		}
 		ctx := context.WithValue(r.Context(), identityKey, Identity{
-			Email: info.UserEmail, Scope: info.Scope, TokenHash: hash,
+			Email: info.UserEmail, Scope: scope, TokenHash: hash,
 		})
 		next(w, r.WithContext(ctx))
 	}
