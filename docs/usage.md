@@ -116,12 +116,16 @@ jardin diff codex
 
 | Agent | Writes |
 |---|---|
-| `claude` | `~/.claude/CLAUDE.md`, skills as `~/.claude/skills/<name>/SKILL.md`, plus a `SessionStart` hook in `~/.claude/settings.json` |
+| `claude` | `~/.claude/CLAUDE.md`, skills as `~/.claude/skills/<name>/SKILL.md`, plus a `SessionStart` hook and a `statusLine` in `~/.claude/settings.json` |
 | `codex` | `~/.codex/AGENTS.md`, skills as `~/.codex/skills/<name>/SKILL.md` |
 | `gemini` | `~/.gemini/GEMINI.md` |
 | `hermes` | `~/SOUL.md` |
 | `copilot` | `.github/copilot-instructions.md` |
 | `cursor` | `.cursor/rules/<name>.mdc` |
+
+The `~/.claude/settings.json` merge is additive: unknown keys and existing hooks survive, a
+hook already mentioning `jardin recap` is left alone, and a `statusLine` you configured
+yourself is never replaced. A re-install with nothing left to add writes nothing.
 
 ### `jardin diff <agent>`
 
@@ -163,12 +167,56 @@ jardin stats --since 30d --by project
 | `--since` | `7d` | Window: `7d`, `30d`, `12h`, or `all` |
 | `--by` | `project` | Group by `project`, `machine`, `agent`, `branch`, or `model` |
 
+## Subscription limits
+
+### `jardin usage`
+
+Reports how much of each Claude subscription window is spent, per machine, with a bar and the
+time until each window resets. The numbers come from Claude Code itself, so no credential is
+needed — but nothing is recorded until `jardin install claude` has put the status line in
+place and a session has made its first API call.
+
+```sh
+jardin usage
+jardin usage --json
+```
+
+| Flag | What it does |
+|---|---|
+| `--statusline` | Read Claude Code's status-line payload on stdin, record it, print one line |
+| `--live` | Cross-check against Anthropic's OAuth usage endpoint, if a token is available |
+| `--json` | Emit this machine's snapshot as JSON, or every machine's when none matches |
+
+`--statusline` is what Claude Code invokes; it renders on nearly every keystroke, so it never
+fails the process and still prints a line when the payload is unusable. `--live` needs a token
+(below), caches responses for 5 minutes because the endpoint rate-limits hard, and falls back
+to the status-line snapshot when the token is rejected.
+
+Freshness is derived on read, never stored: a window past its `resets_at` is shown as
+last-observed rather than current, and a snapshot older than 15 minutes is marked stale.
+
+### `jardin usage login` / `jardin usage logout`
+
+Stores an optional OAuth token for `--live`. It is read from stdin only — never a flag, which
+would land in the shell history and in `ps`.
+
+```sh
+claude setup-token | jardin usage login
+jardin usage logout
+```
+
+It must be a subscription token from `claude setup-token`; a standard `sk-ant-api…` API key
+cannot read subscription limits at all and is refused. The token goes to the OS keychain when
+one is available, and only falls back to `usage_token` in `~/.jardin.yml` when it is not — see
+[configuration.md](configuration.md). `logout` clears both, and warns when the environment
+still sets one.
+
 ## Daemon
 
 ### `jardin daemon install` / `uninstall` / `status`
 
-Installs a launchd or systemd service that ticks every 60 seconds: `sessions scan`, then
-`sync`, then — at most every 5 minutes, gated by a `.last-install` stamp — `install` for
+Installs a launchd or systemd service that ticks every 60 seconds: `sessions scan`, then —
+only on machines where a usage token resolves — `usage --live`, then `sync`, then — at most every 5 minutes, gated by a `.last-install` stamp — `install` for
 each configured agent. The launcher path is resolved through a stable symlink on `PATH`
 rather than the versioned binary, so a Homebrew upgrade does not silently orphan the
 service.

@@ -69,6 +69,7 @@ machine: lucy
 url: https://jardin.facile.studio
 token: <bearer token>
 space: <space uuid>
+usage_token: <subscription oauth token>
 rule_order:
   - 00-core
   - 10-style
@@ -83,16 +84,41 @@ agents:
 | `url` | Jardin server base URL |
 | `token` | Bearer token for that server |
 | `space` | Space to sync; empty means the common tree |
+| `usage_token` | Last-resort store for the subscription usage token, when no OS keychain exists |
 | `rule_order` | Rules emitted first, in this order, before the rest alphabetically |
 | `agents` | Agents the daemon refreshes; empty means autodetect |
 
+The file is written mode `0600`, because `usage_token` may hold a credential.
+
 `~/.jardin` (or `$DATA_DIR`) is the data tree itself: `memory/`, `rules/`, `skills/`,
-`machines/`, `sessions/`. Two local-only files sit beside it and are never synced —
+`machines/`, `sessions/`, `usage/`. Two local-only files sit beside it and are never synced —
 `.sync-base.json`, the reconcile manifest, and `.sessions-state.json`, the per-transcript
 byte offsets.
 
 `DATA_DIR` is read by the CLI too, not just the server. `jardin rules edit` shells out to
 `$EDITOR`.
+
+### The usage token
+
+`jardin usage --live` needs a subscription OAuth token from `claude setup-token`. Everything
+else about usage tracking works without one. `ResolveToken` walks four sources in order of
+decreasing safety and takes the first non-empty one:
+
+| Order | Source |
+|---|---|
+| 1 | `CLAUDE_CODE_OAUTH_TOKEN` in the environment |
+| 2 | `JARDIN_USAGE_TOKEN` in the environment |
+| 3 | The OS keychain, service `jardin-usage-token` — `security` on macOS, `secret-tool` on Linux |
+| 4 | `usage_token` in `~/.jardin.yml`, plaintext, last resort |
+
+`jardin usage login` writes to the keychain and only falls through to `~/.jardin.yml` when the
+machine has no keychain backend Jardin can drive, saying so out loud. It refuses outright if
+`~/.jardin.yml` resolves inside the synced data directory.
+
+The token is only ever used to read subscription limits from Anthropic's usage endpoint. It is
+never sent to the Jardin server, never written into the synced data directory, and never used
+to make model requests. Claude Code's own `Claude Code-credentials` keychain entry is
+deliberately never read — rotating that token would sign you out of your own CLI.
 
 ## Server state files
 
