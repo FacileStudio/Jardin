@@ -25,12 +25,15 @@ func TestInstallHooksCreatesSettings(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	written, err := (&Claude{}).InstallHooks()
+	written, added, err := (&Claude{}).InstallHooks()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if written == "" {
 		t.Fatal("expected settings path")
+	}
+	if strings.Join(added, ", ") != "SessionStart recap hook, status line" {
+		t.Fatalf("added = %q", added)
 	}
 	settings := readSettings(t, home)
 	hooks := settings["hooks"].(map[string]any)
@@ -54,12 +57,36 @@ func TestInstallHooksKeepsUserStatusLine(t *testing.T) {
 	existing := `{"statusLine":{"type":"command","command":"my-own-prompt"}}`
 	os.WriteFile(filepath.Join(dir, "settings.json"), []byte(existing), 0o644)
 
-	if _, err := (&Claude{}).InstallHooks(); err != nil {
+	_, added, err := (&Claude{}).InstallHooks()
+	if err != nil {
 		t.Fatal(err)
+	}
+	if strings.Join(added, ", ") != "SessionStart recap hook" {
+		t.Fatalf("added = %q", added)
 	}
 	line := readSettings(t, home)["statusLine"].(map[string]any)
 	if line["command"] != "my-own-prompt" {
 		t.Fatalf("user statusLine clobbered: %v", line["command"])
+	}
+}
+
+func TestInstallHooksReportsStatusLineOnly(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := filepath.Join(home, ".claude")
+	os.MkdirAll(dir, 0o755)
+	existing := `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"jardin recap --hook"}]}]}}`
+	os.WriteFile(filepath.Join(dir, "settings.json"), []byte(existing), 0o644)
+
+	written, added, err := (&Claude{}).InstallHooks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if written == "" {
+		t.Fatal("expected settings path")
+	}
+	if strings.Join(added, ", ") != "status line" {
+		t.Fatalf("added = %q", added)
 	}
 }
 
@@ -71,7 +98,7 @@ func TestInstallHooksPreservesExisting(t *testing.T) {
 	existing := `{"model":"opus","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"echo hi"}]}]}}`
 	os.WriteFile(filepath.Join(dir, "settings.json"), []byte(existing), 0o644)
 
-	if _, err := (&Claude{}).InstallHooks(); err != nil {
+	if _, _, err := (&Claude{}).InstallHooks(); err != nil {
 		t.Fatal(err)
 	}
 	settings := readSettings(t, home)
@@ -91,15 +118,15 @@ func TestInstallHooksIdempotent(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	if _, err := (&Claude{}).InstallHooks(); err != nil {
+	if _, _, err := (&Claude{}).InstallHooks(); err != nil {
 		t.Fatal(err)
 	}
-	written, err := (&Claude{}).InstallHooks()
+	written, added, err := (&Claude{}).InstallHooks()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if written != "" {
-		t.Fatal("second install must be a no-op")
+	if written != "" || added != nil {
+		t.Fatalf("second install must be a no-op, got written=%q added=%q", written, added)
 	}
 	settings := readSettings(t, home)
 	groups := settings["hooks"].(map[string]any)["SessionStart"].([]any)
@@ -115,9 +142,9 @@ func TestInstallHooksLeavesCorruptFileAlone(t *testing.T) {
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "settings.json"), []byte("{not json"), 0o644)
 
-	written, err := (&Claude{}).InstallHooks()
-	if err != nil || written != "" {
-		t.Fatalf("corrupt settings must be skipped, got written=%q err=%v", written, err)
+	written, added, err := (&Claude{}).InstallHooks()
+	if err != nil || written != "" || added != nil {
+		t.Fatalf("corrupt settings must be skipped, got written=%q added=%q err=%v", written, added, err)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, "settings.json"))
 	if !strings.Contains(string(data), "{not json") {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/FacileStudio/Jardin/internal/adapter"
 	"github.com/FacileStudio/Jardin/internal/cell"
@@ -98,11 +99,11 @@ func runAdapter(a adapter.Adapter, input *adapter.Input) error {
 	}
 
 	if h, ok := a.(adapter.HookInstaller); ok {
-		written, err := h.InstallHooks()
+		written, added, err := h.InstallHooks()
 		if err != nil {
 			color.Yellow("  %s: hook install skipped: %v", a.Name(), err)
 		} else if written != "" {
-			color.Green("  %s → %s (SessionStart recap hook)", a.Name(), written)
+			color.Green("  %s → %s (%s)", a.Name(), written, strings.Join(added, ", "))
 		}
 	}
 	return nil

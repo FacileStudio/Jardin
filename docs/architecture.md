@@ -225,6 +225,60 @@ The daemon runs `usage --live` on each tick, but only on machines where a token 
 without one the numbers already arrive from the status line, and the endpoint rate-limits hard
 enough that polling it unasked would be rude.
 
+### Threshold alerts on the Antenne
+
+When `usage_alerts` is on, a window crossing `usage_threshold` is published to the Antenne as a
+`usage_alert.created` event. The emitter is the **server's** (`jardin serve`), not the machine's:
+the server learns about usage through the normal file sync, so an alert lands within a sync tick.
+That is the intended latency — this is a "you are running out of runway" nudge, not a realtime
+tripwire.
+
+**Jardin publishes an event and nothing else.** No email, no push, no webhook. Antenne is the
+alert aggregator and owns delivery; enabling this in Settings does not by itself notify anyone.
+
+**It is edge-triggered per window instance, not per tick.** A bare `used_percentage >= threshold`
+check would re-emit forever. `resets_at` is what uniquely identifies a window *instance*, so the
+dedupe key is
+
+```
+sha256("usage_alert|" + machine + "|" + window + "|" + resets_at + "|" + threshold)
+```
+
+truncated to 16 hex like `sessions.Block.ID`, and stored in the shared `.pool-ledger.json` under a
+`usage:` prefix so it can never collide with a block ID. It doubles as the envelope's idempotency
+key, so a crash between emit and ledger write yields a duplicate the downstream absorbs rather
+than a lost alert. When the window rolls over Anthropic returns a new `resets_at`, the identity
+changes, and the next crossing legitimately alerts again. Including the threshold in the key means
+lowering the setting re-arms the alert, which is what a user changing it expects.
+
+Five conditions suppress an otherwise-crossing window:
+
+| Suppressed when | Why |
+|---|---|
+| The window is expired (`resets_at` in the past) | It has already rolled over; alerting would report history as news |
+| `resets_at` is unknown | No per-instance identity, so the alert would repeat every tick |
+| The snapshot's `updated_at` predates `emit_since` | The same no-surprise-backfill watermark the session emitter uses |
+| No email resolves for the machine | The event contract keys on `user_email`, exactly as `pendingBlocks` drops unattributable session blocks |
+| The key is already in the ledger | It already went out |
+
+The email skip deliberately writes **no** ledger entry, so the window instance stays eligible and
+alerts once an email is configured rather than being permanently consumed. Resolution is the
+session emitter's: the per-machine override first, then the global `user_email`.
+
+Every window is evaluated, not just `five_hour` — a weekly limit at 80% matters more, not less.
+The threshold boundary is inclusive. A *stale* snapshot is still eligible: the crossing genuinely
+happened, and staleness only means nobody has reported since.
+
+Alerts are computed across the common tree and every space tree. A machine present in more than
+one tree still yields a single alert per window instance, because the dedupe key carries no scope.
+
+`enveloppe` defines no usage object, and `ObjectType` and `Action` are typed strings on a generic
+`Event[T]`, so Jardin emits a contract-shaped event using an object constant defined locally in
+`internal/server`. Adopting the type into `enveloppe` is a deliberate follow-up decision, not a
+side effect of this change — `enveloppe` is a cross-repo contract consumed by Opus and Sablier.
+The pool client announces what it emits, so `usage_alert.created` is declared in the `Emit` list
+alongside `agent_session.created`; an undeclared type may be dropped.
+
 ## Cross-app integration
 
 - **Journal.** When `JOURNAL_URL` and `JOURNAL_TOKEN` are both set, the tronc logger is
@@ -237,7 +291,9 @@ enough that polling it unasked would be rude.
   `.pool-ledger.json` records what already went out; because block IDs are deterministic, a
   crash between emit and ledger write yields a duplicate that Sablier's idempotency ledger
   absorbs rather than a lost or double-counted entry. On first enable the `emit_since`
-  watermark defaults to now, so there is no surprise backfill.
+  watermark defaults to now, so there is no surprise backfill. The same emitter, ledger and
+  settings block also publish `usage_alert.created` when a subscription window crosses its
+  configured threshold — see [Threshold alerts on the Antenne](#threshold-alerts-on-the-antenne).
 - **Porte.** SSO federates to Authentik at `porte.facile.studio` over standard OIDC.
 
 Back to the [documentation index](README.md).

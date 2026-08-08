@@ -2,10 +2,13 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -13,12 +16,33 @@ import (
 	enveloppe "github.com/FacileStudio/enveloppe/go"
 
 	"github.com/FacileStudio/Jardin/internal/sessions"
+	"github.com/FacileStudio/Jardin/internal/usage"
 )
 
 const (
 	emitterInterval = 30 * time.Second
 	minEmitDuration = time.Minute
 )
+
+// objectUsageAlert is declared here, not in enveloppe: that repo is a shared
+// cross-repo contract consumed by Opus and Sablier, and adopting a usage object
+// there is a follow-up decision, not a side effect of this change. ObjectType is
+// a typed string on a generic Event, so a contract-shaped event needs no fork.
+const objectUsageAlert = enveloppe.ObjectType("usage_alert")
+
+// UsageAlert is the usage_alert.created payload, shaped like enveloppe's own
+// payload types so it can move into the contract unchanged if it is adopted.
+type UsageAlert struct {
+	FacileID       string  `json:"facile_id"`
+	Machine        string  `json:"machine"`
+	Window         string  `json:"window"`
+	WindowLabel    string  `json:"window_label"`
+	UsedPercentage float64 `json:"used_percentage"`
+	Threshold      float64 `json:"threshold"`
+	ResetsAt       string  `json:"resets_at"`
+	UserEmail      string  `json:"user_email"`
+	Source         string  `json:"source"`
+}
 
 // Emitter publishes sealed session blocks to the Antenne as
 // agent_session.created events. The shards are the durable outbox; the ledger
@@ -43,10 +67,11 @@ type Emitter struct {
 }
 
 type EmitterStatus struct {
-	Connected bool   `json:"connected"`
-	LastError string `json:"last_error,omitempty"`
-	Emitted   int    `json:"emitted"`
-	Pending   int    `json:"pending"`
+	Connected          bool   `json:"connected"`
+	LastError          string `json:"last_error,omitempty"`
+	Emitted            int    `json:"emitted"`
+	Pending            int    `json:"pending"`
+	UsageAlertsPending int    `json:"usage_alerts_pending"`
 }
 
 func NewEmitter(srv *Server) *Emitter {
@@ -69,6 +94,7 @@ func (e *Emitter) Status() EmitterStatus {
 	settings := e.srv.loadSettings()
 	ledger := e.loadLedger()
 	status.Pending = len(pendingBlocks(e.allBlocks(), ledger, &settings.Antenne))
+	status.UsageAlertsPending = len(pendingUsageAlerts(e.allSnapshots(), ledger, &settings.Antenne, time.Now()))
 	return status
 }
 
@@ -90,6 +116,26 @@ func (e *Emitter) allBlocks() []sessions.Block {
 		}
 	}
 	return blocks
+}
+
+// allSnapshots is allBlocks for usage: a machine reports into exactly one tree,
+// but the alert is about that machine's account, so every tree is read.
+func (e *Emitter) allSnapshots() []usage.Snapshot {
+	snapshots, _ := usage.ReadCurrent(e.srv.DataDir)
+	entries, err := os.ReadDir(filepath.Join(e.srv.DataDir, "spaces"))
+	if err != nil {
+		return snapshots
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		spaceSnapshots, err := usage.ReadCurrent(filepath.Join(e.srv.DataDir, "spaces", entry.Name()))
+		if err == nil {
+			snapshots = append(snapshots, spaceSnapshots...)
+		}
+	}
+	return snapshots
 }
 
 func (e *Emitter) Run(ctx context.Context) {
@@ -137,7 +183,7 @@ func (e *Emitter) connect(ctx context.Context, antenne *AntenneSettings, key str
 		Instance: antenne.Instance,
 		Secret:   antenne.Secret,
 		Events: antenneclient.EventConfig{
-			Emit: []string{"agent_session.created"},
+			Emit: []string{"agent_session.created", "usage_alert.created"},
 		},
 	}
 	client := antenneclient.NewClient(cfg,
@@ -215,18 +261,25 @@ func (e *Emitter) emitPending(antenne *AntenneSettings) {
 	}
 
 	ledger := e.loadLedger()
+	if !e.emitBlocks(client, antenne, ledger) {
+		return
+	}
+	e.emitUsageAlerts(client, antenne, ledger)
+}
+
+func (e *Emitter) emitBlocks(client *antenneclient.Client, antenne *AntenneSettings, ledger map[string]string) bool {
 	pending := pendingBlocks(e.allBlocks(), ledger, antenne)
 
 	for _, b := range pending {
 		evt := envelopeFor(&b, antenne.EmailFor(b.Machine))
 		if err := client.EmitNow("agent_session.created", evt); err != nil {
 			e.setError("emit: " + err.Error())
-			return
+			return false
 		}
 		ledger[b.ID] = time.Now().UTC().Format(time.RFC3339)
 		if err := e.saveLedger(ledger); err != nil {
 			e.setError("ledger: " + err.Error())
-			return
+			return false
 		}
 		e.mu.Lock()
 		e.emitted++
@@ -238,6 +291,33 @@ func (e *Emitter) emitPending(antenne *AntenneSettings) {
 		count := e.emitted
 		e.mu.Unlock()
 		e.srv.Log.Info("emitter: published sessions", slog.Int("published", len(pending)), slog.Int("total", count))
+	}
+	return true
+}
+
+func (e *Emitter) emitUsageAlerts(client *antenneclient.Client, antenne *AntenneSettings, ledger map[string]string) {
+	pending := pendingUsageAlerts(e.allSnapshots(), ledger, antenne, time.Now())
+
+	for _, a := range pending {
+		evt := usageEnvelopeFor(&a, antenne.EmailFor(a.Machine))
+		if err := client.EmitNow("usage_alert.created", evt); err != nil {
+			e.setError("emit: " + err.Error())
+			return
+		}
+		ledger[a.LedgerKey()] = time.Now().UTC().Format(time.RFC3339)
+		if err := e.saveLedger(ledger); err != nil {
+			e.setError("ledger: " + err.Error())
+			return
+		}
+		e.mu.Lock()
+		e.emitted++
+		e.mu.Unlock()
+	}
+	if len(pending) > 0 {
+		e.mu.Lock()
+		e.lastError = ""
+		e.mu.Unlock()
+		e.srv.Log.Info("emitter: published usage alerts", slog.Int("published", len(pending)))
 	}
 }
 
@@ -267,6 +347,125 @@ func pendingBlocks(blocks []sessions.Block, ledger map[string]string, antenne *A
 		out = append(out, b)
 	}
 	return out
+}
+
+// usageAlert is one window of one machine caught above the threshold. ResetsAt
+// is the window instance's identity: when the window rolls over, Anthropic hands
+// back a new one, so the same machine legitimately alerts again.
+type usageAlert struct {
+	Machine        string
+	Window         string
+	WindowLabel    string
+	UsedPercentage float64
+	Threshold      float64
+	ResetsAt       time.Time
+	Source         string
+}
+
+func (a *usageAlert) ID() string {
+	sum := sha256.Sum256([]byte("usage_alert|" + a.Machine + "|" + a.Window + "|" +
+		a.ResetsAt.UTC().Format(time.RFC3339) + "|" + strconv.FormatFloat(a.Threshold, 'f', -1, 64)))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+// LedgerKey namespaces the entry so it can never collide with a block ID in the
+// shared .pool-ledger.json.
+func (a *usageAlert) LedgerKey() string {
+	return "usage:" + a.ID()
+}
+
+func (a *usageAlert) IdempotencyKey() string {
+	return "jardin_usage_alert_created_" + a.ID()
+}
+
+// pendingUsageAlerts is pendingBlocks for usage: it selects window crossings
+// that have not already gone out. The threshold is edge-triggered on the window
+// instance rather than the percentage, so a sustained 90% alerts once and a
+// rollover re-arms. Expired windows are skipped because they have already rolled
+// over — alerting on one reports history as news — and a window with no
+// resets_at has no instance identity, so it would repeat every tick. A stale
+// snapshot is still eligible: the crossing genuinely happened, and staleness
+// only means nobody has reported since.
+//
+// An unattributable machine is skipped exactly as pendingBlocks skips one, and
+// without a ledger entry: whose limit is nearly spent is the whole content of
+// the alert, and burning the dedupe key on an event a consumer may discard would
+// retire that window instance for good. Skipping instead leaves it eligible the
+// moment an email is configured.
+func pendingUsageAlerts(snapshots []usage.Snapshot, ledger map[string]string, antenne *AntenneSettings, now time.Time) []usageAlert {
+	if !antenne.UsageAlerts {
+		return nil
+	}
+	var since time.Time
+	if antenne.EmitSince != "" {
+		since, _ = time.Parse(time.RFC3339, antenne.EmitSince)
+	}
+	threshold := antenne.Threshold()
+	seen := make(map[string]bool)
+	var out []usageAlert
+	for _, s := range snapshots {
+		if !since.IsZero() && s.UpdatedAt.Before(since) {
+			continue
+		}
+		if antenne.EmailFor(s.Machine) == "" {
+			continue
+		}
+		for _, w := range s.View(now).Windows {
+			if w.ResetsAt == nil || w.Expired {
+				continue
+			}
+			if w.UsedPercentage < threshold {
+				continue
+			}
+			label := w.Label
+			if label == "" {
+				label = usage.Label(w.Key)
+			}
+			alert := usageAlert{
+				Machine:        s.Machine,
+				Window:         w.Key,
+				WindowLabel:    label,
+				UsedPercentage: w.UsedPercentage,
+				Threshold:      threshold,
+				ResetsAt:       *w.ResetsAt,
+				Source:         s.Source,
+			}
+			key := alert.LedgerKey()
+			if seen[key] {
+				continue
+			}
+			if _, done := ledger[key]; done {
+				continue
+			}
+			seen[key] = true
+			out = append(out, alert)
+		}
+	}
+	return out
+}
+
+func usageEnvelopeFor(a *usageAlert, email string) enveloppe.Event[UsageAlert] {
+	id := a.ID()
+	return enveloppe.Event[UsageAlert]{
+		Version:  enveloppe.EventVersion,
+		App:      enveloppe.AppJardin,
+		Object:   objectUsageAlert,
+		Action:   enveloppe.ActionCreated,
+		FacileID: "fac_" + id,
+		Payload: UsageAlert{
+			FacileID:       "fac_" + id,
+			Machine:        a.Machine,
+			Window:         a.Window,
+			WindowLabel:    a.WindowLabel,
+			UsedPercentage: a.UsedPercentage,
+			Threshold:      a.Threshold,
+			ResetsAt:       a.ResetsAt.UTC().Format(time.RFC3339),
+			UserEmail:      email,
+			Source:         a.Source,
+		},
+		Timestamp:      time.Now().UTC().Format(time.RFC3339),
+		IdempotencyKey: a.IdempotencyKey(),
+	}
 }
 
 func envelopeFor(b *sessions.Block, email string) enveloppe.Event[enveloppe.AgentSession] {

@@ -130,12 +130,12 @@ These live under `DATA_DIR` and are excluded from the file sync:
 | `.users.json` | OIDC users keyed by email, first one flagged admin |
 | `.spaces.json` | Spaces and their membership roles |
 | `.settings.json` | Antenne settings, managed through `PUT /api/settings` |
-| `.pool-ledger.json` | Block IDs already emitted to the Antenne |
+| `.pool-ledger.json` | Keys already emitted to the Antenne: session block IDs, plus `usage:`-prefixed alert keys |
 
 ## Antenne settings
 
-Not environment variables — these are edited from the dashboard's Settings page and stored
-in `.settings.json`.
+Not environment variables — these are edited from the dashboard's Settings page, through the
+admin-scoped `PUT /api/settings`, and stored in `.settings.json`.
 
 | Field | What it does |
 |---|---|
@@ -145,5 +145,14 @@ in `.settings.json`.
 | `user_email` | Default `user_email` on emitted events |
 | `machine_emails` | Per-machine override of `user_email` |
 | `emit_since` | RFC3339 watermark. Defaults to now on first enable, so no backfill |
+| `usage_alerts` | Publishes `usage_alert.created` when a subscription window crosses the threshold. Defaults `false` — opt-in, like the emitter itself |
+| `usage_threshold` | Percent at which a window alerts. Defaults **80** |
+
+An absent or `0` `usage_threshold` resolves to 80, never to "alert at 0%", and the value is
+clamped to 1–100 with nonsense ignored rather than rejected. Every call site reads it through one
+accessor, so no path can pick up the raw zero value.
+
+`usage_alerts` publishes an event and nothing else — no email, no push, no webhook. Antenne is the
+alert aggregator and owns delivery.
 
 Back to the [documentation index](README.md).

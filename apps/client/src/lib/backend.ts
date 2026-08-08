@@ -181,6 +181,8 @@ export interface NookSettings {
 	user_email: string;
 	machine_emails: Record<string, string>;
 	emit_since?: string;
+	usage_alerts?: boolean;
+	usage_threshold?: number;
 }
 
 export interface EmitterStatus {
@@ -188,6 +190,7 @@ export interface EmitterStatus {
 	last_error?: string;
 	emitted: number;
 	pending: number;
+	usage_alerts_pending?: number;
 }
 
 export interface JardinSettings {

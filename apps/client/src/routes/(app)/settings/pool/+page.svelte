@@ -25,6 +25,8 @@
 	let secret = $state('');
 	let userEmail = $state('');
 	let emitSince = $state('');
+	let usageAlerts = $state(false);
+	let usageThreshold: number | string = $state(80);
 	let machineEmails: { machine: string; email: string }[] = $state([]);
 	let status: EmitterStatus | null = $state(null);
 
@@ -44,11 +46,25 @@
 		secret = nook.secret;
 		userEmail = nook.user_email;
 		emitSince = nook.emit_since ?? '';
+		usageAlerts = nook.usage_alerts ?? false;
+		usageThreshold = normalizeThreshold(nook.usage_threshold);
 		machineEmails = Object.entries(nook.machine_emails ?? {}).map(([machine, email]) => ({
 			machine,
 			email
 		}));
 		status = next;
+	}
+
+	const DEFAULT_THRESHOLD = 80;
+
+	function normalizeThreshold(raw: number | string | undefined): number {
+		const n = Math.round(Number(raw));
+		if (!Number.isFinite(n) || n <= 0) return DEFAULT_THRESHOLD;
+		return Math.min(100, n);
+	}
+
+	function settleThreshold() {
+		usageThreshold = normalizeThreshold(usageThreshold);
 	}
 
 	/*
@@ -80,7 +96,9 @@
 				secret,
 				user_email: userEmail,
 				machine_emails: emails,
-				emit_since: emitSince || undefined
+				emit_since: emitSince || undefined,
+				usage_alerts: usageAlerts,
+				usage_threshold: normalizeThreshold(usageThreshold)
 			});
 			apply(s.nook, s.status);
 			toast.success('Pool settings saved.');
@@ -124,6 +142,17 @@
 				</Badge>
 			</SettingsRow>
 
+			{#if usageAlerts}
+				<SettingsRow
+					label="Alert outbox"
+					description="Usage alerts held locally until the socket comes back."
+				>
+					<Badge tone={(status?.usage_alerts_pending ?? 0) > 0 ? 'accent' : 'neutral'}>
+						{status?.usage_alerts_pending ?? 0} pending
+					</Badge>
+				</SettingsRow>
+			{/if}
+
 			{#if emitSince}
 				<SettingsRow
 					label="Emitting since"
@@ -133,6 +162,43 @@
 					<SecretField value={emitSince} sensitive={false} class="w-full" />
 				</SettingsRow>
 			{/if}
+		</SettingsSection>
+
+		<SettingsSection
+			title="Usage alerts"
+			description="When a subscription window crosses your threshold, Jardin publishes one event to the Antenne. It fires once per window, not once per sync tick — the next alert waits for the window to reset. The Antenne owns what happens after that; Jardin sends nothing itself."
+		>
+			{#if !enabled}
+				<Alert tone="info" title="Emitting is off">
+					Alerts ride the same socket as sessions. Turn emitting on above and they start flowing.
+				</Alert>
+			{/if}
+
+			<SettingsRow
+				label="Alert on usage"
+				description="Off by default. Lowering the threshold later re-arms the current window."
+			>
+				<Switch bind:checked={usageAlerts} disabled={!enabled || saving} aria-label="Alert on usage" />
+			</SettingsRow>
+
+			<SettingsRow
+				label="Threshold"
+				description="Percent of a window's limit. 80 unless you change it; anything outside 1–100 falls back to it."
+				for="pool-usage-threshold"
+			>
+				<Input
+					bind:value={usageThreshold}
+					id="pool-usage-threshold"
+					type="number"
+					inputmode="numeric"
+					min="1"
+					max="100"
+					step="1"
+					onblur={settleThreshold}
+					disabled={!enabled || !usageAlerts || saving}
+					class="w-24 tabular-nums"
+				/>
+			</SettingsRow>
 		</SettingsSection>
 
 		<SettingsSection

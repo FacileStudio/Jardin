@@ -14,13 +14,20 @@ import (
 	"github.com/FacileStudio/tronc/httpjson"
 )
 
+// defaultUsageThreshold is what an absent or zero usage_threshold resolves to.
+// The zero value must never mean "alert at 0%", which would turn every window
+// into an alert the moment the feature is switched on.
+const defaultUsageThreshold = 80.0
+
 type AntenneSettings struct {
-	Enabled       bool              `json:"enabled"`
-	Instance      string            `json:"instance"`
-	Secret        string            `json:"secret"`
-	UserEmail     string            `json:"user_email"`
-	MachineEmails map[string]string `json:"machine_emails,omitempty"`
-	EmitSince     string            `json:"emit_since,omitempty"`
+	Enabled        bool              `json:"enabled"`
+	Instance       string            `json:"instance"`
+	Secret         string            `json:"secret"`
+	UserEmail      string            `json:"user_email"`
+	MachineEmails  map[string]string `json:"machine_emails,omitempty"`
+	EmitSince      string            `json:"emit_since,omitempty"`
+	UsageAlerts    bool              `json:"usage_alerts"`
+	UsageThreshold float64           `json:"usage_threshold,omitempty"`
 }
 
 type Settings struct {
@@ -43,6 +50,21 @@ func (n *AntenneSettings) EmailFor(machine string) string {
 		return email
 	}
 	return n.UserEmail
+}
+
+// Threshold is the only way to read the usage alert threshold: it resolves the
+// zero value to defaultUsageThreshold and clamps the rest into 1-100, so a
+// nonsense setting is ignored rather than rejected.
+func (n *AntenneSettings) Threshold() float64 {
+	switch {
+	case n.UsageThreshold <= 0:
+		return defaultUsageThreshold
+	case n.UsageThreshold < 1:
+		return 1
+	case n.UsageThreshold > 100:
+		return 100
+	}
+	return n.UsageThreshold
 }
 
 func (s *Server) settingsPath() string {

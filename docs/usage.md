@@ -195,6 +195,11 @@ to the status-line snapshot when the token is rejected.
 Freshness is derived on read, never stored: a window past its `resets_at` is shown as
 last-observed rather than current, and a snapshot older than 15 minutes is marked stale.
 
+With `usage_alerts` on in the dashboard's Settings, the server publishes a `usage_alert.created`
+event to the Antenne the first time a window crosses `usage_threshold` (default 80), once per
+window instance — see [configuration.md](configuration.md#antenne-settings). Jardin only publishes
+the event; Antenne owns delivery.
+
 ### `jardin usage login` / `jardin usage logout`
 
 Stores an optional OAuth token for `--live`. It is read from stdin only — never a flag, which

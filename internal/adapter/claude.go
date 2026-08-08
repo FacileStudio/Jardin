@@ -55,40 +55,44 @@ func (c *Claude) Generate(input Input) (*Output, error) {
 // line running `jardin usage --statusline` into ~/.claude/settings.json. The
 // merge is additive: unknown keys, existing hooks and a status line the user
 // configured themselves all survive untouched, and a second install that has
-// nothing left to add writes nothing.
-func (c *Claude) InstallHooks() (string, error) {
+// nothing left to add writes nothing. The returned labels name what this run
+// actually added, so the caller can report it instead of guessing.
+func (c *Claude) InstallHooks() (string, []string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	path := filepath.Join(home, ".claude", "settings.json")
 
 	settings := make(map[string]any)
 	if data, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(data, &settings); err != nil {
-			return "", nil
+			return "", nil, nil
 		}
 	}
 
-	changed := mergeRecapHook(settings)
-	if mergeStatusLine(settings) {
-		changed = true
+	var added []string
+	if mergeRecapHook(settings) {
+		added = append(added, "SessionStart recap hook")
 	}
-	if !changed {
-		return "", nil
+	if mergeStatusLine(settings) {
+		added = append(added, "status line")
+	}
+	if len(added) == 0 {
+		return "", nil, nil
 	}
 
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return path, nil
+	return path, added, nil
 }
 
 func mergeRecapHook(settings map[string]any) bool {
