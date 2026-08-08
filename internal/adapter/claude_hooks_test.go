@@ -37,6 +37,30 @@ func TestInstallHooksCreatesSettings(t *testing.T) {
 	if _, ok := hooks["SessionStart"]; !ok {
 		t.Fatal("SessionStart hook missing")
 	}
+	line, ok := settings["statusLine"].(map[string]any)
+	if !ok {
+		t.Fatal("statusLine missing")
+	}
+	if line["command"] != statusLineCommand {
+		t.Fatalf("statusLine command %v", line["command"])
+	}
+}
+
+func TestInstallHooksKeepsUserStatusLine(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := filepath.Join(home, ".claude")
+	os.MkdirAll(dir, 0o755)
+	existing := `{"statusLine":{"type":"command","command":"my-own-prompt"}}`
+	os.WriteFile(filepath.Join(dir, "settings.json"), []byte(existing), 0o644)
+
+	if _, err := (&Claude{}).InstallHooks(); err != nil {
+		t.Fatal(err)
+	}
+	line := readSettings(t, home)["statusLine"].(map[string]any)
+	if line["command"] != "my-own-prompt" {
+		t.Fatalf("user statusLine clobbered: %v", line["command"])
+	}
 }
 
 func TestInstallHooksPreservesExisting(t *testing.T) {

@@ -1,6 +1,36 @@
 <script lang="ts">
-	import { BarChart, Card, EmptyState, StatCard, StatusDot, Table, Tabs, icons } from '@facile/muse';
-	import { backend, type LiveSession, type SessionBlock, type SessionStats } from '$lib/backend';
+	import {
+		BarChart,
+		Card,
+		DonutChart,
+		EmptyState,
+		LineChart,
+		Sparkline,
+		StatCard,
+		StatusDot,
+		Table,
+		Tabs,
+		icons,
+		type ChartSeries
+	} from '@facile/muse';
+	import {
+		backend,
+		type LiveSession,
+		type SessionBlock,
+		type SessionStats,
+		type SessionTimeline,
+		type UsageHistory,
+		type UsageSnapshot
+	} from '$lib/backend';
+	import UsageMeter from '$lib/components/UsageMeter.svelte';
+	import {
+		bucketLabel,
+		columnTotals,
+		formatDuration,
+		formatTokens,
+		hours,
+		periodDelta
+	} from '$lib/metrics';
 
 	const RANGES = [
 		{ id: '7d', label: '7 days' },
@@ -10,7 +40,8 @@
 	const GROUPS = [
 		{ id: 'project', label: 'Project', icon: icons.folder },
 		{ id: 'machine', label: 'Machine', icon: icons.server },
-		{ id: 'agent', label: 'Agent', icon: icons.bolt }
+		{ id: 'agent', label: 'Agent', icon: icons.bolt },
+		{ id: 'model', label: 'Model', icon: icons.dashboard }
 	];
 
 	/* Eight bars is where a horizontal chart stops being readable in a card; the table below
@@ -22,6 +53,13 @@
 	let stats: SessionStats | null = $state(null);
 	let recent: SessionBlock[] = $state([]);
 	let live: LiveSession[] = $state([]);
+	let timeline: SessionTimeline | null = $state(null);
+	let usage: UsageSnapshot[] = $state([]);
+	let usageLog: UsageHistory | null = $state(null);
+
+	/* All time over daily buckets is a thousand pixels of noise; months keep the axis honest. */
+	const bucket = $derived(since === 'all' ? 'month' : 'day');
+	const bucketUnit = $derived(bucket === 'month' ? 'month' : 'day');
 
 	$effect(() => {
 		const load = () =>
@@ -48,6 +86,29 @@
 			.catch(() => {});
 	});
 
+	$effect(() => {
+		backend
+			.sessionsTimeline(since, bucket, by)
+			.then((t) => (timeline = t))
+			.catch(() => (timeline = null));
+	});
+
+	$effect(() => {
+		const load = () => {
+			backend
+				.usageCurrent()
+				.then((u) => (usage = u ?? []))
+				.catch(() => (usage = []));
+			backend
+				.usageHistory('7d')
+				.then((h) => (usageLog = h))
+				.catch(() => (usageLog = null));
+		};
+		load();
+		const timer = setInterval(load, 60_000);
+		return () => clearInterval(timer);
+	});
+
 	/* $derived.by so `stats` reads as its declared type rather than the null it was
 	   initialised with — see the same note in (app)/+layout.svelte. */
 	const rows = $derived.by(() => stats?.rows ?? []);
@@ -55,26 +116,35 @@
 	const totalSessions = $derived(rows.reduce((sum, r) => sum + r.sessions, 0));
 	const totalTokensOut = $derived(rows.reduce((sum, r) => sum + r.tokens_out, 0));
 
+	const totalCacheRead = $derived(rows.reduce((sum, r) => sum + r.cache_read, 0));
+
 	const ranked = $derived([...rows].sort((a, b) => b.seconds - a.seconds).slice(0, CHART_ROWS));
 	const chartSeries = $derived([{ name: 'Active time', data: ranked.map((r) => hours(r.seconds)) }]);
 	const chartLabels = $derived(ranked.map((r) => r.key));
 
-	function hours(seconds: number): number {
-		return Math.round((seconds / 3600) * 10) / 10;
-	}
+	/* The donut keeps to muse's six-slot ceiling; the table below still lists every row. */
+	const shareSlices = $derived(
+		[...rows]
+			.sort((a, b) => b.seconds - a.seconds)
+			.slice(0, 6)
+			.map((r) => ({ label: r.key, value: hours(r.seconds) }))
+	);
 
-	function formatDuration(seconds: number): string {
-		const h = Math.floor(seconds / 3600);
-		const m = Math.round((seconds % 3600) / 60);
-		if (h > 0) return `${h}h${String(m).padStart(2, '0')}m`;
-		return `${m}m`;
-	}
+	const labels = $derived.by(() => timeline?.labels ?? []);
+	const tSeries = $derived.by(() => timeline?.series ?? []);
+	const trendSeries: ChartSeries[] = $derived(
+		tSeries.map((s) => ({ name: s.key, data: s.seconds.map(hours) }))
+	);
+	const secondsPerBucket = $derived(columnTotals(tSeries.map((s) => s.seconds)));
+	const sessionsPerBucket = $derived(columnTotals(tSeries.map((s) => s.sessions)));
+	const tokensPerBucket = $derived(columnTotals(tSeries.map((s) => s.tokens_out)));
+	const cachePerBucket = $derived(columnTotals(tSeries.map((s) => s.cache_read)));
+	const hasTimeline = $derived(labels.length > 0 && tSeries.length > 0);
 
-	function formatTokens(n: number): string {
-		if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-		if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-		return `${n}`;
-	}
+	const timeDelta = $derived(periodDelta(secondsPerBucket, bucketUnit));
+	const sessionsDelta = $derived(periodDelta(sessionsPerBucket, bucketUnit));
+	const tokensDelta = $derived(periodDelta(tokensPerBucket, bucketUnit));
+	const cacheDelta = $derived(periodDelta(cachePerBucket, bucketUnit));
 
 	function formatEnded(iso: string): string {
 		const d = new Date(iso);
@@ -194,11 +264,54 @@
 				description="Machines record agent activity automatically once they run mycelium v0.5 or later."
 			/>
 		{:else}
-			<div class="grid gap-4 sm:grid-cols-3">
-				<StatCard label="Active time" value={formatDuration(totalSeconds)} />
-				<StatCard label="Sessions" value={totalSessions} />
-				<StatCard label="Tokens out" value={formatTokens(totalTokensOut)} />
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				<StatCard label="Active time" value={formatDuration(totalSeconds)} delta={timeDelta}>
+					<Sparkline data={secondsPerBucket.map(hours)} class="mt-3" showLast />
+				</StatCard>
+				<StatCard label="Sessions" value={totalSessions} delta={sessionsDelta}>
+					<Sparkline
+						data={sessionsPerBucket}
+						class="mt-3"
+						color="var(--color-fc-chart-3)"
+						valueFormat={(n) => `${n}`}
+					/>
+				</StatCard>
+				<StatCard label="Tokens out" value={formatTokens(totalTokensOut)} delta={tokensDelta}>
+					<Sparkline data={tokensPerBucket} class="mt-3" color="var(--color-fc-chart-2)" />
+				</StatCard>
+				<StatCard label="Cache read" value={formatTokens(totalCacheRead)} delta={cacheDelta}>
+					<Sparkline data={cachePerBucket} class="mt-3" color="var(--color-fc-chart-5)" />
+				</StatCard>
 			</div>
+
+			{#if hasTimeline}
+				<div class="grid gap-4 lg:grid-cols-3">
+					<Card class="flex flex-col gap-4 lg:col-span-2">
+						<p class="text-fc-sm font-medium text-fc-fg">
+							Active time per {bucketUnit}, by {by}
+						</p>
+						<LineChart
+							series={trendSeries}
+							{labels}
+							area
+							height={240}
+							class="flex-1"
+							yFormat={(n) => `${n} h`}
+							xFormat={(l) => bucketLabel(l)}
+						/>
+					</Card>
+					<Card class="flex flex-col gap-4">
+						<p class="text-fc-sm font-medium text-fc-fg">Share by {by}</p>
+						<DonutChart
+							data={shareSlices}
+							centerLabel="Active"
+							centerValue={formatDuration(totalSeconds)}
+							valueFormat={(n) => `${n} h`}
+							class="flex-1"
+						/>
+					</Card>
+				</div>
+			{/if}
 
 			<Card class="flex flex-col gap-4">
 				<p class="text-fc-sm font-medium text-fc-fg">
@@ -216,7 +329,7 @@
 			<Table>
 				<thead>
 					<tr>
-						<th scope="col">{by === 'project' ? 'Project' : by === 'machine' ? 'Machine' : 'Agent'}</th>
+						<th scope="col">{GROUPS.find((g) => g.id === by)?.label ?? by}</th>
 						<th scope="col" class="text-right">Sessions</th>
 						<th scope="col" class="text-right">Active</th>
 						<th scope="col" class="text-right">Tokens in</th>
@@ -236,6 +349,16 @@
 				</tbody>
 			</Table>
 		{/if}
+	</section>
+
+	<section class="flex flex-col gap-4">
+		<div class="flex flex-col gap-1">
+			<h2 class="text-fc-lg font-semibold text-fc-fg">Plan usage</h2>
+			<p class="text-fc-sm text-fc-fg-muted">
+				How much of each Claude subscription window this machine has burned through.
+			</p>
+		</div>
+		<UsageMeter snapshots={usage} history={usageLog} />
 	</section>
 
 	{#if recent.length > 0}

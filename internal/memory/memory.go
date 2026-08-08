@@ -9,9 +9,9 @@ import (
 )
 
 type SearchResult struct {
-	Path    string
-	Line    int
-	Content string
+	Path    string `json:"path"`
+	Line    int    `json:"line"`
+	Content string `json:"content"`
 }
 
 func Search(memoryPath, query string) ([]SearchResult, error) {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/FacileStudio/Mycelium/internal/config"
+	"github.com/FacileStudio/Mycelium/internal/usage"
 )
 
 const Label = "studio.facile.mycelium-sync"
@@ -62,6 +63,7 @@ func Run() error {
 		return err
 	}
 	exec.Command(self, "sessions", "scan").Run()
+	refreshUsage(self)
 	var syncErr error
 	if out, err := exec.Command(self, "sync").CombinedOutput(); err != nil {
 		syncErr = fmt.Errorf("sync failed: %v: %s", err, out)
@@ -84,6 +86,22 @@ func Run() error {
 	}
 	markInstalled(time.Now())
 	return syncErr
+}
+
+// refreshUsage cross-checks subscription limits on machines that opted into a
+// usage token. Without one this is a no-op: the numbers already arrive from
+// Claude Code's status line, and the endpoint rate-limits hard enough that
+// polling it unasked would be rude. FetchOAuth's cache keeps the real request
+// rate to once every OAuthCacheTTL regardless of the tick.
+func refreshUsage(self string) {
+	cfg, err := config.LoadMyceliumConfig()
+	if err != nil {
+		return
+	}
+	if usage.ResolveToken(cfg.UsageToken) == "" {
+		return
+	}
+	exec.Command(self, "usage", "--live").Run()
 }
 
 func installStampPath() string {
