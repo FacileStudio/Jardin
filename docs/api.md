@@ -223,4 +223,83 @@ fence out `tokens.json`, anything starting with a dot, `.conflict` backups, and 
 `spaces/` subtree — space content is reachable only through its own scoped root. Paths are
 cleaned and confined to the resolved root, so traversal fails with `400 invalid path`.
 
+## Published events
+
+Not HTTP: these go **out** over the Antenne pool WebSocket, from the emitter in
+`internal/server/emitter.go`, when the Antenne is enabled in [Settings](#settings). They are
+listed here because they are a contract like any other route — a consumer reads the payload
+shape from this section.
+
+**Subscribing is the consumer's job.** Antenne's pool ingest performs no validation and routes
+purely by each subscriber's `Listen` list, so a channel nobody listens on is still accepted and
+stored — it simply reaches no one. Add `agent_session.created` or `usage_alert.created` to your
+own subscription or you will never see them, however healthy Mycelium's emitter looks.
+
+Both events use the [enveloppe](https://github.com/FacileStudio/enveloppe) `Event[T]` envelope:
+
+| Field | Type | Value |
+|---|---|---|
+| `version` | int | `1` (`enveloppe.EventVersion`) |
+| `app` | string | `Mycelium` |
+| `object` | string | `agent_session` or `usage_alert` |
+| `action` | string | `created` |
+| `facile_id` | string | `fac_<16-hex>` — the same id as `payload.facile_id` |
+| `payload` | object | Per-event, below |
+| `timestamp` | string | RFC3339 UTC, the emit instant |
+| `idempotency_key` | string | `mycelium_<object>_created_<16-hex>` |
+
+The 16 hex characters are a truncated SHA-256 over the event's identity, so both events are
+deterministic: a crash between emitting and recording in `.pool-ledger.json` re-sends an
+identical event rather than losing one. Consumers are expected to dedupe on `idempotency_key`.
+
+### `agent_session.created`
+
+One sealed session block. Emitted for blocks at least a minute long, after the `emit_since`
+watermark, with a resolvable email.
+
+| Field | Type | Notes |
+|---|---|---|
+| `facile_id` | string | `fac_` + the block id |
+| `project` | string | Repo/directory the session ran in |
+| `machine` | string | Machine that recorded it |
+| `agent` | string | e.g. `claude` |
+| `branch` | string | Omitted when empty |
+| `user_email` | string | Resolved per-machine override, else the global `user_email` |
+| `started_at` | string | RFC3339 UTC |
+| `stopped_at` | string | RFC3339 UTC |
+| `tokens_in` | int64 | **Input plus cache-write tokens**, summed |
+| `tokens_out` | int64 | Output tokens |
+
+`idempotency_key` is `mycelium_agent_session_created_<16-hex>`, where the hex is the block id —
+`sha256(machine|agent|project|started_at)`. Sablier turns these into time entries.
+
+### `usage_alert.created`
+
+One subscription window observed at or above the configured threshold. See
+[Threshold alerts on the Antenne](architecture.md#threshold-alerts-on-the-antenne) for when one
+fires and when it is suppressed.
+
+| Field | Type | Notes |
+|---|---|---|
+| `facile_id` | string | `fac_` + the alert id |
+| `machine` | string | Metadata — the machine that reported `used_percentage`, ties broken by the lexicographically smallest name |
+| `window` | string | Window key, e.g. `five_hour` |
+| `window_label` | string | Human label for the window |
+| `used_percentage` | number | The **highest** reading among the machines on that account for that window — not the threshold, and not one machine's arbitrary sample |
+| `threshold` | number | The configured percent that was crossed |
+| `resets_at` | string | RFC3339 UTC — identifies the window *instance* |
+| `user_email` | string | The account the limit belongs to |
+| `source` | string | `statusline` or `oauth` |
+
+Eligible snapshots are grouped by the alert identity — email, window, `resets_at` — and each group
+yields exactly one event, so `machine` and `used_percentage` are a matched pair drawn from the same
+snapshot: the highest reading in the group, and the machine that reported it.
+
+`idempotency_key` is `mycelium_usage_alert_created_<16-hex>`, where the hex is the dedupe key
+described in the architecture section — email, window, `resets_at` and threshold.
+
+`enveloppe` defines no usage object, so `object: "usage_alert"` comes from a constant declared
+locally in `internal/server`; the envelope is otherwise byte-identical in shape to the session
+event. Mycelium publishes and stops there — no email, no push, no webhook. Antenne owns delivery.
+
 Back to the [documentation index](README.md).

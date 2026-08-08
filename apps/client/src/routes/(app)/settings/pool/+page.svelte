@@ -166,7 +166,7 @@
 
 		<SettingsSection
 			title="Usage alerts"
-			description="When a subscription window crosses your threshold, Mycelium publishes one event to the Antenne. It fires once per window, not once per sync tick — the next alert waits for the window to reset. The Antenne owns what happens after that; Mycelium sends nothing itself."
+			description="When a subscription window crosses your threshold, Mycelium publishes one event to the Antenne. It fires once per window, not once per sync tick — the next alert waits for the window to reset. The Antenne owns what happens after that; Mycelium sends nothing itself. The alert shows up in the Antenne's activity feed — anything that should act on it needs to subscribe to usage_alert.created on its side."
 		>
 			{#if !enabled}
 				<Alert tone="info" title="Emitting is off">

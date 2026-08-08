@@ -299,7 +299,7 @@ func (e *Emitter) emitUsageAlerts(client *antenneclient.Client, antenne *Antenne
 	pending := pendingUsageAlerts(e.allSnapshots(), ledger, antenne, time.Now())
 
 	for _, a := range pending {
-		evt := usageEnvelopeFor(&a, antenne.EmailFor(a.Machine))
+		evt := usageEnvelopeFor(&a)
 		if err := client.EmitNow("usage_alert.created", evt); err != nil {
 			e.setError("emit: " + err.Error())
 			return
@@ -349,11 +349,22 @@ func pendingBlocks(blocks []sessions.Block, ledger map[string]string, antenne *A
 	return out
 }
 
-// usageAlert is one window of one machine caught above the threshold. ResetsAt
+// usageAlert is one window of one account caught above the threshold. ResetsAt
 // is the window instance's identity: when the window rolls over, Anthropic hands
-// back a new one, so the same machine legitimately alerts again.
+// back a new one, so the same account legitimately alerts again. It is an
+// absolute instant from Anthropic, not now-plus-remaining, so two machines
+// observing the same window agree on it to the second and need no quantization.
+//
+// Email, not Machine, is the account's identity in the key. A subscription limit
+// is per Anthropic account, so two machines signed into the same plan observe the
+// same window with the same resets_at — keying on the machine fired one alert per
+// machine for a single real crossing. Two machines mapped to different emails
+// still alert separately, which is correct: those are two different people to
+// tell. Machine and UsedPercentage are the reading of one member of the account,
+// picked by supersedes rather than by walk order.
 type usageAlert struct {
 	Machine        string
+	Email          string
 	Window         string
 	WindowLabel    string
 	UsedPercentage float64
@@ -363,7 +374,7 @@ type usageAlert struct {
 }
 
 func (a *usageAlert) ID() string {
-	sum := sha256.Sum256([]byte("usage_alert|" + a.Machine + "|" + a.Window + "|" +
+	sum := sha256.Sum256([]byte("usage_alert|" + a.Email + "|" + a.Window + "|" +
 		a.ResetsAt.UTC().Format(time.RFC3339) + "|" + strconv.FormatFloat(a.Threshold, 'f', -1, 64)))
 	return hex.EncodeToString(sum[:])[:16]
 }
@@ -378,6 +389,19 @@ func (a *usageAlert) IdempotencyKey() string {
 	return "mycelium_usage_alert_created_" + a.ID()
 }
 
+// supersedes decides which snapshot's reading represents an account when several
+// map to one alert. The highest percentage wins: the readings describe a single
+// shared account, so the highest observed value is the closest to the truth, and
+// a threshold decision must never rest on a lower stale reading when a higher one
+// is at hand. Ties fall to the smallest machine name, which makes the payload
+// deterministic instead of walk-order dependent.
+func (a *usageAlert) supersedes(cur *usageAlert) bool {
+	if a.UsedPercentage != cur.UsedPercentage {
+		return a.UsedPercentage > cur.UsedPercentage
+	}
+	return a.Machine < cur.Machine
+}
+
 // pendingUsageAlerts is pendingBlocks for usage: it selects window crossings
 // that have not already gone out. The threshold is edge-triggered on the window
 // instance rather than the percentage, so a sustained 90% alerts once and a
@@ -387,11 +411,19 @@ func (a *usageAlert) IdempotencyKey() string {
 // snapshot is still eligible: the crossing genuinely happened, and staleness
 // only means nobody has reported since.
 //
-// An unattributable machine is skipped exactly as pendingBlocks skips one, and
-// without a ledger entry: whose limit is nearly spent is the whole content of
-// the alert, and burning the dedupe key on an event a consumer may discard would
-// retire that window instance for good. Skipping instead leaves it eligible the
-// moment an email is configured.
+// Eligible snapshots are grouped by alert identity, so the several machines of
+// one account collapse into one alert carrying the group's highest reading (see
+// supersedes) rather than whichever the walk reached first. That in-tick grouping
+// and the ledger are two mechanisms and neither replaces the other: grouping
+// stops one key going out twice in a single pass — one machine reporting into two
+// trees, or two machines sharing an email — while the ledger is the durable
+// guarantee that holds across ticks and restarts.
+//
+// A snapshot whose machine has no resolvable email is skipped exactly as
+// pendingBlocks skips one, and without a ledger entry: whose limit is nearly spent
+// is the whole content of the alert, and burning the dedupe key on an event a
+// consumer may discard would retire that window instance for good. Skipping
+// instead leaves it eligible the moment an email is configured.
 func pendingUsageAlerts(snapshots []usage.Snapshot, ledger map[string]string, antenne *AntenneSettings, now time.Time) []usageAlert {
 	if !antenne.UsageAlerts {
 		return nil
@@ -401,13 +433,14 @@ func pendingUsageAlerts(snapshots []usage.Snapshot, ledger map[string]string, an
 		since, _ = time.Parse(time.RFC3339, antenne.EmitSince)
 	}
 	threshold := antenne.Threshold()
-	seen := make(map[string]bool)
+	group := make(map[string]int)
 	var out []usageAlert
 	for _, s := range snapshots {
 		if !since.IsZero() && s.UpdatedAt.Before(since) {
 			continue
 		}
-		if antenne.EmailFor(s.Machine) == "" {
+		email := antenne.EmailFor(s.Machine)
+		if email == "" {
 			continue
 		}
 		for _, w := range s.View(now).Windows {
@@ -423,6 +456,7 @@ func pendingUsageAlerts(snapshots []usage.Snapshot, ledger map[string]string, an
 			}
 			alert := usageAlert{
 				Machine:        s.Machine,
+				Email:          email,
 				Window:         w.Key,
 				WindowLabel:    label,
 				UsedPercentage: w.UsedPercentage,
@@ -431,20 +465,26 @@ func pendingUsageAlerts(snapshots []usage.Snapshot, ledger map[string]string, an
 				Source:         s.Source,
 			}
 			key := alert.LedgerKey()
-			if seen[key] {
-				continue
-			}
 			if _, done := ledger[key]; done {
 				continue
 			}
-			seen[key] = true
+			if i, ok := group[key]; ok {
+				if alert.supersedes(&out[i]) {
+					out[i] = alert
+				}
+				continue
+			}
+			group[key] = len(out)
 			out = append(out, alert)
 		}
 	}
 	return out
 }
 
-func usageEnvelopeFor(a *usageAlert, email string) enveloppe.Event[UsageAlert] {
+// usageEnvelopeFor takes the email off the alert rather than resolving it again:
+// it is part of the dedupe key, so a payload email that disagreed with the key
+// would be a silent contradiction.
+func usageEnvelopeFor(a *usageAlert) enveloppe.Event[UsageAlert] {
 	id := a.ID()
 	return enveloppe.Event[UsageAlert]{
 		Version:  enveloppe.EventVersion,
@@ -460,7 +500,7 @@ func usageEnvelopeFor(a *usageAlert, email string) enveloppe.Event[UsageAlert] {
 			UsedPercentage: a.UsedPercentage,
 			Threshold:      a.Threshold,
 			ResetsAt:       a.ResetsAt.UTC().Format(time.RFC3339),
-			UserEmail:      email,
+			UserEmail:      a.Email,
 			Source:         a.Source,
 		},
 		Timestamp:      time.Now().UTC().Format(time.RFC3339),
