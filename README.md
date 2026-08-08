@@ -48,6 +48,14 @@ and fans it out. The agents stay thin; the brain is shared.
 Install the CLI:
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/FacileStudio/Mycelium/main/install.sh | bash
+```
+
+Installs to `~/.local/bin`. Pass `--bin-dir <dir>` to change that, `--source` to build from
+source. The installer downloads a released binary and verifies it against the release
+checksums, falling back to a source build when no release matches your platform.
+
+```sh
 brew install FacileStudio/tap/mycelium
 ```
 
