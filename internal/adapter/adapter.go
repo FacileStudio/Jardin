@@ -24,7 +24,7 @@ type Adapter interface {
 }
 
 type HookInstaller interface {
-	InstallHooks() (string, error)
+	InstallHooks() (string, []string, error)
 }
 
 var registry = map[string]Adapter{}
