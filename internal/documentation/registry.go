@@ -67,6 +67,15 @@ var Registry = Response{Modules: []Module{
 			{Method: "GET", Path: "/sessions/stats", Summary: "Aggregate session statistics", Auth: "bearer", ResponseBody: "StatsResponse", Errors: anyToken},
 			{Method: "GET", Path: "/sessions/recent", Summary: "List recent sessions", Auth: "bearer", ResponseBody: "[]Session", Errors: anyToken},
 			{Method: "GET", Path: "/sessions/live", Summary: "List sessions currently active", Auth: "bearer", ResponseBody: "[]Session", Errors: anyToken},
+			{Method: "GET", Path: "/sessions/timeline", Summary: "Bucket session activity over time", Description: "Gap-filled buckets for charts. `since` (7d, 30d, 12h, all — default 30d), `bucket` (day or month), `by` (project, machine, agent, branch, model, total). Series are capped, with the remainder folded into `Other`.", Auth: "bearer", ResponseBody: "TimelineResponse", Errors: append(anyToken, badRequest)},
+		},
+	},
+	{
+		Name:        "usage",
+		Description: "Subscription rate-limit windows, as reported by Claude Code on each machine.",
+		Routes: []Route{
+			{Method: "GET", Path: "/usage", Summary: "Read each machine's latest usage snapshot", Description: "Empty array when nothing has been recorded yet.", Auth: "bearer", ResponseBody: "[]UsageSnapshot", Errors: anyToken},
+			{Method: "GET", Path: "/usage/history", Summary: "Read recorded usage samples over time", Description: "`since` defaults to 7d; `machine` filters to one machine. Samples are irregular, so labels are the sample instants and a missing window carries null.", Auth: "bearer", ResponseBody: "UsageHistory", Errors: append(anyToken, badRequest)},
 		},
 	},
 	{

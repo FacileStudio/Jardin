@@ -50,6 +50,44 @@ func (s *Server) sessionsStats(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, sessionsStatsResponse{By: by, Rows: rows})
 }
 
+// sessionsTimeline buckets the same blocks /sessions/stats aggregates, over
+// time. An unrecognized bucket or group falls back to the default rather than
+// erroring: a chart with a stale query string should still render.
+func (s *Server) sessionsTimeline(w http.ResponseWriter, r *http.Request) {
+	raw := r.URL.Query().Get("since")
+	if raw == "" {
+		raw = "30d"
+	}
+	since, err := sessions.ParseSince(raw, time.Now())
+	if err != nil {
+		httpjson.WriteError(w, apierrors.Invalid("bad request"))
+		return
+	}
+	bucket := oneOf(r.URL.Query().Get("bucket"), sessions.BucketKeys, "day")
+	by := oneOf(r.URL.Query().Get("by"), sessions.TimelineGroupKeys, sessions.TotalKey)
+
+	root, rootOK := s.scopeRoot(w, r)
+	if !rootOK {
+		return
+	}
+	blocks, err := sessions.ReadBlocks(root)
+	if err != nil {
+		s.Log.Error("sessions: read failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("internal error", err))
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, sessions.Timeline(blocks, since, bucket, by))
+}
+
+func oneOf(value string, allowed []string, fallback string) string {
+	for _, a := range allowed {
+		if a == value {
+			return value
+		}
+	}
+	return fallback
+}
+
 func (s *Server) sessionsLive(w http.ResponseWriter, r *http.Request) {
 	root, rootOK := s.scopeRoot(w, r)
 	if !rootOK {

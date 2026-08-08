@@ -9,12 +9,13 @@ import (
 )
 
 type JardinConfig struct {
-	Machine   string   `yaml:"machine,omitempty"`
-	URL       string   `yaml:"url,omitempty"`
-	Token     string   `yaml:"token,omitempty"`
-	Space     string   `yaml:"space,omitempty"`
-	RuleOrder []string `yaml:"rule_order,omitempty"`
-	Agents    []string `yaml:"agents,omitempty"`
+	Machine    string   `yaml:"machine,omitempty"`
+	URL        string   `yaml:"url,omitempty"`
+	Token      string   `yaml:"token,omitempty"`
+	Space      string   `yaml:"space,omitempty"`
+	UsageToken string   `yaml:"usage_token,omitempty"`
+	RuleOrder  []string `yaml:"rule_order,omitempty"`
+	Agents     []string `yaml:"agents,omitempty"`
 }
 
 func DataDir() string {
@@ -59,5 +60,8 @@ func SaveJardinConfig(cfg *JardinConfig) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0600)
 }

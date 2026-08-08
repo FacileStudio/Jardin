@@ -123,6 +123,57 @@ export interface LiveSession {
 	idle_seconds: number;
 }
 
+export interface TimelineSeries {
+	key: string;
+	seconds: number[];
+	sessions: number[];
+	tokens_in: number[];
+	tokens_out: number[];
+	cache_read: number[];
+}
+
+export interface SessionTimeline {
+	bucket: string;
+	by: string;
+	labels: string[];
+	series: TimelineSeries[];
+}
+
+/*
+ * `resets_in_seconds` and `expired` are derived by the server on every read, never stored: a
+ * recorded percentage is only true until its window rolls over, after which it is the last
+ * value observed rather than the current one.
+ */
+export interface UsageWindow {
+	key: string;
+	label: string;
+	used_percentage: number;
+	resets_at?: string;
+	resets_in_seconds?: number;
+	expired?: boolean;
+}
+
+export interface UsageSnapshot {
+	machine: string;
+	updated_at: string;
+	age_seconds?: number;
+	stale?: boolean;
+	source: string;
+	model?: string;
+	windows: UsageWindow[];
+}
+
+export interface UsageHistorySeries {
+	key: string;
+	label: string;
+	values: (number | null)[];
+}
+
+export interface UsageHistory {
+	labels: string[];
+	series: UsageHistorySeries[];
+}
+
 export interface NookSettings {
 	enabled: boolean;
 	instance: string;
@@ -209,6 +260,18 @@ export const backend = {
 		request<SessionStats>('GET', `/sessions/stats?since=${since}&by=${by}${spaceQuery('&')}`),
 	sessionsRecent: (limit = 20) => request<SessionBlock[]>('GET', `/sessions/recent?limit=${limit}${spaceQuery('&')}`),
 	sessionsLive: () => request<LiveSession[]>('GET', `/sessions/live${spaceQuery('?')}`),
+	sessionsTimeline: (since: string, bucket: string, by: string) =>
+		request<SessionTimeline>(
+			'GET',
+			`/sessions/timeline?since=${since}&bucket=${bucket}&by=${by}${spaceQuery('&')}`
+		),
+
+	usageCurrent: () => request<UsageSnapshot[]>('GET', `/usage${spaceQuery()}`),
+	usageHistory: (since: string, machine?: string) =>
+		request<UsageHistory>(
+			'GET',
+			`/usage/history?since=${since}${machine ? `&machine=${encodeURIComponent(machine)}` : ''}${spaceQuery('&')}`
+		),
 
 	settingsGet: () => request<JardinSettings>('GET', '/settings'),
 	settingsSave: (nook: NookSettings) => request<JardinSettings>('PUT', '/settings', { nook }),

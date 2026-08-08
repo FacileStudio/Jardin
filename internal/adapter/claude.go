@@ -9,6 +9,8 @@ import (
 
 const recapHookCommand = "command -v jardin >/dev/null 2>&1 && jardin recap --hook || true"
 
+const statusLineCommand = "jardin usage --statusline"
+
 type Claude struct{}
 
 func init() {
@@ -49,10 +51,11 @@ func (c *Claude) Generate(input Input) (*Output, error) {
 	return out, nil
 }
 
-// InstallHooks merges a SessionStart hook running `jardin recap` into
-// ~/.claude/settings.json. The merge is additive: unknown keys and existing
-// hooks survive untouched, and a hook already mentioning `jardin recap` is
-// left alone so re-installs are idempotent.
+// InstallHooks merges a SessionStart hook running `jardin recap` and a status
+// line running `jardin usage --statusline` into ~/.claude/settings.json. The
+// merge is additive: unknown keys, existing hooks and a status line the user
+// configured themselves all survive untouched, and a second install that has
+// nothing left to add writes nothing.
 func (c *Claude) InstallHooks() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -67,6 +70,28 @@ func (c *Claude) InstallHooks() (string, error) {
 		}
 	}
 
+	changed := mergeRecapHook(settings)
+	if mergeStatusLine(settings) {
+		changed = true
+	}
+	if !changed {
+		return "", nil
+	}
+
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func mergeRecapHook(settings map[string]any) bool {
 	hooks, _ := settings["hooks"].(map[string]any)
 	if hooks == nil {
 		hooks = make(map[string]any)
@@ -78,7 +103,7 @@ func (c *Claude) InstallHooks() (string, error) {
 		for _, entry := range entries {
 			e, _ := entry.(map[string]any)
 			if cmd, _ := e["command"].(string); strings.Contains(cmd, "jardin recap") {
-				return "", nil
+				return false
 			}
 		}
 	}
@@ -92,16 +117,18 @@ func (c *Claude) InstallHooks() (string, error) {
 	})
 	hooks["SessionStart"] = sessionStart
 	settings["hooks"] = hooks
+	return true
+}
 
-	data, err := json.MarshalIndent(settings, "", "  ")
-	if err != nil {
-		return "", err
+// mergeStatusLine never replaces a statusLine the user already configured:
+// theirs is the prompt they chose to look at all day.
+func mergeStatusLine(settings map[string]any) bool {
+	if existing, ok := settings["statusLine"]; ok && existing != nil {
+		return false
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
+	settings["statusLine"] = map[string]any{
+		"type":    "command",
+		"command": statusLineCommand,
 	}
-	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
-		return "", err
-	}
-	return path, nil
+	return true
 }

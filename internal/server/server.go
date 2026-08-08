@@ -207,6 +207,10 @@ func (s *Server) Handler() *chi.Mux {
 		r.Get("/sessions/stats", s.auth(false, s.sessionsStats))
 		r.Get("/sessions/recent", s.auth(false, s.sessionsRecent))
 		r.Get("/sessions/live", s.auth(false, s.sessionsLive))
+		r.Get("/sessions/timeline", s.auth(false, s.sessionsTimeline))
+
+		r.Get("/usage", s.auth(false, s.usageCurrent))
+		r.Get("/usage/history", s.auth(false, s.usageHistory))
 
 		r.Get("/settings", s.auth(true, s.settingsGet))
 		r.Put("/settings", s.auth(true, s.settingsPut))
