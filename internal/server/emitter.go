@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -22,6 +23,15 @@ import (
 const (
 	emitterInterval = 30 * time.Second
 	minEmitDuration = time.Minute
+
+	// outageGrace is how long the bus may be unreachable before a failed
+	// connect is reported as an error rather than a retry.
+	//
+	// Redeploying Antenne takes seconds and is the common case; escalating
+	// immediately turned every deploy into red lines in a shared dashboard,
+	// which is how a colour stops carrying information. Anything still
+	// failing after this long is not a deploy.
+	outageGrace = 2 * time.Minute
 )
 
 // objectUsageAlert is declared here, not in enveloppe: that repo is a shared
@@ -55,6 +65,11 @@ type Emitter struct {
 	client  *antenneclient.Client
 	confKey string
 	kick    chan struct{}
+
+	// downSince is when the bus first became unreachable, cleared on the
+	// next successful connect. It is what separates a redeploy from an
+	// outage; see outageGrace.
+	downSince time.Time
 
 	// gen names the current client. Its callbacks fire from the client's own
 	// goroutines and can land after the emitter has already replaced it, so a
@@ -168,7 +183,7 @@ func (e *Emitter) tick(ctx context.Context) {
 	e.mu.Unlock()
 	if needsConnect {
 		if err := e.connect(ctx, &antenne, key); err != nil {
-			e.setError("connect: " + err.Error())
+			e.connectFailed("connect: " + err.Error())
 			return
 		}
 	}
@@ -189,7 +204,7 @@ func (e *Emitter) connect(ctx context.Context, antenne *AntenneSettings, key str
 	client := antenneclient.NewClient(cfg,
 		antenneclient.WithOnConnect(func() { e.setConnected(gen, true) }),
 		antenneclient.WithOnDisconnect(func() { e.setConnected(gen, false) }),
-		antenneclient.WithOnError(func(err error) { e.clientError(gen, err.Error()) }),
+		antenneclient.WithOnError(func(err error) { e.clientError(gen, err) }),
 	)
 	connectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -230,9 +245,15 @@ func (e *Emitter) setConnected(gen int, v bool) {
 		return
 	}
 	e.connected = v
+	if v {
+		// The bus is back. Clear the outage clock so the next unrelated
+		// blip gets its own grace period instead of inheriting an old one.
+		e.downSince = time.Time{}
+	}
 }
 
-func (e *Emitter) clientError(gen int, msg string) {
+func (e *Emitter) clientError(gen int, err error) {
+	msg := err.Error()
 	e.mu.Lock()
 	stale := gen != e.gen
 	if !stale {
@@ -242,7 +263,39 @@ func (e *Emitter) clientError(gen int, msg string) {
 	if stale {
 		return
 	}
+
+	// A reconnect the client will retry is the mechanism working, not an
+	// incident: an Antenne restart produces a handful of these and resolves
+	// itself in seconds. Keeping them at error level meant every deploy of
+	// the bus turned this app's log red, which is how a colour stops meaning
+	// anything. The terminal failure still lands at error.
+	var transient *antenneclient.TransientError
+	if errors.As(err, &transient) {
+		e.srv.Log.Warn("emitter: reconnecting",
+			slog.Int("attempt", transient.Attempt),
+			slog.Any("error", transient.Err))
+		return
+	}
 	e.srv.Log.Error("emitter", slog.String("error", msg))
+}
+
+// connectFailed records a failed connect, at a level that depends on how long
+// the bus has been unreachable. lastError is set either way, so the settings
+// page shows the reason from the first failure regardless of level.
+func (e *Emitter) connectFailed(msg string) {
+	e.mu.Lock()
+	e.lastError = msg
+	if e.downSince.IsZero() {
+		e.downSince = time.Now()
+	}
+	down := time.Since(e.downSince)
+	e.mu.Unlock()
+
+	if down < outageGrace {
+		e.srv.Log.Warn("emitter: reconnecting", slog.String("error", msg))
+		return
+	}
+	e.srv.Log.Error("emitter", slog.String("error", msg), slog.Duration("down_for", down.Round(time.Second)))
 }
 
 func (e *Emitter) setError(msg string) {

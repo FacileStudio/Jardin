@@ -13,7 +13,7 @@
 		icons,
 		toast
 	} from '@facile/muse';
-	import { backend, type EmitterStatus, type NookSettings } from '$lib/backend';
+	import { ApiError, backend, type EmitterStatus, type NookSettings } from '$lib/backend';
 
 	let loaded = $state(false);
 	let denied = $state(false);
@@ -37,7 +37,19 @@
 				apply(s.nook, s.status);
 				loaded = true;
 			})
-			.catch(() => (denied = true));
+			.catch((e) => {
+				// Only a 403 means "not an admin". Everything else — the API
+				// restarting mid-deploy, a dropped connection, a 500 — used to
+				// land here too and get reported as a permission problem,
+				// which sends you looking at your account instead of at the
+				// server. Say what actually happened.
+				if (e instanceof ApiError && e.status === 403) {
+					denied = true;
+					return;
+				}
+				error = e instanceof Error ? e.message : 'Could not load the bus settings';
+				loaded = true;
+			});
 	});
 
 	function apply(nook: NookSettings, next: EmitterStatus) {
@@ -101,7 +113,7 @@
 				usage_threshold: normalizeThreshold(usageThreshold)
 			});
 			apply(s.nook, s.status);
-			toast.success('Pool settings saved.');
+			toast.success('Bus settings saved.');
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Save failed';
 		} finally {
@@ -112,8 +124,10 @@
 
 {#if denied}
 	<Alert tone="info" title="Admin only">
-		Pool settings are visible to administrators. Sign in with an admin account to change them.
+		Bus settings are visible to administrators. Sign in with an admin account to change them.
 	</Alert>
+{:else if error && !loaded}
+	<Alert tone="danger" title="Could not load the bus settings">{error}</Alert>
 {:else if !loaded}
 	<div class="flex items-center gap-3 text-fc-sm text-fc-fg-muted">
 		<Spinner size="sm" /> Loading…
@@ -121,8 +135,8 @@
 {:else}
 	<div class="flex flex-col gap-10">
 		<SettingsSection
-			title="Nook Pool"
-			description="One socket to Nook carries every sealed session this instance emits, so Sablier can turn them into time entries. Apps never talk to each other directly."
+			title="Antenne bus"
+			description="One socket to Antenne carries every sealed session this instance emits, so Sablier can turn them into time entries. Apps never talk to each other directly."
 		>
 			<SettingsRow label="Status" description="Live, from the socket itself — not from the last save.">
 				<StatusDot tone={connection.tone} label={connection.label} pulse={connection.pulse} />
@@ -203,7 +217,7 @@
 
 		<SettingsSection
 			title="Connection"
-			description="Where Nook lives and the shared secret that registers this instance with it."
+			description="Where Antenne lives and the shared secret that registers this instance with it."
 		>
 			<SettingsRow
 				label="Instance URL"
@@ -221,7 +235,7 @@
 
 			<SettingsRow
 				label="Shared secret"
-				description="Posted to Nook when the socket registers. Required as soon as emitting is on."
+				description="Posted to Antenne when the socket registers. Required as soon as emitting is on."
 				stacked
 			>
 				<SecretField bind:value={secret} editable disabled={saving} class="w-full" />
