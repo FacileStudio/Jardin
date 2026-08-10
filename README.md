@@ -49,22 +49,21 @@ and fans it out. The agents stay thin; the brain is shared.
 
 ## Quick start
 
-Install the CLI:
-
 ```sh
 curl -fsSL https://raw.githubusercontent.com/FacileStudio/Jardin/main/install.sh | bash
 ```
 
-Installs to `~/.local/bin`. Pass `--bin-dir <dir>` to change that, `--source` to build from
-source. The installer downloads a released binary and verifies it against the release
-checksums, falling back to a source build when no release matches your platform.
+Installs to `~/.local/bin` via [facile](https://github.com/FacileStudio/facile), the suite
+installer. Pass `--bin-dir <dir>` to change that, `--source` to build from source.
+
+Already have `facile`:
 
 ```sh
-brew install FacileStudio/tap/jardin
+facile install jardin
 ```
 
 ```sh
-go install github.com/FacileStudio/Jardin@latest
+brew install FacileStudio/tap/jardin
 ```
 
 Then set up this machine:
