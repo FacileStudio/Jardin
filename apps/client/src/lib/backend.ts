@@ -192,7 +192,7 @@ export interface UsageHistory {
 	series: UsageHistorySeries[];
 }
 
-export interface NookSettings {
+export interface AntenneSettings {
 	enabled: boolean;
 	instance: string;
 	secret: string;
@@ -212,8 +212,10 @@ export interface EmitterStatus {
 }
 
 export interface JardinSettings {
-	nook: NookSettings;
+	antenne: AntenneSettings;
 	status: EmitterStatus;
+	/* Fields pinned by the environment; editing them would be reverted on restart. */
+	env_managed?: Record<string, boolean>;
 }
 
 export interface AuthConfig {
@@ -295,7 +297,7 @@ export const backend = {
 		),
 
 	settingsGet: () => request<JardinSettings>('GET', '/settings'),
-	settingsSave: (nook: NookSettings) => request<JardinSettings>('PUT', '/settings', { nook }),
+	settingsSave: (antenne: AntenneSettings) => request<JardinSettings>('PUT', '/settings', { antenne }),
 
 	tokensCreate: (name: string) => request<TokenInfo>('POST', '/tokens', { name }),
 	tokensList: () => request<TokenInfo[]>('GET', '/tokens'),

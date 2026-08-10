@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	apierrors "github.com/FacileStudio/tronc/errors"
@@ -84,7 +85,53 @@ func (s *Server) loadSettings() Settings {
 		return Settings{}
 	}
 	settings.adoptLegacy()
+	settings.applyEnvOverrides()
 	return settings
+}
+
+// applyEnvOverrides lets a deployment configure the bus without anybody opening
+// the dashboard.
+//
+// It is an override rather than a default: a value in the environment wins over
+// whatever is on disk, so a container is reproducible from its compose file and
+// a stale settings file cannot quietly outrank it. Leaving the variables unset
+// keeps the file authoritative, which is what a laptop wants.
+//
+// ANTENNE_URL alone is enough to turn emitting on — configuring where the bus
+// lives and then having to tick a box elsewhere is the kind of two-step that
+// leaves an instance silently disconnected.
+func (s *Settings) applyEnvOverrides() {
+	instance := strings.TrimSpace(os.Getenv("ANTENNE_URL"))
+	secret := strings.TrimSpace(os.Getenv("ANTENNE_SECRET"))
+	email := strings.TrimSpace(os.Getenv("ANTENNE_USER_EMAIL"))
+
+	if instance != "" {
+		s.Antenne.Instance = instance
+		s.Antenne.Enabled = true
+	}
+	if secret != "" {
+		s.Antenne.Secret = secret
+	}
+	if email != "" {
+		s.Antenne.UserEmail = email
+	}
+}
+
+// EnvManaged reports which fields the environment is pinning, so the dashboard
+// can show them as read-only instead of offering an edit that the next restart
+// silently reverts.
+func EnvManaged() map[string]bool {
+	managed := map[string]bool{}
+	for field, key := range map[string]string{
+		"instance":   "ANTENNE_URL",
+		"secret":     "ANTENNE_SECRET",
+		"user_email": "ANTENNE_USER_EMAIL",
+	} {
+		if strings.TrimSpace(os.Getenv(key)) != "" {
+			managed[field] = true
+		}
+	}
+	return managed
 }
 
 func (s *Server) saveSettings(settings Settings) error {
@@ -103,6 +150,11 @@ func (s *Server) saveSettings(settings Settings) error {
 type settingsResponse struct {
 	Antenne AntenneSettings `json:"antenne"`
 	Status  EmitterStatus   `json:"status"`
+
+	// EnvManaged names the fields the environment is pinning. The dashboard
+	// shows those read-only: offering an edit that the next restart reverts
+	// is worse than not offering it.
+	EnvManaged map[string]bool `json:"env_managed"`
 }
 
 func (s *Server) settingsGet(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +166,7 @@ func (s *Server) settingsGet(w http.ResponseWriter, r *http.Request) {
 	if s.emitter != nil {
 		resp.Status = s.emitter.Status()
 	}
+	resp.EnvManaged = EnvManaged()
 	httpjson.WriteJSON(w, http.StatusOK, resp)
 }
 

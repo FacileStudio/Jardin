@@ -13,12 +13,13 @@
 		icons,
 		toast
 	} from '@facile/muse';
-	import { ApiError, backend, type EmitterStatus, type NookSettings } from '$lib/backend';
+	import { ApiError, backend, type AntenneSettings, type EmitterStatus } from '$lib/backend';
 
 	let loaded = $state(false);
 	let denied = $state(false);
 	let saving = $state(false);
 	let error = $state('');
+	let loadError = $state('');
 
 	let enabled = $state(false);
 	let instance = $state('');
@@ -29,12 +30,14 @@
 	let usageThreshold: number | string = $state(80);
 	let machineEmails: { machine: string; email: string }[] = $state([]);
 	let status: EmitterStatus | null = $state(null);
+	let envManaged = $state<Record<string, boolean>>({});
 
 	$effect(() => {
 		backend
 			.settingsGet()
 			.then((s) => {
-				apply(s.nook, s.status);
+				apply(s.antenne, s.status);
+				envManaged = s.env_managed ?? {};
 				loaded = true;
 			})
 			.catch((e) => {
@@ -47,20 +50,22 @@
 					denied = true;
 					return;
 				}
-				error = e instanceof Error ? e.message : 'Could not load the bus settings';
-				loaded = true;
+				// A failed load is not a failed save. They were one variable, so
+				// opening the page on a broken response greeted you with "Not
+				// saved" for something you never submitted.
+				loadError = e instanceof Error ? e.message : 'Could not load the bus settings';
 			});
 	});
 
-	function apply(nook: NookSettings, next: EmitterStatus) {
-		enabled = nook.enabled;
-		instance = nook.instance;
-		secret = nook.secret;
-		userEmail = nook.user_email;
-		emitSince = nook.emit_since ?? '';
-		usageAlerts = nook.usage_alerts ?? false;
-		usageThreshold = normalizeThreshold(nook.usage_threshold);
-		machineEmails = Object.entries(nook.machine_emails ?? {}).map(([machine, email]) => ({
+	function apply(antenne: AntenneSettings, next: EmitterStatus) {
+		enabled = antenne.enabled;
+		instance = antenne.instance;
+		secret = antenne.secret;
+		userEmail = antenne.user_email;
+		emitSince = antenne.emit_since ?? '';
+		usageAlerts = antenne.usage_alerts ?? false;
+		usageThreshold = normalizeThreshold(antenne.usage_threshold);
+		machineEmails = Object.entries(antenne.machine_emails ?? {}).map(([machine, email]) => ({
 			machine,
 			email
 		}));
@@ -112,7 +117,8 @@
 				usage_alerts: usageAlerts,
 				usage_threshold: normalizeThreshold(usageThreshold)
 			});
-			apply(s.nook, s.status);
+			apply(s.antenne, s.status);
+			envManaged = s.env_managed ?? {};
 			toast.success('Bus settings saved.');
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Save failed';
@@ -126,8 +132,8 @@
 	<Alert tone="info" title="Admin only">
 		Bus settings are visible to administrators. Sign in with an admin account to change them.
 	</Alert>
-{:else if error && !loaded}
-	<Alert tone="danger" title="Could not load the bus settings">{error}</Alert>
+{:else if loadError}
+	<Alert tone="danger" title="Could not load the bus settings">{loadError}</Alert>
 {:else if !loaded}
 	<div class="flex items-center gap-3 text-fc-sm text-fc-fg-muted">
 		<Spinner size="sm" /> Loading…
@@ -198,11 +204,11 @@
 			<SettingsRow
 				label="Threshold"
 				description="Percent of a window's limit. 80 unless you change it; anything outside 1–100 falls back to it."
-				for="pool-usage-threshold"
+				for="bus-usage-threshold"
 			>
 				<Input
 					bind:value={usageThreshold}
-					id="pool-usage-threshold"
+					id="bus-usage-threshold"
 					type="number"
 					inputmode="numeric"
 					min="1"
@@ -221,38 +227,49 @@
 		>
 			<SettingsRow
 				label="Instance URL"
-				description="Scheme included. The socket URL is derived from it."
-				for="pool-url"
+				description={envManaged.instance
+					? 'Pinned by ANTENNE_URL. Edit the deployment, not this field.'
+					: 'Scheme included. The socket URL is derived from it.'}
+				for="bus-url"
 				stacked
 			>
 				<Input
 					bind:value={instance}
-					id="pool-url"
-					placeholder="https://nook.facile.studio"
-					disabled={saving}
+					id="bus-url"
+					placeholder="https://antenne.facile.studio"
+					disabled={saving || envManaged.instance}
 				/>
 			</SettingsRow>
 
 			<SettingsRow
 				label="Shared secret"
-				description="Posted to Antenne when the socket registers. Required as soon as emitting is on."
+				description={envManaged.secret
+					? 'Pinned by ANTENNE_SECRET. Edit the deployment, not this field.'
+					: 'Posted to Antenne when the socket registers. Required as soon as emitting is on.'}
 				stacked
 			>
-				<SecretField bind:value={secret} editable disabled={saving} class="w-full" />
+				<SecretField
+					bind:value={secret}
+					editable={!envManaged.secret}
+					disabled={saving || envManaged.secret}
+					class="w-full"
+				/>
 			</SettingsRow>
 
 			<SettingsRow
 				label="Attribution email"
-				description="Whose sessions these are, as far as the rest of the suite is concerned."
-				for="pool-email"
+				description={envManaged.user_email
+					? 'Pinned by ANTENNE_USER_EMAIL. Edit the deployment, not this field.'
+					: 'Whose sessions these are, as far as the rest of the suite is concerned.'}
+				for="bus-email"
 				stacked
 			>
 				<Input
 					bind:value={userEmail}
-					id="pool-email"
+					id="bus-email"
 					type="email"
 					placeholder="you@facile.studio"
-					disabled={saving}
+					disabled={saving || envManaged.user_email}
 				/>
 			</SettingsRow>
 
