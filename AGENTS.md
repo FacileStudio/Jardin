@@ -61,6 +61,13 @@ git tag v0.x.x && git push --tags
   invalid: `SSO_ONLY` without `OIDC_ISSUER`, `OIDC_ISSUER` without client credentials, or
   `APP_ENV=production` with neither `PASSWORD` nor `OIDC_ISSUER` (which would serve every
   request as admin). See `.env.example`
+- **The bus can be configured entirely from the environment.** `ANTENNE_URL`,
+  `ANTENNE_SECRET` and `ANTENNE_USER_EMAIL` **override** `.settings.json` rather than
+  seeding it, so a container is reproducible from its compose file and a stale settings
+  file cannot outrank it; setting `ANTENNE_URL` alone turns emitting on. The dashboard
+  renders the pinned fields read-only. Leave them unset to configure it from the UI.
+  The settings payload's key is `antenne`; `nook` is still accepted on read for old
+  files (`adoptLegacy`) and is **not** accepted on write
 - chi hands path parameters back **percent-encoded** whenever the request carries any
   escaping, where the `http.ServeMux` it replaced decoded them. Read them with
   `pathParam(r, key)`, never `chi.URLParam` directly, or `%2F` walks straight past the
