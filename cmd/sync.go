@@ -14,10 +14,10 @@ func syncClient() (*hsync.Client, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	if cfg.URL == "" {
+	if cfg.ServerURL() == "" {
 		return nil, "", fmt.Errorf("sync not configured — run 'jardin login <url>'")
 	}
-	client := hsync.NewClient(cfg.URL, cfg.Token)
+	client := hsync.NewClient(cfg.ServerURL(), cfg.AuthToken())
 	client.Space = cfg.Space
 	return client, config.DataDir(), nil
 }

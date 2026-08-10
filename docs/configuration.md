@@ -98,6 +98,23 @@ byte offsets.
 `DATA_DIR` is read by the CLI too, not just the server. `jardin rules edit` shells out to
 `$EDITOR`.
 
+### The server session
+
+`jardin login` writes `url` and `token` into `~/.jardin.yml` at mode `0600`. Two environment
+variables override that file, with precedence **flag > environment > config file**:
+
+| Variable | Overrides |
+|---|---|
+| `JARDIN_TOKEN` | The session token |
+| `JARDIN_URL` (or `JARDIN_SERVER_URL`) | The server to talk to |
+
+A CI job cannot run an interactive login and must not commit a config file, so the
+environment is the only credential channel it has. Nothing ever writes these back to disk.
+
+`jardin logout` revokes the session on the server when it can reach it and clears `token`
+from `~/.jardin.yml`, leaving `url`, `machine`, `space`, `rule_order`, `agents` and
+`usage_token` alone. Running it while logged out is not an error.
+
 ### The usage token
 
 `jardin usage --live` needs a subscription OAuth token from `claude setup-token`. Everything
