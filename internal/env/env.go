@@ -53,8 +53,21 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	// Every field troncenv.Core grows has to be repeated here, because this
+	// literal exists to skip troncenv.LoadCore. A field left out keeps its
+	// zero value, which for TrustedProxies means TRUSTED_PROXIES is ignored
+	// while the deployment panel shows it set.
+	trustedProxies, err := troncenv.TrustedProxies()
+	if err != nil {
+		return Config{}, err
+	}
+	cdnProxies, cdnHeader := troncenv.CDN()
+
 	cfg := Config{
 		Core: troncenv.Core{
+			TrustedProxies:     trustedProxies,
+			CDNProxies:         cdnProxies,
+			CDNHeader:          cdnHeader,
 			AppEnv:             troncenv.ParseEnvironment(troncenv.String("APP_ENV", string(troncenv.Development))),
 			Port:               port,
 			LogLevel:           troncenv.String("LOG_LEVEL", "info"),
