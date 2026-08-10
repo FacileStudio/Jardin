@@ -25,15 +25,15 @@ type spaceInfo struct {
 }
 
 func fetchSpaces(cfg *config.MyceliumConfig) ([]spaceInfo, error) {
-	if cfg.URL == "" {
+	if cfg.ServerURL() == "" {
 		return nil, fmt.Errorf("sync not configured — run 'mycelium login <url>'")
 	}
-	req, err := http.NewRequest("GET", cfg.URL+"/api/spaces", nil)
+	req, err := http.NewRequest("GET", cfg.ServerURL()+"/api/spaces", nil)
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+cfg.Token)
+	if token := cfg.AuthToken(); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

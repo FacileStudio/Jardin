@@ -15,12 +15,17 @@ seeds `overview.md`, `index.md` and `log.md` when they do not exist. Safe to re-
 mycelium init
 ```
 
-### `mycelium login <url>`
+### `mycelium login [url]`
 
 Authenticates this machine against a Mycelium server and writes `url`, `token` and `machine`
-into `~/.mycelium.yml`. By default it uses device authorization: it prints a user code, opens
-your browser at `/authorize`, and polls until an admin approves. On success it also installs
-the background sync service.
+into `~/.mycelium.yml`. By default it signs in through the browser against the server's
+identity provider: it opens a loopback port, sends you to `/api/auth/oidc`, and trades the
+one-time code that comes back for a token — so a session already open with another Facile
+tool completes the login without a second prompt. A server with no identity provider, or a
+machine with no browser, falls back to device authorization: a user code, `/authorize`, and
+polling until an admin approves. On success it also installs the background sync service.
+
+The URL may be omitted once `MYCELIUM_URL` or a previous login has set one.
 
 ```sh
 mycelium login https://mycelium.facile.studio --machine lucy --space studio
@@ -34,9 +39,16 @@ printf '%s' "$TOKEN" | mycelium login https://mycelium.facile.studio --token-std
 | `--token-stdin` | Read that token from stdin |
 | `--password` | Authenticate with the server password instead |
 | `--password-stdin` | Read the password from stdin |
-| `--no-browser` | Print the authorization URL instead of opening a browser |
+| `--no-browser` | Print the authorization URL instead of opening a browser, and use device authorization |
 | `--no-daemon` | Do not install the background sync service |
 | `--space` | Select a space to sync right after login, by name or id |
+
+### `mycelium logout`
+
+Revokes the session on the server and clears `token` from `~/.mycelium.yml`. Everything else in
+that file — the server URL, the machine, the space, the rule order, the agent list and the
+Anthropic usage token — is left alone, and running it while logged out is not an error. This
+is the server session; `mycelium usage logout` forgets the unrelated Anthropic token.
 
 ### `mycelium status`
 

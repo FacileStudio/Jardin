@@ -2,9 +2,15 @@ package cmd
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -31,23 +37,35 @@ var (
 )
 
 var loginCmd = &cobra.Command{
-	Use:   "login <url>",
+	Use:   "login [url]",
 	Short: "Authenticate with a Mycelium server and save sync config",
 	Long: `Authenticate with a Mycelium server and save sync config.
 
-By default this opens your browser to approve the machine from a logged-in
-Mycelium session (device authorization). Alternatives:
+By default this signs you in through your browser against the server's identity
+provider, so a session already open with another Facile tool completes the login
+without a second prompt. A server with no identity provider, or a machine with
+no browser, falls back to approving the machine from a logged-in Mycelium session
+(device authorization). Alternatives:
 
   mycelium login <url> --token <token>     use a token from the dashboard
   mycelium login <url> --token-stdin       read the token from stdin
-  mycelium login <url> --password          authenticate with the server password`,
-	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		serverURL := strings.TrimRight(args[0], "/")
+  mycelium login <url> --password          authenticate with the server password
 
+The URL may be omitted once MYCELIUM_URL or a previous login has set one.`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.LoadMyceliumConfig()
 		if err != nil {
 			return err
+		}
+
+		serverURL := cfg.ServerURL()
+		if len(args) == 1 {
+			serverURL = args[0]
+		}
+		serverURL = strings.TrimRight(serverURL, "/")
+		if serverURL == "" {
+			return fmt.Errorf("no server known — run 'mycelium login <url>' or set %s", config.URLEnv)
 		}
 
 		machine := loginMachine
@@ -81,7 +99,11 @@ Mycelium session (device authorization). Alternatives:
 				return err
 			}
 		default:
-			token, err = deviceLogin(serverURL, machine)
+			if browserAvailable() && serverOffersSSO(serverURL) {
+				token, err = ssoLogin(serverURL)
+			} else {
+				token, err = deviceLogin(serverURL, machine)
+			}
 			if err != nil {
 				return err
 			}
@@ -199,6 +221,161 @@ func deviceLogin(serverURL, machine string) (string, error) {
 	}
 	fmt.Println()
 	return "", fmt.Errorf("authorization timed out — run `mycelium login` again")
+}
+
+// ssoWait is how long the listener stays open for the browser to come back.
+// Long enough to type a password and answer a second factor, short enough that
+// a closed tab does not leave a socket open all afternoon.
+const ssoWait = 3 * time.Minute
+
+// errCallbackMismatch is a hard stop, never a retry: a callback carrying a code
+// under the wrong nonce came from something other than this login.
+var errCallbackMismatch = errors.New("the sign-in callback did not match this login attempt — run 'mycelium login' again")
+
+// browserAvailable reports whether opening a URL can plausibly reach a human.
+// A CI job or an SSH session on a headless box has no browser to redirect back
+// from, which is exactly the case the device flow exists for.
+func browserAvailable() bool {
+	if loginNoBrowser || !term.IsTerminal(int(os.Stdout.Fd())) {
+		return false
+	}
+	switch runtime.GOOS {
+	case "darwin", "windows":
+		return true
+	}
+	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
+}
+
+// serverOffersSSO asks discovery rather than making the user find out by
+// having a browser open on a server with no identity provider.
+func serverOffersSSO(serverURL string) bool {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(serverURL + "/api/auth/config")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	var discovery struct {
+		OIDCEnabled bool `json:"oidc_enabled"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&discovery); err != nil {
+		return false
+	}
+	return discovery.OIDCEnabled
+}
+
+// ssoLogin signs in through the browser and returns a session token.
+//
+// The whole exchange belongs to the server: the CLI never sees the identity
+// provider, never handles a password, and never holds anything that is worth
+// something on its own. It opens a loopback port, sends the browser to the API
+// with that port attached, and the API — once the provider has done its part —
+// redirects back with a one-time code good for sixty seconds.
+func ssoLogin(serverURL string) (string, error) {
+	// Port zero asks the kernel for a free one, so two shells can log in at
+	// the same time without agreeing on anything.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", fmt.Errorf("cannot open a loopback port to receive the login: %w", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	// The nonce is what lets the listener tell its own callback from one
+	// somebody else sent. Without it any local process that guesses the
+	// port can hand us a code of its choosing and we would exchange it.
+	nonce, err := loginNonce()
+	if err != nil {
+		listener.Close()
+		return "", err
+	}
+
+	authURL := fmt.Sprintf("%s/api/auth/oidc?flow=cli&port=%d&cli_state=%s", serverURL, port, nonce)
+	fmt.Println()
+	fmt.Println("To sign in, open this URL in your browser:")
+	color.Cyan("  %s", authURL)
+	fmt.Println()
+	openBrowser(authURL)
+	fmt.Print("Waiting for the browser")
+
+	code, err := awaitLoginCode(listener, nonce)
+	fmt.Println()
+	if err != nil {
+		return "", err
+	}
+
+	status, body, err := postJSON(serverURL+"/api/auth/oidc/exchange", map[string]string{"code": code})
+	if err != nil {
+		return "", fmt.Errorf("connection failed: %w", err)
+	}
+	if status != http.StatusOK {
+		return "", fmt.Errorf("sign-in failed: %s", strings.TrimSpace(string(body)))
+	}
+	var result struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("invalid response: %w", err)
+	}
+	if result.Token == "" {
+		return "", fmt.Errorf("the server returned no token")
+	}
+	return result.Token, nil
+}
+
+// awaitLoginCode serves the one redirect the API sends the browser to, and
+// keeps listening through anything else: a browser asks for /favicon.ico
+// unprompted, and failing a login over that is a bug nobody can diagnose.
+func awaitLoginCode(listener net.Listener, nonce string) (string, error) {
+	type outcome struct {
+		code string
+		err  error
+	}
+	done := make(chan outcome, 1)
+
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+		if code == "" {
+			http.Error(w, "Not the login redirect.", http.StatusNotFound)
+			return
+		}
+		if subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("state")), []byte(nonce)) != 1 {
+			http.Error(w, "The callback did not match this login attempt. Run `mycelium login` again.", http.StatusBadRequest)
+			select {
+			case done <- outcome{err: errCallbackMismatch}:
+			default:
+			}
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprintln(w, "Signed in. You can close this tab and go back to your terminal.")
+		select {
+		case done <- outcome{code: code}:
+		default:
+		}
+	})}
+	go server.Serve(listener)
+
+	var result outcome
+	select {
+	case result = <-done:
+	case <-time.After(ssoWait):
+		result = outcome{err: fmt.Errorf("timed out waiting for the browser — run 'mycelium login' again")}
+	}
+
+	// Shutdown rather than Close, so the page the browser is still reading
+	// finishes arriving before the socket goes away.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	server.Shutdown(ctx)
+	return result.code, result.err
+}
+
+func loginNonce() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("cannot generate a login nonce: %w", err)
+	}
+	return hex.EncodeToString(buf), nil
 }
 
 func passwordLogin(serverURL, machine string) (string, error) {
