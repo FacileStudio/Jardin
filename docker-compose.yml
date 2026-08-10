@@ -19,6 +19,13 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
       OIDC_SUCCESS_URL: ${OIDC_SUCCESS_URL:-}
+      # Bus configuration. Setting ANTENNE_URL is enough to turn emitting on;
+      # these override whatever is in the data dir, so a container is
+      # reproducible from this file and does not depend on somebody having
+      # opened the dashboard. Leave them unset to configure it from the UI.
+      ANTENNE_URL: ${ANTENNE_URL:-}
+      ANTENNE_SECRET: ${ANTENNE_SECRET:-}
+      ANTENNE_USER_EMAIL: ${ANTENNE_USER_EMAIL:-}
       # Journal log shipping (optional — per-app key from Journal's Keys page;
       # Mycelium is not on journal's docker network, so use https://journal.facile.studio/api)
       JOURNAL_URL: ${JOURNAL_URL:-}

@@ -5,7 +5,7 @@
 	let { children } = $props();
 
 	/*
-	 * The section is a real route, not local state: /settings/pool opens on Pool, reload keeps
+	 * The section is a real route, not local state: /settings/bus opens on Bus, reload keeps
 	 * you there and Back walks the sections. Profile lives at the bare /settings because that
 	 * is where the sidebar's user card points.
 	 */
@@ -13,7 +13,7 @@
 		{ id: 'profile', label: 'Profile', icon: icons.userCircle, href: '/settings' },
 		{ id: 'appearance', label: 'Appearance', icon: icons.palette, href: '/settings/appearance' },
 		{ id: 'api', label: 'API', icon: icons.key, href: '/settings/api' },
-		{ id: 'pool', label: 'Pool', icon: icons.plug, href: '/settings/pool' },
+		{ id: 'bus', label: 'Bus', icon: icons.plug, href: '/settings/bus' },
 		{ id: 'advanced', label: 'Advanced', icon: icons.shield, href: '/settings/advanced' }
 	];
 
