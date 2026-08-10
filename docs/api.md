@@ -39,10 +39,11 @@ prefix the platform assumes.
 
 | Method | Path | Auth | Body / query | Returns |
 |---|---|---|---|---|
-| GET | `/api/auth/config` | none | — | `{password_auth, sso_only, oidc_enabled}` |
+| GET | `/api/auth/config` | none | — | `{password_auth, sso_only, oidc_enabled, device_enabled}` |
 | POST | `/api/auth/login` | none | `{password, machine}` | `{token}` |
-| GET | `/api/auth/oidc` | none | — | 302 to the IdP, sets an `oidc_state` cookie |
-| GET | `/api/auth/oidc/callback` | none | `code`, `state` | 302 to the success URL with `#token=…` |
+| GET | `/api/auth/oidc` | none | optional `flow=cli`, `port`, `cli_state` | 302 to the IdP, sets an `oidc_state` cookie |
+| GET | `/api/auth/oidc/callback` | none | `code`, `state` | 302 to the success URL with `#token=…`, or to the loopback listener |
+| POST | `/api/auth/oidc/exchange` | none | `{code}` | `{token}` |
 | GET | `/api/auth/me` | any | — | `{email, name, admin}` |
 | POST | `/api/auth/logout` | any | — | 204, deletes the calling token |
 
@@ -53,6 +54,24 @@ browser session named `session`.
 
 The OIDC callback requires an `email` claim, upserts the user into `.users.json` — the first
 user ever seen becomes admin — and mints a session valid for 30 days.
+
+### Loopback SSO, for a CLI
+
+`GET /api/auth/oidc` accepts three optional parameters so a CLI can ride a browser session
+that is already open: `flow=cli`, `port` and `cli_state`. They ride to the callback in the
+`oidc_state` cookie, never through the IdP.
+
+- `port` is a number between 1024 and 65535 and nothing else. The host of the redirect is
+  hardcoded to `127.0.0.1`, which is what keeps this parameter from becoming an open
+  redirect. `flow=cli` without a usable port is refused with 400 before the browser leaves.
+- `cli_state` is the CLI's own nonce, at most 128 characters of `[A-Za-z0-9-_]`. It is
+  **optional** and echoed back only when it was sent, so a binary installed before this flow
+  existed keeps working.
+- On success the browser is sent to `http://127.0.0.1:{port}/?code=…&state={cli_state}`. The
+  code is single-use, expires after 60 seconds, and is stored sha256-hashed like any other
+  token. Presenting it twice is logged and answered 401.
+- `POST /api/auth/oidc/exchange` trades the code for a session token with the same scope and
+  TTL a browser login gets, under its own name so the two do not evict each other.
 
 ## Device authorization
 

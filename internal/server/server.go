@@ -69,6 +69,7 @@ type Server struct {
 	tokens             map[string]TokenInfo
 	logins             *rateLimiter
 	devices            *deviceStore
+	loginCodes         *loginCodeStore
 	devStarts          *rateLimiter
 	devPolls           *rateLimiter
 	emitter            *Emitter
@@ -100,14 +101,15 @@ type StatusResponse struct {
 
 func New(dataDir, password string) *Server {
 	s := &Server{
-		DataDir:   dataDir,
-		Password:  password,
-		Log:       slog.Default(),
-		tokens:    make(map[string]TokenInfo),
-		logins:    newRateLimiter(loginMaxAttempts, loginWindow),
-		devices:   newDeviceStore(),
-		devStarts: newRateLimiter(20, time.Minute),
-		devPolls:  newRateLimiter(120, time.Minute),
+		DataDir:    dataDir,
+		Password:   password,
+		Log:        slog.Default(),
+		tokens:     make(map[string]TokenInfo),
+		logins:     newRateLimiter(loginMaxAttempts, loginWindow),
+		devices:    newDeviceStore(),
+		loginCodes: newLoginCodeStore(),
+		devStarts:  newRateLimiter(20, time.Minute),
+		devPolls:   newRateLimiter(120, time.Minute),
 	}
 	s.loadTokens()
 	return s
@@ -190,6 +192,7 @@ func (s *Server) Handler() *chi.Mux {
 		}
 		r.Get("/auth/oidc", s.oidcStart)
 		r.Get("/auth/oidc/callback", s.oidcCallback)
+		r.Post("/auth/oidc/exchange", s.oidcExchange)
 		r.Get("/auth/me", s.auth(false, s.authMe))
 		r.Post("/auth/logout", s.auth(false, s.logout))
 
@@ -394,9 +397,10 @@ func (s *Server) scopeRoot(w http.ResponseWriter, r *http.Request) (string, bool
 
 func (s *Server) authConfig(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, map[string]bool{
-		"password_auth": s.Password != "" && !s.SSOOnly,
-		"sso_only":      s.SSOOnly,
-		"oidc_enabled":  s.OIDC != nil,
+		"password_auth":  s.Password != "" && !s.SSOOnly,
+		"sso_only":       s.SSOOnly,
+		"oidc_enabled":   s.OIDC != nil,
+		"device_enabled": true,
 	})
 }
 
