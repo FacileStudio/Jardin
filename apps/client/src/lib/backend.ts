@@ -18,6 +18,24 @@ type ApiErrorPayload = {
 	error?: { message?: string };
 };
 
+/**
+ * ApiError carries the HTTP status alongside the message.
+ *
+ * Without it a caller can only see a string, so every failure looks alike —
+ * which is how the pool settings page came to answer "you are not an admin"
+ * to a server that was simply restarting. A page that wants to special-case
+ * one status has to be able to read it.
+ */
+export class ApiError extends Error {
+	readonly status: number;
+
+	constructor(message: string, status: number) {
+		super(message);
+		this.name = 'ApiError';
+		this.status = status;
+	}
+}
+
 function errorMessage(text: string, status: number): string {
 	try {
 		const payload = JSON.parse(text) as ApiErrorPayload;
@@ -47,7 +65,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 		if (res.status === 401 && typeof window !== 'undefined') {
 			localStorage.removeItem(TOKEN_KEY);
 		}
-		throw new Error(errorMessage(text.trim(), res.status));
+		throw new ApiError(errorMessage(text.trim(), res.status), res.status);
 	}
 
 	const contentType = res.headers.get('content-type');

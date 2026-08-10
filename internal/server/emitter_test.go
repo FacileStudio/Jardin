@@ -1,7 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +33,7 @@ func TestRetiredClientCallbacksAreIgnored(t *testing.T) {
 
 	e.setConnected(current, true)
 	e.setConnected(retired, false)
-	e.clientError(retired, "websocket: close 1006")
+	e.clientError(retired, errors.New("websocket: close 1006"))
 
 	if !e.connected {
 		t.Fatal("a retired client's disconnect marked the live client as down")
@@ -221,5 +224,49 @@ func TestSessionsStatsEndpoint(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"rows":[]`) {
 		t.Fatalf("empty stats must serialize as []: %s", rec.Body.String())
+	}
+}
+
+// Redeploying Antenne takes seconds, and every one of those seconds used to
+// produce an error line in a shared dashboard. A failure inside the grace
+// period is a retry; one past it is an outage worth acting on. lastError is
+// recorded either way, because the settings page shows the reason regardless
+// of the level it was logged at.
+func TestConnectFailureIsAWarnUntilTheOutageGraceExpires(t *testing.T) {
+	var buffer bytes.Buffer
+	e := &Emitter{srv: &Server{Log: slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelDebug}))}}
+
+	e.connectFailed("connect: refused")
+	if got := buffer.String(); !strings.Contains(got, `"level":"WARN"`) {
+		t.Fatalf("first failure was not a warning: %s", got)
+	}
+	e.mu.Lock()
+	recorded := e.lastError
+	e.downSince = time.Now().Add(-outageGrace - time.Second)
+	e.mu.Unlock()
+	if recorded != "connect: refused" {
+		t.Fatalf("lastError = %q, want the reason recorded from the first failure", recorded)
+	}
+
+	buffer.Reset()
+	e.connectFailed("connect: refused")
+	if got := buffer.String(); !strings.Contains(got, `"level":"ERROR"`) {
+		t.Fatalf("a sustained outage was not escalated: %s", got)
+	}
+}
+
+// A blip must not inherit the previous one's clock, or the second short
+// interruption of the day gets reported as a sustained outage.
+func TestReconnectingClearsTheOutageClock(t *testing.T) {
+	e := &Emitter{srv: &Server{Log: slog.New(slog.NewJSONHandler(io.Discard, nil))}}
+	e.connectFailed("connect: refused")
+
+	e.setConnected(e.gen, true)
+
+	e.mu.Lock()
+	cleared := e.downSince.IsZero()
+	e.mu.Unlock()
+	if !cleared {
+		t.Fatal("the outage clock survived a successful reconnect")
 	}
 }
