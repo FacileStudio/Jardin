@@ -31,6 +31,11 @@ func scanLocked(dataDir, machine, claudeDir string, now time.Time) (*ScanResult,
 	if err != nil {
 		return nil, err
 	}
+	canonicalEvents, err := collectCanonical(dataDir, state, resolve)
+	if err != nil {
+		return nil, err
+	}
+	events = append(events, canonicalEvents...)
 	sealed := fold(state, machine, events, now)
 	if err := appendBlocks(dataDir, machine, sealed); err != nil {
 		return nil, err

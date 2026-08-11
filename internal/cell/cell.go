@@ -14,6 +14,7 @@ func Init() error {
 		"memory", "memory/bugs", "memory/tools", "memory/projects",
 		"memory/conventions", "memory/syntheses",
 		"rules", "skills", "machines", "sessions",
+		"events",
 	}
 	for _, d := range dirs {
 		if err := os.MkdirAll(filepath.Join(config.DataDir(), d), 0755); err != nil {
