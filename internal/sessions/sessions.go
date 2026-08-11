@@ -28,6 +28,9 @@ type Block struct {
 	TokensOut  int64     `json:"tokens_out"`
 	CacheRead  int64     `json:"cache_read"`
 	CacheWrite int64     `json:"cache_write"`
+	CostInput  float64   `json:"cost_input"`
+	CostOutput float64   `json:"cost_output"`
+	CostTotal  float64   `json:"cost_total"`
 }
 
 func (b *Block) Duration() time.Duration {
@@ -54,6 +57,9 @@ type Event struct {
 	TokensOut  int64
 	CacheRead  int64
 	CacheWrite int64
+	CostInput  float64
+	CostOutput float64
+	CostTotal  float64
 }
 
 type FileState struct {
@@ -116,6 +122,9 @@ func fold(state *ScanState, machine string, events []Event, now time.Time) []Blo
 		open.TokensOut += ev.TokensOut
 		open.CacheRead += ev.CacheRead
 		open.CacheWrite += ev.CacheWrite
+		open.CostInput += ev.CostInput
+		open.CostOutput += ev.CostOutput
+		open.CostTotal += ev.CostTotal
 	}
 
 	for key, open := range state.Open {

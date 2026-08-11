@@ -71,7 +71,7 @@
 		>
 			<div class="mx-auto flex max-w-fc-lg items-center justify-between px-6 py-4">
 				<a href="/" class="flex items-center gap-2.5">
-					<iconify-icon icon="solar:leaf-bold-duotone" width="24" height="24" class="block"
+					<iconify-icon icon="solar:widget-6-bold-duotone" width="24" height="24" class="block"
 					></iconify-icon>
 					<span class="text-fc-xl font-semibold text-fc-fg">Jardin</span>
 				</a>

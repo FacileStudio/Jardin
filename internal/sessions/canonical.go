@@ -141,6 +141,11 @@ func tailCanonicalFile(path string, offset int64, resolve func(cwd string) strin
 			CacheRead:  ce.Usage.CacheRead,
 			CacheWrite: ce.Usage.CacheWrite,
 		}
+		if ce.Usage.Cost != nil {
+			ev.CostInput = ce.Usage.Cost.Input
+			ev.CostOutput = ce.Usage.Cost.Output
+			ev.CostTotal = ce.Usage.Cost.Total
+		}
 		events = append(events, ev)
 	}
 	return events, newOffset, nil

@@ -27,12 +27,13 @@ var (
 )
 
 type TimelineSeries struct {
-	Key       string  `json:"key"`
-	Seconds   []int64 `json:"seconds"`
-	Sessions  []int   `json:"sessions"`
-	TokensIn  []int64 `json:"tokens_in"`
-	TokensOut []int64 `json:"tokens_out"`
-	CacheRead []int64 `json:"cache_read"`
+	Key       string    `json:"key"`
+	Seconds   []int64   `json:"seconds"`
+	Sessions  []int     `json:"sessions"`
+	TokensIn  []int64   `json:"tokens_in"`
+	TokensOut []int64   `json:"tokens_out"`
+	CacheRead []int64   `json:"cache_read"`
+	CostTotal []float64 `json:"cost_total"`
 }
 
 type Series struct {
@@ -79,6 +80,7 @@ type timelineCell struct {
 	tokensIn  int64
 	tokensOut int64
 	cacheRead int64
+	costTotal float64
 }
 
 type timelineGroup struct {
@@ -169,6 +171,7 @@ func Timeline(blocks []Block, since time.Time, bucket string, by string) Series 
 		cell.tokensIn += b.TokensIn + b.CacheWrite
 		cell.tokensOut += b.TokensOut
 		cell.cacheRead += b.CacheRead
+		cell.costTotal += b.CostTotal
 		g.total += seconds
 	}
 
@@ -192,6 +195,7 @@ func Timeline(blocks []Block, since time.Time, bucket string, by string) Series 
 				other.cells[i].tokensIn += c.tokensIn
 				other.cells[i].tokensOut += c.tokensOut
 				other.cells[i].cacheRead += c.cacheRead
+				other.cells[i].costTotal += c.costTotal
 			}
 			other.total += g.total
 		}
@@ -206,6 +210,7 @@ func Timeline(blocks []Block, since time.Time, bucket string, by string) Series 
 			TokensIn:  make([]int64, len(out.Labels)),
 			TokensOut: make([]int64, len(out.Labels)),
 			CacheRead: make([]int64, len(out.Labels)),
+			CostTotal: make([]float64, len(out.Labels)),
 		}
 		for i, c := range g.cells {
 			s.Seconds[i] = c.seconds
@@ -213,6 +218,7 @@ func Timeline(blocks []Block, since time.Time, bucket string, by string) Series 
 			s.TokensIn[i] = c.tokensIn
 			s.TokensOut[i] = c.tokensOut
 			s.CacheRead[i] = c.cacheRead
+			s.CostTotal[i] = c.costTotal
 		}
 		out.Series = append(out.Series, s)
 	}

@@ -64,6 +64,13 @@ export function formatTokens(n: number): string {
 	return `${n}`;
 }
 
+export function formatCost(n: number): string {
+	if (n >= 100) return `$${Math.round(n)}`;
+	if (n >= 1) return `$${n.toFixed(2)}`;
+	if (n >= 0.01) return `$${n.toFixed(2)}`;
+	return `$${n.toFixed(4)}`;
+}
+
 export function formatBytes(n: number): string {
 	if (n >= 1_048_576) return `${(n / 1_048_576).toFixed(1)} MB`;
 	if (n >= 1024) return `${Math.round(n / 1024)} kB`;

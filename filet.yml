@@ -1,0 +1,69 @@
+# Jardin's coding standard, enforced by filet.
+# https://github.com/FacileStudio/filet
+#
+#   filet check .     the rules
+#   filet roast .     the rules, with commentary
+#   filet docker .    the Dockerfile
+#
+# Built from the Go family's canonical template. The limits are the published
+# defaults of the tools they come from, not numbers picked to make a count go
+# away.
+
+ignore:
+  - .git
+  - node_modules
+  - vendor
+  - dist
+  - build
+  - testdata
+  - coverage
+
+extensions: [.go, .ts, .svelte]
+
+limits:
+  fileLines: 300
+  funcsPerFile: 0
+  funcLines: 60
+  funcStatements: 40
+  lineLength: 120
+  params: 5
+  returns: 3
+  nesting: 5
+  complexity: 15
+  structFields: 15
+  interfaceMethods: 5
+
+architecture:
+  requiredDirs: [cmd, internal, apps/client]
+  # Jardin's Go server owns all HTTP in internal/server/; cmd/ packages are
+  # cobra command definitions and main.go is the entry point. Neither is a
+  # domain module of its own — they exist to wire the command tree and are not
+  # expected to hold a router.go.
+  requiredFiles:
+    "internal/server": [server.go, sessions_api.go, usage_api.go]
+    "internal/sessions": [sessions.go, store.go, stats.go, scan.go, timeline.go, claude.go, canonical.go, live.go]
+    "internal/usage": [usage.go]
+    "internal/adapter": [adapter.go]
+    "internal/sync": []
+    "internal/memory": []
+    "internal/daemon": []
+    "internal/cell": []
+    "internal/env": []
+    "internal/perception": []
+    "internal/selfupdate": []
+    "internal/config": []
+    "internal/documentation": []
+    "internal/ui": []
+
+style:
+  banInlineComments: true
+  banTODO: true
+  requireDocComments: true
+  banGlobalMutable: true
+  banInit: true
+  banTrailingSpace: true
+
+disabled:
+  - gen.line.long
+
+failOn: error

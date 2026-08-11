@@ -9,12 +9,13 @@ import (
 )
 
 type StatRow struct {
-	Key       string `json:"key"`
-	Sessions  int    `json:"sessions"`
-	Seconds   int64  `json:"seconds"`
-	TokensIn  int64  `json:"tokens_in"`
-	TokensOut int64  `json:"tokens_out"`
-	CacheRead int64  `json:"cache_read"`
+	Key       string  `json:"key"`
+	Sessions  int     `json:"sessions"`
+	Seconds   int64   `json:"seconds"`
+	TokensIn  int64   `json:"tokens_in"`
+	TokensOut int64   `json:"tokens_out"`
+	CacheRead int64   `json:"cache_read"`
+	CostTotal float64 `json:"cost_total"`
 }
 
 var GroupKeys = []string{"project", "machine", "agent", "branch", "model"}
@@ -55,6 +56,7 @@ func Aggregate(blocks []Block, since time.Time, by string) []StatRow {
 		row.TokensIn += b.TokensIn + b.CacheWrite
 		row.TokensOut += b.TokensOut
 		row.CacheRead += b.CacheRead
+		row.CostTotal += b.CostTotal
 	}
 	out := make([]StatRow, 0, len(rows))
 	for _, row := range rows {
@@ -104,6 +106,19 @@ func FormatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dh%02dm", h, m)
 	}
 	return fmt.Sprintf("%dm", m)
+}
+
+func FormatCost(n float64) string {
+	switch {
+	case n >= 100:
+		return fmt.Sprintf("$%.0f", n)
+	case n >= 1:
+		return fmt.Sprintf("$%.2f", n)
+	case n >= 0.01:
+		return fmt.Sprintf("$%.2f", n)
+	default:
+		return fmt.Sprintf("$%.4f", n)
+	}
 }
 
 func FormatTokens(n int64) string {

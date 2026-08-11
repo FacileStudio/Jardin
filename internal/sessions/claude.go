@@ -11,6 +11,23 @@ import (
 
 const recentReqCap = 64
 
+type modelPricing struct {
+	Input      float64
+	Output     float64
+	CacheRead  float64
+	CacheWrite float64
+}
+
+var claudePricing = map[string]modelPricing{
+	"claude-sonnet-4-20250514":   {Input: 3.00, Output: 15.00, CacheRead: 0.30, CacheWrite: 3.75},
+	"claude-sonnet-4-5-20250929": {Input: 3.00, Output: 15.00, CacheRead: 0.30, CacheWrite: 3.75},
+	"claude-3-5-sonnet-20241022": {Input: 3.00, Output: 15.00, CacheRead: 0.30, CacheWrite: 3.75},
+	"claude-3-5-haiku-20241022":  {Input: 0.80, Output: 4.00, CacheRead: 0.08, CacheWrite: 1.00},
+	"claude-3-opus-20240229":     {Input: 15.00, Output: 75.00, CacheRead: 1.50, CacheWrite: 18.75},
+	"claude-opus-4-20250514":     {Input: 15.00, Output: 75.00, CacheRead: 1.50, CacheWrite: 18.75},
+	"claude-opus-4-5-20251101":   {Input: 15.00, Output: 75.00, CacheRead: 1.50, CacheWrite: 18.75},
+}
+
 type claudeLine struct {
 	Type      string `json:"type"`
 	Timestamp string `json:"timestamp"`
@@ -100,6 +117,7 @@ func tailFile(path string, fs *FileState, resolve func(cwd string) string) ([]Ev
 		if reqID != "" {
 			if seen[reqID] {
 				ev.TokensIn, ev.TokensOut, ev.CacheRead, ev.CacheWrite = 0, 0, 0, 0
+				ev.CostInput, ev.CostOutput, ev.CostTotal = 0, 0, 0
 			} else {
 				seen[reqID] = true
 				fs.RecentReqs = append(fs.RecentReqs, reqID)
@@ -147,6 +165,11 @@ func parseClaudeLine(raw []byte, resolve func(cwd string) string) (Event, string
 			ev.TokensOut = u.OutputTokens
 			ev.CacheRead = u.CacheReadTokens
 			ev.CacheWrite = u.CacheCreationTokens
+			if pricing, ok := claudePricing[ev.Model]; ok {
+				ev.CostInput = float64(u.InputTokens) / 1_000_000 * pricing.Input
+				ev.CostOutput = float64(u.OutputTokens) / 1_000_000 * pricing.Output
+				ev.CostTotal = ev.CostInput + ev.CostOutput
+			}
 			reqID = l.RequestID
 		}
 	}
