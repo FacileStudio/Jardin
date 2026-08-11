@@ -44,6 +44,9 @@ func Aggregate(blocks []Block, since time.Time, by string) []StatRow {
 		}
 		key := groupKey(b, by)
 		if key == "" {
+			if by == "model" {
+				continue
+			}
 			key = "(none)"
 		}
 		row := rows[strings.ToLower(key)]

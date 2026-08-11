@@ -147,6 +147,9 @@ func Timeline(blocks []Block, since time.Time, bucket string, by string) Series 
 		if by != TotalKey {
 			key = groupKey(b, by)
 			if key == "" {
+				if by == "model" {
+					continue
+				}
 				key = "(none)"
 			}
 		}
