@@ -1,0 +1,205 @@
+package cmd
+
+import (
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/FacileStudio/Jardin/internal/adapter"
+	"github.com/FacileStudio/Jardin/internal/cell"
+	"github.com/FacileStudio/Jardin/internal/config"
+	"github.com/FacileStudio/Jardin/internal/daemon"
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+)
+
+var doctorCmd = &cobra.Command{
+	Use:   "doctor",
+	Short: "Check Jardin installation health",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		allGood := true
+		check := func(label string, fn func() (string, bool)) {
+			msg, ok := fn()
+			icon := color.GreenString("✓")
+			if !ok {
+				icon = color.RedString("✗")
+				allGood = false
+			}
+			fmt.Printf("  %s %-12s %s\n", icon, label+":", msg)
+		}
+
+		color.New(color.Bold).Println("Jardin doctor")
+		fmt.Println()
+
+		dataDir := config.DataDir()
+
+		check("data dir", func() (string, bool) {
+			info, err := os.Stat(dataDir)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return "missing — run 'jardin init'", false
+				}
+				return err.Error(), false
+			}
+			if !info.IsDir() {
+				return "not a directory", false
+			}
+			f, err := os.CreateTemp(dataDir, ".doctor-write-test-*")
+			if err != nil {
+				return "not writable", false
+			}
+			f.Close()
+			os.Remove(f.Name())
+			return dataDir, true
+		})
+
+		cfg, err := config.LoadJardinConfig()
+		check("config", func() (string, bool) {
+			if err != nil {
+				return fmt.Sprintf("invalid — %v", err), false
+			}
+			path := config.ConfigPath()
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				return "not found — create ~/.jardin.yml", false
+			}
+			return path, true
+		})
+
+		check("machine", func() (string, bool) {
+			if cfg.Machine == "" {
+				return "not set — run 'jardin status'", false
+			}
+			return cfg.Machine, true
+		})
+
+		check("sync", func() (string, bool) {
+			url := cfg.ServerURL()
+			if url == "" {
+				return "not configured — run 'jardin login <url>'", false
+			}
+
+			client := &http.Client{Timeout: 5 * time.Second}
+			req, err := http.NewRequest(http.MethodHead, url+"/api/health", nil)
+			if err != nil {
+				return fmt.Sprintf("bad URL — %v", err), false
+			}
+			if cfg.AuthToken() != "" {
+				req.Header.Set("Authorization", "Bearer "+cfg.AuthToken())
+			}
+
+			resp, err := client.Do(req)
+			if err != nil {
+				return fmt.Sprintf("unreachable — %v", err), false
+			}
+			resp.Body.Close()
+			if resp.StatusCode >= 500 {
+				return fmt.Sprintf("server error (HTTP %d)", resp.StatusCode), false
+			}
+			return url + " — reachable", true
+		})
+
+		check("space", func() (string, bool) {
+			if cfg.Space == "" {
+				return "common (personal)", true
+			}
+			return cfg.Space, true
+		})
+
+		rules, _ := cell.ListRules()
+		skills, _ := cell.ListSkills()
+		check("rules", func() (string, bool) {
+			if len(rules) == 0 {
+				return "none", false
+			}
+			return fmt.Sprintf("%d file(s)", len(rules)), true
+		})
+		check("skills", func() (string, bool) {
+			if len(skills) == 0 {
+				return "none", false
+			}
+			return fmt.Sprintf("%d file(s)", len(skills)), true
+		})
+
+		check("agents", func() (string, bool) {
+			agents := cfg.Agents
+			if len(agents) == 0 {
+				agents = daemon.DetectAgents()
+			}
+			if len(agents) == 0 {
+				return "none detected", false
+			}
+
+			var problems []string
+			for _, agent := range agents {
+				a, err := adapter.Get(agent)
+				if err != nil {
+					problems = append(problems, fmt.Sprintf("%s: unknown", agent))
+					continue
+				}
+				for _, p := range a.TargetPaths() {
+					dir := filepath.Dir(p)
+					if _, err := os.Stat(dir); os.IsNotExist(err) {
+						problems = append(problems, fmt.Sprintf("%s: %s missing", agent, dir))
+					}
+				}
+			}
+			if len(problems) > 0 {
+				return strings.Join(problems, "; "), false
+			}
+			return fmt.Sprintf("%d configured (%s)", len(agents), strings.Join(agents, ", ")), true
+		})
+
+		check("daemon", func() (string, bool) {
+			if daemon.Installed() {
+				return "installed", true
+			}
+			return "not installed — run 'jardin daemon install'", false
+		})
+
+		check("conflicts", func() (string, bool) {
+			var conflicts []string
+			filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return nil
+				}
+				if strings.HasSuffix(info.Name(), ".conflict") {
+					rel, _ := filepath.Rel(dataDir, path)
+					conflicts = append(conflicts, rel)
+				}
+				return nil
+			})
+			if len(conflicts) > 0 {
+				return fmt.Sprintf("%d conflict(s): %s", len(conflicts), strings.Join(conflicts, ", ")), false
+			}
+			return "none", true
+		})
+
+		check("last sync", func() (string, bool) {
+			basePath := filepath.Join(dataDir, ".sync-base.json")
+			info, err := os.Stat(basePath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return "never synced", false
+				}
+				return err.Error(), false
+			}
+			ago := time.Since(info.ModTime()).Truncate(time.Second)
+			return fmt.Sprintf("%s ago", ago), true
+		})
+
+		fmt.Println()
+		if allGood {
+			color.Green("All checks passed.")
+		} else {
+			color.Red("Some checks failed — review above.")
+		}
+		return nil
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(doctorCmd)
+}
