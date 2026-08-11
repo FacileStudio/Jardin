@@ -62,7 +62,7 @@
 			<Button variant="outline" icon={icons.plus} onclick={openCreate}>New rule</Button>
 		</EmptyState>
 	{:else}
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 [&>*]:min-w-0">
 			{#each rules as rule (rule)}
 				<EntityCard
 					href="/rules/{rule}"

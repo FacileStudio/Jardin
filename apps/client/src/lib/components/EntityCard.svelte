@@ -24,7 +24,7 @@
 	} = $props();
 </script>
 
-<Card {href} class="flex flex-col gap-4">
+<Card {href} class="min-w-0 flex flex-col gap-4">
 	<div class="flex items-center justify-between gap-3">
 		<span
 			class="flex size-9 items-center justify-center rounded-fc-sm bg-fc-surface text-fc-fg transition-colors group-hover:bg-fc-component"

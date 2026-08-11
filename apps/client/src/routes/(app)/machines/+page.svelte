@@ -193,7 +193,7 @@
 			<Tabs items={RANGES} bind:value={since} label="Time range" />
 		</div>
 
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
 			<StatCard label="Machines" value={knownMachines}>
 				<Sparkline data={activePerBucket} class="mt-3" valueFormat={(n) => `${n}`} />
 			</StatCard>
@@ -223,7 +223,7 @@
 		</div>
 
 		{#if hasTimeline}
-			<div class="grid gap-4 lg:grid-cols-3">
+			<div class="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
 				<Card class="flex flex-col gap-4 lg:col-span-2">
 					<p class="text-fc-sm font-medium text-fc-fg">
 						Active time per {bucketUnit}, by machine
@@ -272,7 +272,7 @@
 	{:else}
 		<section class="flex flex-col gap-4">
 			<h2 class="text-fc-lg font-semibold text-fc-fg">Paired machines</h2>
-			<div class="grid gap-4 sm:grid-cols-2">
+			<div class="grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
 				{#each machines as machine (machine.name)}
 					<Card class="flex flex-col gap-4">
 						<div class="flex items-start justify-between gap-3">

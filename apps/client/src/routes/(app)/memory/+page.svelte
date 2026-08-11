@@ -187,7 +187,7 @@
 
 	{#if files.length > 0}
 		<section class="flex flex-col gap-4">
-			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
 				<StatCard label="Pages" value={files.length} delta={pagesDelta}>
 					<Sparkline data={dailyPages} class="mt-3" showLast />
 				</StatCard>
@@ -211,7 +211,7 @@
 				</StatCard>
 			</div>
 
-			<div class="grid gap-4 lg:grid-cols-3">
+			<div class="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
 				<Card class="flex flex-col gap-4 lg:col-span-2">
 					<p class="text-fc-sm font-medium text-fc-fg">
 						Pages written per day · last {WINDOW_DAYS} days
@@ -295,7 +295,7 @@
 					></iconify-icon>
 					{folder === '/' ? 'root' : folder}
 				</h2>
-				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 [&>*]:min-w-0">
 					{#each entries as file (file.path)}
 						<EntityCard
 							href="/memory/{file.path.slice('memory/'.length)}"

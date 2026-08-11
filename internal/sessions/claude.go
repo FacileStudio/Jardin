@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,26 @@ var claudePricing = map[string]modelPricing{
 	"claude-3-opus-20240229":     {Input: 15.00, Output: 75.00, CacheRead: 1.50, CacheWrite: 18.75},
 	"claude-opus-4-20250514":     {Input: 15.00, Output: 75.00, CacheRead: 1.50, CacheWrite: 18.75},
 	"claude-opus-4-5-20251101":   {Input: 15.00, Output: 75.00, CacheRead: 1.50, CacheWrite: 18.75},
+}
+
+var claudeFamilyPricing = map[string]modelPricing{
+	"claude-sonnet": {Input: 3.00, Output: 15.00, CacheRead: 0.30, CacheWrite: 3.75},
+	"claude-opus":   {Input: 15.00, Output: 75.00, CacheRead: 1.50, CacheWrite: 18.75},
+	"claude-haiku":  {Input: 0.80, Output: 4.00, CacheRead: 0.08, CacheWrite: 1.00},
+	"claude-fable":  {Input: 0.80, Output: 4.00, CacheRead: 0.08, CacheWrite: 1.00},
+}
+
+func matchPricing(model string) (modelPricing, bool) {
+	if p, ok := claudePricing[model]; ok {
+		return p, true
+	}
+	lower := strings.ToLower(model)
+	for prefix, p := range claudeFamilyPricing {
+		if strings.HasPrefix(lower, prefix) {
+			return p, true
+		}
+	}
+	return modelPricing{}, false
 }
 
 type claudeLine struct {
@@ -165,7 +186,7 @@ func parseClaudeLine(raw []byte, resolve func(cwd string) string) (Event, string
 			ev.TokensOut = u.OutputTokens
 			ev.CacheRead = u.CacheReadTokens
 			ev.CacheWrite = u.CacheCreationTokens
-			if pricing, ok := claudePricing[ev.Model]; ok {
+			if pricing, ok := matchPricing(ev.Model); ok {
 				ev.CostInput = float64(u.InputTokens) / 1_000_000 * pricing.Input
 				ev.CostOutput = float64(u.OutputTokens) / 1_000_000 * pricing.Output
 				ev.CostTotal = ev.CostInput + ev.CostOutput
