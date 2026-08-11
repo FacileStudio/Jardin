@@ -19,12 +19,12 @@
 	const invertedInk = 'var(--color-fc-accent-fg)';
 
 	const adapters = [
-		{ agent: 'pi', file: 'SOUL.md' },
-		{ agent: 'Claude Code', file: 'CLAUDE.md' },
-		{ agent: 'Gemini CLI', file: 'GEMINI.md' },
-		{ agent: 'Codex', file: 'AGENTS.md' },
-		{ agent: 'Cursor', file: '.cursor/rules/' },
-		{ agent: 'Copilot', file: 'copilot-instructions.md' }
+		{ agent: 'pi', file: 'SOUL.md', icon: 'solar:widget-6-bold-duotone' },
+		{ agent: 'Claude Code', file: 'CLAUDE.md', icon: 'simple-icons:anthropic' },
+		{ agent: 'Gemini CLI', file: 'GEMINI.md', icon: 'simple-icons:googlegemini' },
+		{ agent: 'Codex', file: 'AGENTS.md', icon: 'simple-icons:openai' },
+		{ agent: 'Cursor', file: '.cursor/rules/', icon: 'simple-icons:cursor' },
+		{ agent: 'Copilot', file: 'copilot-instructions.md', icon: 'simple-icons:githubcopilot' }
 	];
 
 	const layers = [
@@ -129,9 +129,12 @@
 
 					<div class="mt-16 grid gap-4 sm:grid-cols-3">
 						{#each adapters as adapter (adapter.file)}
-							<div class="rounded-fc-md bg-fc-accent-fg/10 px-4 py-3">
-								<p class="text-fc-sm font-medium">{adapter.agent}</p>
-								<p class="mt-1 font-fc-mono text-fc-xs opacity-60">{adapter.file}</p>
+							<div class="flex items-center gap-3 rounded-fc-md bg-fc-accent-fg/10 px-4 py-3">
+								<iconify-icon icon={adapter.icon} width="20" height="20" class="block shrink-0"></iconify-icon>
+								<div class="min-w-0">
+									<p class="text-fc-sm font-medium">{adapter.agent}</p>
+									<p class="mt-1 truncate font-fc-mono text-fc-xs opacity-60">{adapter.file}</p>
+								</div>
 							</div>
 						{/each}
 					</div>
