@@ -279,7 +279,7 @@
 				<Tabs items={GROUPS} bind:value={by} label="Group sessions by" />
 			</div>
 
-			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 [&>*]:min-w-0">
 				<StatCard label="Active time" value={formatDuration(totalSeconds)} delta={timeDelta}>
 					<Sparkline data={secondsPerBucket.map(hours)} class="mt-3" showLast />
 				</StatCard>
@@ -291,14 +291,14 @@
 						valueFormat={(n) => `${n}`}
 					/>
 				</StatCard>
-				<StatCard label="Tokens in" value={formatTokens(totalTokensIn)} delta={tokensInDelta}>
-					<Sparkline data={tokensInPerBucket} class="mt-3" color="var(--color-fc-chart-4)" />
+				<StatCard label="Cache read" value={formatTokens(totalCacheRead)} delta={cacheDelta}>
+					<Sparkline data={cachePerBucket} class="mt-3" color="var(--color-fc-chart-5)" />
 				</StatCard>
 				<StatCard label="Tokens out" value={formatTokens(totalTokensOut)} delta={tokensDelta}>
 					<Sparkline data={tokensPerBucket} class="mt-3" color="var(--color-fc-chart-2)" />
 				</StatCard>
-				<StatCard label="Cache read" value={formatTokens(totalCacheRead)} delta={cacheDelta}>
-					<Sparkline data={cachePerBucket} class="mt-3" color="var(--color-fc-chart-5)" />
+				<StatCard label="Tokens in" value={formatTokens(totalTokensIn)} delta={tokensInDelta}>
+					<Sparkline data={tokensInPerBucket} class="mt-3" color="var(--color-fc-chart-4)" />
 				</StatCard>
 				<StatCard label="Est. cost" value={formatCost(totalCost)} delta={costDelta}>
 					<Sparkline
@@ -311,7 +311,7 @@
 			</div>
 
 			{#if hasTimeline}
-				<div class="grid gap-4 lg:grid-cols-3">
+				<div class="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
 					<Card class="flex flex-col gap-4 lg:col-span-2">
 						<p class="text-fc-sm font-medium text-fc-fg">
 							Active time per {bucketUnit}, by {by}
