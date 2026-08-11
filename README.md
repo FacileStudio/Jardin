@@ -31,10 +31,9 @@ and fans it out. The agents stay thin; the brain is shared.
 - Syncs every machine against a Jardin server with a three-way reconcile that never drops
   a version
 - Runs a background daemon that scans agent activity, syncs, and refreshes configs
-- Tracks Claude Code and Pi sessions into sealed time blocks, with live presence
-  across machines, via a canonical JSONL event store at `~/.jardin/events/<agent>/`
-- Reports Claude subscription limits per machine, straight from Claude Code, no credential
-  needed
+- Tracks Claude Code and Pi sessions into sealed time blocks with estimated cost per model,
+  live presence across machines, and a tabbed dashboard with charts and aggregation
+- Reports subscription limits per machine, straight from Claude Code, no credential needed
 - Serves a SvelteKit dashboard for browsing and editing the whole brain from a browser, with
   charts on the Memory, Machines and Sessions pages
 - Authorizes new machines from the browser, with per-machine scoped tokens hashed at rest
