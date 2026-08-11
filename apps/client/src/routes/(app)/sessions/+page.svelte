@@ -26,6 +26,7 @@
 	import {
 		bucketLabel,
 		columnTotals,
+		formatCost,
 		formatDuration,
 		formatTokens,
 		hours,
@@ -43,11 +44,17 @@
 		{ id: 'agent', label: 'Agent', icon: icons.bolt },
 		{ id: 'model', label: 'Model', icon: icons.dashboard }
 	];
+	const PAGE_TABS = [
+		{ id: 'overview', label: 'Overview' },
+		{ id: 'history', label: 'History' },
+		{ id: 'usage', label: 'Usage' }
+	];
 
 	/* Eight bars is where a horizontal chart stops being readable in a card; the table below
 	   still lists every row, so nothing is hidden. */
 	const CHART_ROWS = 8;
 
+	let tab = $state('overview');
 	let since = $state('7d');
 	let by = $state('project');
 	let stats: SessionStats | null = $state(null);
@@ -117,6 +124,8 @@
 	const totalTokensOut = $derived(rows.reduce((sum, r) => sum + r.tokens_out, 0));
 
 	const totalCacheRead = $derived(rows.reduce((sum, r) => sum + r.cache_read, 0));
+	const totalTokensIn = $derived(rows.reduce((sum, r) => sum + r.tokens_in, 0));
+	const totalCost = $derived(rows.reduce((sum, r) => sum + r.cost_total, 0));
 
 	const ranked = $derived([...rows].sort((a, b) => b.seconds - a.seconds).slice(0, CHART_ROWS));
 	const chartSeries = $derived([{ name: 'Active time', data: ranked.map((r) => hours(r.seconds)) }]);
@@ -139,12 +148,16 @@
 	const sessionsPerBucket = $derived(columnTotals(tSeries.map((s) => s.sessions)));
 	const tokensPerBucket = $derived(columnTotals(tSeries.map((s) => s.tokens_out)));
 	const cachePerBucket = $derived(columnTotals(tSeries.map((s) => s.cache_read)));
+	const tokensInPerBucket = $derived(columnTotals(tSeries.map((s) => s.tokens_in)));
+	const costPerBucket = $derived(columnTotals(tSeries.map((s) => s.cost_total)));
 	const hasTimeline = $derived(labels.length > 0 && tSeries.length > 0);
 
 	const timeDelta = $derived(periodDelta(secondsPerBucket, bucketUnit));
 	const sessionsDelta = $derived(periodDelta(sessionsPerBucket, bucketUnit));
 	const tokensDelta = $derived(periodDelta(tokensPerBucket, bucketUnit));
 	const cacheDelta = $derived(periodDelta(cachePerBucket, bucketUnit));
+	const tokensInDelta = $derived(periodDelta(tokensInPerBucket, bucketUnit));
+	const costDelta = $derived(periodDelta(costPerBucket, bucketUnit));
 
 	function formatEnded(iso: string): string {
 		const d = new Date(iso);
@@ -252,10 +265,7 @@
 			</p>
 		</div>
 
-		<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-			<Tabs items={RANGES} bind:value={since} label="Time range" />
-			<Tabs items={GROUPS} bind:value={by} label="Group sessions by" />
-		</div>
+		<Tabs items={PAGE_TABS} bind:value={tab} />
 
 		{#if rows.length === 0}
 			<EmptyState
@@ -263,8 +273,13 @@
 				title="No sessions recorded yet"
 				description="Machines record agent activity automatically once they run mycelium v0.5 or later."
 			/>
-		{:else}
-			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+		{:else if tab === 'overview'}
+			<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+				<Tabs items={RANGES} bind:value={since} label="Time range" />
+				<Tabs items={GROUPS} bind:value={by} label="Group sessions by" />
+			</div>
+
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				<StatCard label="Active time" value={formatDuration(totalSeconds)} delta={timeDelta}>
 					<Sparkline data={secondsPerBucket.map(hours)} class="mt-3" showLast />
 				</StatCard>
@@ -276,11 +291,22 @@
 						valueFormat={(n) => `${n}`}
 					/>
 				</StatCard>
+				<StatCard label="Tokens in" value={formatTokens(totalTokensIn)} delta={tokensInDelta}>
+					<Sparkline data={tokensInPerBucket} class="mt-3" color="var(--color-fc-chart-4)" />
+				</StatCard>
 				<StatCard label="Tokens out" value={formatTokens(totalTokensOut)} delta={tokensDelta}>
 					<Sparkline data={tokensPerBucket} class="mt-3" color="var(--color-fc-chart-2)" />
 				</StatCard>
 				<StatCard label="Cache read" value={formatTokens(totalCacheRead)} delta={cacheDelta}>
 					<Sparkline data={cachePerBucket} class="mt-3" color="var(--color-fc-chart-5)" />
+				</StatCard>
+				<StatCard label="Est. cost" value={formatCost(totalCost)} delta={costDelta}>
+					<Sparkline
+						data={costPerBucket}
+						class="mt-3"
+						color="var(--color-fc-chart-1)"
+						valueFormat={(n) => formatCost(n)}
+					/>
 				</StatCard>
 			</div>
 
@@ -325,6 +351,11 @@
 					yFormat={(n) => `${n} h`}
 				/>
 			</Card>
+		{:else if tab === 'history'}
+			<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+				<Tabs items={RANGES} bind:value={since} label="Time range" />
+				<Tabs items={GROUPS} bind:value={by} label="Group sessions by" />
+			</div>
 
 			<Table>
 				<thead>
@@ -334,6 +365,7 @@
 						<th scope="col" class="text-right">Active</th>
 						<th scope="col" class="text-right">Tokens in</th>
 						<th scope="col" class="text-right">Tokens out</th>
+						<th scope="col" class="text-right">Est. cost</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -344,52 +376,50 @@
 							<td class="text-right tabular-nums">{formatDuration(row.seconds)}</td>
 							<td class="text-right tabular-nums">{formatTokens(row.tokens_in)}</td>
 							<td class="text-right tabular-nums">{formatTokens(row.tokens_out)}</td>
+							<td class="text-right tabular-nums">{formatCost(row.cost_total)}</td>
 						</tr>
 					{/each}
 				</tbody>
 			</Table>
+
+			{#if recent.length > 0}
+				<Table>
+					<thead>
+						<tr>
+							<th scope="col">Ended</th>
+							<th scope="col">Project</th>
+							<th scope="col">Machine / agent</th>
+							<th scope="col">Model</th>
+							<th scope="col" class="text-right">Duration</th>
+							<th scope="col" class="text-right">Tokens out</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each recent as block (block.id)}
+							<tr>
+								<td class="whitespace-nowrap tabular-nums text-fc-fg-muted">
+									{formatEnded(block.ended_at)}
+								</td>
+								<td class="font-medium text-fc-fg">{block.project}</td>
+								<td class="whitespace-nowrap font-fc-mono text-fc-xs text-fc-fg-muted">
+									{block.machine}/{block.agent}{block.branch ? ` · ${block.branch}` : ''}
+								</td>
+								<td class="whitespace-nowrap font-fc-mono text-fc-xs text-fc-fg-muted">
+									{block.model ?? '—'}
+								</td>
+								<td class="text-right tabular-nums">{blockDuration(block)}</td>
+								<td class="text-right tabular-nums">{formatTokens(block.tokens_out)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</Table>
+			{/if}
+		{:else if tab === 'usage'}
+			<h2 class="text-fc-lg font-semibold text-fc-fg">Subscription windows</h2>
+			<p class="text-fc-sm text-fc-fg-muted">
+				Usage against subscription limits recorded by each agent.
+			</p>
+			<UsageMeter snapshots={usage} history={usageLog} />
 		{/if}
 	</section>
-
-	<section class="flex flex-col gap-4">
-		<div class="flex flex-col gap-1">
-			<h2 class="text-fc-lg font-semibold text-fc-fg">Plan usage</h2>
-			<p class="text-fc-sm text-fc-fg-muted">
-				How much of each Claude subscription window this machine has burned through.
-			</p>
-		</div>
-		<UsageMeter snapshots={usage} history={usageLog} />
-	</section>
-
-	{#if recent.length > 0}
-		<section class="flex flex-col gap-4">
-			<h2 class="text-fc-lg font-semibold text-fc-fg">Recent</h2>
-			<Table>
-				<thead>
-					<tr>
-						<th scope="col">Ended</th>
-						<th scope="col">Project</th>
-						<th scope="col">Machine / agent</th>
-						<th scope="col" class="text-right">Duration</th>
-						<th scope="col" class="text-right">Tokens out</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each recent as block (block.id)}
-						<tr>
-							<td class="whitespace-nowrap tabular-nums text-fc-fg-muted">
-								{formatEnded(block.ended_at)}
-							</td>
-							<td class="font-medium text-fc-fg">{block.project}</td>
-							<td class="whitespace-nowrap font-fc-mono text-fc-xs text-fc-fg-muted">
-								{block.machine}/{block.agent}{block.branch ? ` · ${block.branch}` : ''}
-							</td>
-							<td class="text-right tabular-nums">{blockDuration(block)}</td>
-							<td class="text-right tabular-nums">{formatTokens(block.tokens_out)}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</Table>
-		</section>
-	{/if}
 </div>

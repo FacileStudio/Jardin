@@ -103,6 +103,7 @@ export interface SessionStatRow {
 	tokens_in: number;
 	tokens_out: number;
 	cache_read: number;
+	cost_total: number;
 }
 
 export interface SessionStats {
@@ -124,6 +125,9 @@ export interface SessionBlock {
 	tokens_out: number;
 	cache_read: number;
 	cache_write: number;
+	cost_input: number;
+	cost_output: number;
+	cost_total: number;
 }
 
 export interface LiveSession {
@@ -148,6 +152,7 @@ export interface TimelineSeries {
 	tokens_in: number[];
 	tokens_out: number[];
 	cache_read: number[];
+	cost_total: number[];
 }
 
 export interface SessionTimeline {

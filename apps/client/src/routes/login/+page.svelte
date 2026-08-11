@@ -66,7 +66,7 @@
 <div class="flex min-h-screen">
 	<div class="hidden lg:flex lg:w-1/2 flex-col bg-black px-12 py-10">
 		<a href="/" class="flex items-center gap-3 mb-auto">
-			<iconify-icon icon="solar:leaf-bold-duotone" width="28" height="28" class="block text-white"
+			<iconify-icon icon="solar:widget-6-bold-duotone" width="28" height="28" class="block text-white"
 			></iconify-icon>
 			<span class="text-xl font-bold font-heading tracking-tight text-white">Mycelium</span>
 		</a>

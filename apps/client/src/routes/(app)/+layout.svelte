@@ -115,7 +115,7 @@
 	<div class="flex h-dvh w-full overflow-hidden bg-fc-page">
 		<div class="hidden h-full shrink-0 p-3 md:block">
 			<SideBar
-				icon="solar:leaf-bold-duotone"
+				icon="solar:widget-6-bold-duotone"
 				title="Mycelium"
 				bind:collapsed
 				pages={navPages}
