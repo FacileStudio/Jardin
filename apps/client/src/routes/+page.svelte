@@ -19,12 +19,12 @@
 	const invertedInk = 'var(--color-fc-accent-fg)';
 
 	const adapters = [
+		{ agent: 'pi', file: 'SOUL.md' },
 		{ agent: 'Claude Code', file: 'CLAUDE.md' },
 		{ agent: 'Gemini CLI', file: 'GEMINI.md' },
 		{ agent: 'Codex', file: 'AGENTS.md' },
 		{ agent: 'Cursor', file: '.cursor/rules/' },
-		{ agent: 'Copilot', file: 'copilot-instructions.md' },
-		{ agent: 'Hermes', file: 'SOUL.md' }
+		{ agent: 'Copilot', file: 'copilot-instructions.md' }
 	];
 
 	const layers = [
@@ -60,7 +60,7 @@
 	<title>Mycelium — Shared Agent Memory</title>
 	<meta
 		name="description"
-		content="Un cerveau partagé pour vos agents IA. Mémoire, règles et compétences synchronisées entre Claude, Gemini, Codex et toutes vos machines."
+		content="Un cerveau partagé pour vos agents IA. Mémoire, règles et compétences synchronisées entre pi, Claude, Gemini, Codex et toutes vos machines."
 	/>
 </svelte:head>
 
@@ -92,7 +92,7 @@
 					<span class="text-fc-fg-muted">Tous vos agents.</span>
 				</h1>
 				<p class="mt-8 max-w-lg text-fc-md leading-relaxed text-fc-fg-muted">
-					Mémoire, règles et compétences partagées entre Claude, Gemini, Codex, Cursor et toutes
+					Mémoire, règles et compétences partagées entre pi, Claude, Gemini, Codex, Cursor et toutes
 					vos machines. Un seul endroit, zéro friction.
 				</p>
 				<div class="mt-10 flex flex-wrap items-center gap-4">
