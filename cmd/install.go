@@ -18,7 +18,7 @@ var installAll bool
 var installCmd = &cobra.Command{
 	Use:   "install [agent]",
 	Short: "Generate config for an agent",
-	Long:  "Generate agent-specific config from rules and skills.\nAvailable agents: claude, gemini, codex, cursor, copilot, hermes",
+	Long:  "Generate agent-specific config from rules and skills.\nAvailable agents: claude, gemini, codex, cursor, copilot, hermes, opencode",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !installAll && len(args) == 0 {

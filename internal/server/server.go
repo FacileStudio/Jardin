@@ -212,6 +212,9 @@ func (s *Server) Handler() *chi.Mux {
 		r.Get("/sessions/live", s.auth(false, s.sessionsLive))
 		r.Get("/sessions/timeline", s.auth(false, s.sessionsTimeline))
 
+		r.Get("/claims", s.auth(false, s.claimsList))
+		r.Delete("/claims/{project}/{machine}/{agent}", s.auth(false, s.claimsRelease))
+
 		r.Get("/usage", s.auth(false, s.usageCurrent))
 		r.Get("/usage/history", s.auth(false, s.usageHistory))
 

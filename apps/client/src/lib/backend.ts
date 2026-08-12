@@ -145,6 +145,19 @@ export interface LiveSession {
 	idle_seconds: number;
 }
 
+export interface Claim {
+	project: string;
+	machine: string;
+	agent: string;
+	branch?: string;
+	task: string;
+	started_at: string;
+	updated_at: string;
+	body?: string;
+	live: boolean;
+	machine_online: boolean;
+}
+
 export interface TimelineSeries {
 	key: string;
 	seconds: number[];
@@ -288,6 +301,12 @@ export const backend = {
 		request<SessionStats>('GET', `/sessions/stats?since=${since}&by=${by}${spaceQuery('&')}`),
 	sessionsRecent: (limit = 20) => request<SessionBlock[]>('GET', `/sessions/recent?limit=${limit}${spaceQuery('&')}`),
 	sessionsLive: () => request<LiveSession[]>('GET', `/sessions/live${spaceQuery('?')}`),
+	claimsList: () => request<Claim[]>('GET', `/claims${spaceQuery('?')}`),
+	claimRelease: (project: string, machine: string, agent: string) =>
+		request<void>(
+			'DELETE',
+			`/claims/${encodeURIComponent(project)}/${encodeURIComponent(machine)}/${encodeURIComponent(agent)}${spaceQuery('?')}`
+		),
 	sessionsTimeline: (since: string, bucket: string, by: string) =>
 		request<SessionTimeline>(
 			'GET',

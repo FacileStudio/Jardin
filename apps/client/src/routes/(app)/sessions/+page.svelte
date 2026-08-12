@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		BarChart,
+		Button,
 		Card,
 		DonutChart,
 		EmptyState,
@@ -15,6 +16,7 @@
 	} from '@facile/muse';
 	import {
 		backend,
+		type Claim,
 		type LiveSession,
 		type SessionBlock,
 		type SessionStats,
@@ -60,6 +62,8 @@
 	let stats: SessionStats | null = $state(null);
 	let recent: SessionBlock[] = $state([]);
 	let live: LiveSession[] = $state([]);
+	let claims: Claim[] = $state([]);
+	let releasing: string | null = $state(null);
 	let timeline: SessionTimeline | null = $state(null);
 	let usage: UsageSnapshot[] = $state([]);
 	let usageLog: UsageHistory | null = $state(null);
@@ -78,6 +82,35 @@
 		const timer = setInterval(load, 30_000);
 		return () => clearInterval(timer);
 	});
+
+	function loadClaims() {
+		return backend
+			.claimsList()
+			.then((c) => (claims = c ?? []))
+			.catch(() => {});
+	}
+
+	$effect(() => {
+		loadClaims();
+		const timer = setInterval(loadClaims, 30_000);
+		return () => clearInterval(timer);
+	});
+
+	function claimKey(c: Claim): string {
+		return `${c.project}/${c.machine}/${c.agent}`;
+	}
+
+	async function releaseClaim(c: Claim) {
+		const key = claimKey(c);
+		releasing = key;
+		try {
+			await backend.claimRelease(c.project, c.machine, c.agent);
+			await loadClaims();
+		} catch {
+		} finally {
+			releasing = null;
+		}
+	}
 
 	$effect(() => {
 		backend
@@ -188,6 +221,23 @@
 		return `idle ${Math.max(1, Math.round(s.idle_seconds / 60))}m`;
 	}
 
+	function claimState(c: Claim): 'active' | 'idle' | 'offline' {
+		if (!c.machine_online) return 'offline';
+		return c.live ? 'active' : 'idle';
+	}
+
+	function claimLabel(c: Claim): string {
+		const state = claimState(c);
+		if (state === 'offline') return 'machine offline';
+		if (state === 'active') return 'active';
+		return 'idle';
+	}
+
+	function claimBodyPreview(body?: string): string {
+		if (!body) return '';
+		return body.split('\n').slice(0, 3).join('\n');
+	}
+
 	function blockDuration(b: SessionBlock): string {
 		const seconds = Math.max(
 			0,
@@ -251,6 +301,69 @@
 						<span class="ml-auto text-fc-xs tabular-nums text-fc-fg-muted">
 							{elapsed(session.started_at)} · {formatTokens(session.tokens_out)} out
 						</span>
+					</Card>
+				{/each}
+			</div>
+		{/if}
+	</section>
+
+	<section class="flex flex-col gap-4">
+		<div class="flex flex-col gap-1">
+			<h2 class="text-fc-lg font-semibold text-fc-fg">Active claims</h2>
+			<p class="text-fc-sm text-fc-fg-muted">
+				In-flight task leases across every machine — release one to let another agent take over.
+			</p>
+		</div>
+
+		{#if claims.length === 0}
+			<Card class="text-fc-sm text-fc-fg-muted">No active claim.</Card>
+		{:else}
+			<div class="flex flex-col gap-2">
+				{#each claims as claim (claimKey(claim))}
+					<Card
+						class="flex flex-col gap-2 py-3 {claim.machine_online ? '' : 'opacity-60'}"
+					>
+						<div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+							<StatusDot
+								tone={liveTones[claimState(claim)]}
+								label={claimLabel(claim)}
+								pulse={claimState(claim) === 'active'}
+							/>
+							<span class="text-fc-sm font-medium text-fc-fg">{claim.project}</span>
+							<span class="font-fc-mono text-fc-xs text-fc-fg-muted">
+								{claim.machine}/{claim.agent}
+							</span>
+							{#if claim.branch}
+								<span
+									class="rounded-fc-xs bg-fc-surface px-1.5 py-0.5 font-fc-mono text-fc-xs text-fc-fg-muted"
+								>
+									{claim.branch}
+								</span>
+							{/if}
+							<span class="text-fc-xs tabular-nums text-fc-fg-muted">
+								since {elapsed(claim.started_at)}
+							</span>
+							<Button
+								class="ml-auto"
+								variant="ghost-danger"
+								size="sm"
+								icon={icons.close}
+								aria-label="Release claim on {claim.project} by {claim.machine}/{claim.agent}"
+								disabled={releasing === claimKey(claim)}
+								onclick={() => releaseClaim(claim)}
+							>
+								{releasing === claimKey(claim) ? 'Releasing…' : 'Release'}
+							</Button>
+						</div>
+						{#if claim.task}
+							<p class="text-fc-sm text-fc-fg">{claim.task}</p>
+						{/if}
+						{#if claim.body}
+							<pre
+								class="whitespace-pre-wrap rounded-fc-xs bg-fc-surface px-2 py-1.5 font-fc-mono text-fc-xs text-fc-fg-muted">{claimBodyPreview(
+									claim.body
+								)}</pre>
+						{/if}
 					</Card>
 				{/each}
 			</div>
