@@ -16,6 +16,9 @@ var (
 )
 
 var nameParam = Field{Name: "name", Type: "string", Description: "Record name, as it appears on disk."}
+var claimProjectParam = Field{Name: "project", Type: "string", Description: "Project name, matched case-insensitively."}
+var claimMachineParam = Field{Name: "machine", Type: "string", Description: "Machine that holds the claim."}
+var claimAgentParam = Field{Name: "agent", Type: "string", Description: "Agent that holds the claim."}
 var spaceParam = Field{Name: "id", Type: "string", Description: "Space ID."}
 var memberParam = Field{Name: "email", Type: "string", Description: "Member's email address."}
 
@@ -69,6 +72,14 @@ var Registry = Response{Modules: []Module{
 			{Method: "GET", Path: "/sessions/recent", Summary: "List recent sessions", Auth: "bearer", ResponseBody: "[]Session", Errors: anyToken},
 			{Method: "GET", Path: "/sessions/live", Summary: "List sessions currently active", Auth: "bearer", ResponseBody: "[]Session", Errors: anyToken},
 			{Method: "GET", Path: "/sessions/timeline", Summary: "Bucket session activity over time", Description: "Gap-filled buckets for charts. `since` (7d, 30d, 12h, all — default 30d), `bucket` (day or month), `by` (project, machine, agent, branch, model, total). Series are capped, with the remainder folded into `Other`.", Auth: "bearer", ResponseBody: "TimelineResponse", Errors: append(anyToken, badRequest)},
+		},
+	},
+	{
+		Name:        "claims",
+		Description: "In-flight task leases, so a second agent can see or take over work already claimed on a repo.",
+		Routes: []Route{
+			{Method: "GET", Path: "/claims", Summary: "List every active claim", Description: "Liveness is resolved against the clock at read time, not stored.", Auth: "bearer", ResponseBody: "[]ClaimEntry", Errors: anyToken},
+			{Method: "DELETE", Path: "/claims/{project}/{machine}/{agent}", Summary: "Release a claim", Description: "Releasing an already-absent claim is not an error.", Auth: "bearer", PathParams: []Field{claimProjectParam, claimMachineParam, claimAgentParam}, Errors: anyToken},
 		},
 	},
 	{
