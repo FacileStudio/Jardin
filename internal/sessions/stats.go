@@ -136,8 +136,8 @@ func FormatTokens(n int64) string {
 }
 
 // Recap builds the context block injected at agent session start: the last
-// sealed session for this project plus 7-day totals across machines. Empty
-// when the project has no recorded history.
+// sealed session for this project plus 7-day totals across machines, then the
+// repo's active claims. Empty when the project has neither history nor claims.
 func Recap(dataDir, project string, now time.Time) string {
 	if project == "" {
 		return ""
@@ -157,27 +157,73 @@ func Recap(dataDir, project string, now time.Time) string {
 			mine = append(mine, b)
 		}
 	}
-	if len(mine) == 0 {
+	claims := ReadClaimsLive(dataDir, project, now)
+	if len(mine) == 0 && len(claims) == 0 {
 		return ""
 	}
 
-	last := Recent(mine, 1)[0]
-	week := Aggregate(mine, now.Add(-7*24*time.Hour), "project")
-
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Mycelium session recap — %s\n", project)
-	fmt.Fprintf(&sb, "Last agent session: %s on %s (%s", humanAgo(now.Sub(last.EndedAt)), last.Machine, last.Agent)
-	if last.Branch != "" {
-		fmt.Fprintf(&sb, ", branch %s", last.Branch)
+	if len(mine) > 0 {
+		last := Recent(mine, 1)[0]
+		week := Aggregate(mine, now.Add(-7*24*time.Hour), "project")
+		fmt.Fprintf(&sb, "Last agent session: %s on %s (%s", humanAgo(now.Sub(last.EndedAt)), last.Machine, last.Agent)
+		if last.Branch != "" {
+			fmt.Fprintf(&sb, ", branch %s", last.Branch)
+		}
+		fmt.Fprintf(&sb, ", %s active, %s tokens out)\n", FormatDuration(last.Duration()), FormatTokens(last.TokensOut))
+		if len(week) > 0 {
+			w := week[0]
+			fmt.Fprintf(&sb, "Past 7 days, all machines: %d sessions, %s active, %s tokens out\n",
+				w.Sessions, FormatDuration(time.Duration(w.Seconds)*time.Second), FormatTokens(w.TokensOut))
+		}
 	}
-	fmt.Fprintf(&sb, ", %s active, %s tokens out)\n", FormatDuration(last.Duration()), FormatTokens(last.TokensOut))
-	if len(week) > 0 {
-		w := week[0]
-		fmt.Fprintf(&sb, "Past 7 days, all machines: %d sessions, %s active, %s tokens out\n",
-			w.Sessions, FormatDuration(time.Duration(w.Seconds)*time.Second), FormatTokens(w.TokensOut))
-	}
+	recapClaims(&sb, claims, now)
 	fmt.Fprintf(&sb, "Wiki gates apply: run `mycelium memory search \"%s\"` before starting; write findings back when done.", project)
 	return sb.String()
+}
+
+// recapClaims renders the repo's active claims into sb, live markers resolved
+// against now, so a freshly-started agent sees in-flight work before it starts.
+func recapClaims(sb *strings.Builder, claims []ClaimEntry, now time.Time) {
+	if len(claims) == 0 {
+		return
+	}
+	fmt.Fprintf(sb, "Active work on this repo:\n")
+	for _, c := range claims {
+		mark := "○"
+		switch {
+		case c.Live:
+			mark = "●"
+		case c.MachineOnline:
+			mark = "◐"
+		}
+		fmt.Fprintf(sb, "  %s %s/%s", mark, c.Machine, c.Agent)
+		if c.Branch != "" {
+			fmt.Fprintf(sb, " (branch %s)", c.Branch)
+		}
+		fmt.Fprintf(sb, " since %s — %s\n", humanAgo(now.Sub(c.StartedAt)), c.Task)
+		for _, line := range claimBodyLines(c.Body, 3) {
+			fmt.Fprintf(sb, "      %s\n", line)
+		}
+	}
+}
+
+// claimBodyLines returns up to n non-empty body lines, trimmed, for surfacing
+// the scratchpad in the injected context without flooding it.
+func claimBodyLines(body string, n int) []string {
+	var out []string
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		out = append(out, line)
+		if len(out) >= n {
+			break
+		}
+	}
+	return out
 }
 
 func humanAgo(d time.Duration) string {
