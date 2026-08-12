@@ -44,6 +44,7 @@ func claimPath(dataDir, project, machine, agent string) string {
 	return filepath.Join(claimsDir(dataDir), project, machine+"--"+agent+".json")
 }
 
+// SaveClaim persists a claim under its (project, machine, agent) key.
 func SaveClaim(dataDir string, c *Claim) error {
 	if c.Project == "" || c.Machine == "" || c.Agent == "" {
 		return fmt.Errorf("claim requires project, machine and agent")
@@ -59,6 +60,7 @@ func SaveClaim(dataDir string, c *Claim) error {
 	return os.WriteFile(p, data, 0o644)
 }
 
+// LoadClaim reads one claim, or returns nil when none exists.
 func LoadClaim(dataDir, project, machine, agent string) (*Claim, error) {
 	data, err := os.ReadFile(claimPath(dataDir, project, machine, agent))
 	if err != nil {
@@ -74,6 +76,7 @@ func LoadClaim(dataDir, project, machine, agent string) (*Claim, error) {
 	return &c, nil
 }
 
+// ReleaseClaim removes a claim, tolerating an absent one.
 func ReleaseClaim(dataDir, project, machine, agent string) error {
 	err := os.Remove(claimPath(dataDir, project, machine, agent))
 	if os.IsNotExist(err) {
@@ -82,6 +85,7 @@ func ReleaseClaim(dataDir, project, machine, agent string) error {
 	return err
 }
 
+// ReadClaims returns every claim on disk.
 func ReadClaims(dataDir string) ([]Claim, error) {
 	var claims []Claim
 	root := claimsDir(dataDir)

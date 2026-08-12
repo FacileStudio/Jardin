@@ -15,6 +15,8 @@ func statePath(dataDir string) string {
 	return filepath.Join(dataDir, stateName)
 }
 
+// LoadState restores the scanner's resume point, or a fresh empty state when
+// none exists.
 func LoadState(dataDir string) *ScanState {
 	state := newScanState()
 	data, err := os.ReadFile(statePath(dataDir))
@@ -36,6 +38,7 @@ func LoadState(dataDir string) *ScanState {
 	return state
 }
 
+// SaveState persists the scanner's resume point to disk.
 func SaveState(dataDir string, state *ScanState) error {
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {

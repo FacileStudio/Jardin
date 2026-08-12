@@ -60,6 +60,7 @@ var windowShort = map[string]string{
 	"seven_day_overage_included": "7d+overage",
 }
 
+// Window is one quota bucket: how much of it is used and when it resets.
 type Window struct {
 	Key            string     `json:"key"`
 	Label          string     `json:"label"`
@@ -67,6 +68,7 @@ type Window struct {
 	ResetsAt       *time.Time `json:"resets_at,omitempty"`
 }
 
+// Snapshot is a machine's usage at one moment in time.
 type Snapshot struct {
 	Machine   string    `json:"machine"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -89,6 +91,8 @@ type WindowView struct {
 	Expired         bool       `json:"expired"`
 }
 
+// SnapshotView is a Snapshot resolved against the clock at read time, with
+// its age in seconds.
 type SnapshotView struct {
 	Machine    string       `json:"machine"`
 	UpdatedAt  time.Time    `json:"updated_at"`
@@ -145,12 +149,15 @@ func Resolve(snapshots []Snapshot, now time.Time) []SnapshotView {
 	return out
 }
 
+// HistorySeries is one group's values across a history's labels.
 type HistorySeries struct {
 	Key    string     `json:"key"`
 	Label  string     `json:"label"`
 	Values []*float64 `json:"values"`
 }
 
+// HistoryReport is the answer to a history query: labels with one series per
+// group.
 type HistoryReport struct {
 	Labels []string        `json:"labels"`
 	Series []HistorySeries `json:"series"`
@@ -292,6 +299,11 @@ func writeAtomic(path string, data []byte) error {
 // Record publishes the snapshot as this machine's current.json and, when the
 // throttle allows, appends it to the month's history shard. One writer per
 // machine, so both files ride the normal file sync without conflicts.
+// Record persists a snapshot as the current observation and appends it to
+// history. Both ingest paths write the same file, and the OAuth path can
+// answer from a five-minute-old cache, so the newer observation always wins;
+// history still gets the sample either way, because the shards are an audit
+// trail of what was observed when, not a view of the present.
 func Record(dataDir, machine string, s Snapshot) error {
 	if machine == "" {
 		return errors.New("machine name required")
@@ -306,10 +318,6 @@ func Record(dataDir, machine string, s Snapshot) error {
 	}
 	sortWindows(s.Windows)
 
-	// Both ingest paths write the same file, and the OAuth path can answer from
-	// a five-minute-old cache, so the newer observation always wins. History
-	// still gets the sample either way: the shards are an audit trail of what
-	// was observed when, not a view of the present.
 	if stored, ok := ReadOne(dataDir, machine); !ok || s.UpdatedAt.After(stored.UpdatedAt) {
 		data, err := json.MarshalIndent(s, "", "  ")
 		if err != nil {

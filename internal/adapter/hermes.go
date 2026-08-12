@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// Hermes is the adapter for Hermes's config format.
 type Hermes struct{}
 
 func init() {

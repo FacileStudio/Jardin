@@ -14,6 +14,8 @@ const (
 	SealTimeout = 30 * time.Minute
 )
 
+// Block is a sealed work span: one project/agent/machine over a continuous
+// interval, with the token and cost accounting for everything in it.
 type Block struct {
 	ID         string    `json:"id"`
 	Project    string    `json:"project"`
@@ -47,6 +49,7 @@ func (b *Block) IdempotencyKey() string {
 	return "jardin_agent_session_created_" + b.ID
 }
 
+// Event is one interaction in an agent session.
 type Event struct {
 	Time       time.Time
 	Agent      string
@@ -62,12 +65,16 @@ type Event struct {
 	CostTotal  float64
 }
 
+// FileState tracks how much of one session file has been consumed already, so
+// a restart resumes rather than re-ingesting everything.
 type FileState struct {
 	Offset     int64    `json:"offset"`
 	Size       int64    `json:"size"`
 	RecentReqs []string `json:"recent_request_ids,omitempty"`
 }
 
+// ScanState is the persisted resume point of the scanner: per-file offsets,
+// open blocks and the cwd-to-project map.
 type ScanState struct {
 	Files    map[string]*FileState `json:"files"`
 	Open     map[string]*Block     `json:"open"`

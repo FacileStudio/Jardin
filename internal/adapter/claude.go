@@ -11,6 +11,7 @@ const recapHookCommand = "command -v jardin >/dev/null 2>&1 && jardin recap --ho
 
 const statusLineCommand = "jardin usage --statusline"
 
+// Claude is the adapter for Claude Code's config format.
 type Claude struct{}
 
 func init() {

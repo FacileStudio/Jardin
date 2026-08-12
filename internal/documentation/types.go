@@ -12,6 +12,8 @@ package docs
 
 import "github.com/FacileStudio/tronc/apiref"
 
+// The registry types mirror tronc/apiref's so the registry is the suite-wide
+// shape apiref.Undocumented can check against the live router.
 type (
 	Response = apiref.Registry
 	Module   = apiref.Module

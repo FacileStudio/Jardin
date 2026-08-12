@@ -13,6 +13,7 @@ import (
 	"github.com/FacileStudio/tronc/httpjson"
 )
 
+// User is an account on the server.
 type User struct {
 	Email     string `json:"email"`
 	Name      string `json:"name"`

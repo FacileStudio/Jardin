@@ -8,12 +8,15 @@ import (
 	"time"
 )
 
+// ScanResult counts what a scan pass turned up.
 type ScanResult struct {
 	Events int
 	Sealed int
 	Open   int
 }
 
+// Scan ingests a machine's Claude session files, under the cross-machine scan
+// lock, and returns the result.
 func Scan(dataDir, machine, claudeDir string, now time.Time) (*ScanResult, error) {
 	release, err := lockScan(dataDir)
 	if err != nil {
@@ -111,11 +114,13 @@ func repoNameFromRemote(url string) string {
 	return url
 }
 
+// ResolveProject maps a cwd to the project name recorded in the session.
 func ResolveProject(cwd string) string {
 	home, _ := os.UserHomeDir()
 	return resolveProject(cwd, home)
 }
 
+// DefaultClaudeDir is the user's Claude config directory.
 func DefaultClaudeDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {

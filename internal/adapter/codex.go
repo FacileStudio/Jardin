@@ -9,6 +9,7 @@ import (
 
 const recapReminder = "Run `jardin recap` at the start of the session to see recent work and active claims."
 
+// Codex is the adapter for Codex's config format.
 type Codex struct{}
 
 func init() {

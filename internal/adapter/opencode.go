@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// Opencode is the adapter for OpenCode's config format.
 type Opencode struct{}
 
 func init() {

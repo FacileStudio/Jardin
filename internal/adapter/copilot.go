@@ -4,6 +4,7 @@ import (
 	"strings"
 )
 
+// Copilot is the adapter for GitHub Copilot's config format.
 type Copilot struct{}
 
 func init() {

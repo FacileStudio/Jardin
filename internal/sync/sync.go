@@ -20,6 +20,8 @@ const (
 	tokensFile   = "tokens.json"
 )
 
+// Client talks to a Jardin server over HTTP, scoped to one space when Space
+// is set.
 type Client struct {
 	BaseURL    string
 	Token      string
@@ -27,6 +29,8 @@ type Client struct {
 	HTTPClient *http.Client
 }
 
+// FileEntry is one file's identity as the sync reconciler compares it: path
+// plus checksum, size and modification time.
 type FileEntry struct {
 	Path     string `json:"path"`
 	Checksum string `json:"checksum"`
@@ -34,6 +38,8 @@ type FileEntry struct {
 	ModTime  string `json:"mod_time"`
 }
 
+// NewClient builds a Client for one server, trimming a trailing slash from
+// the base URL.
 func NewClient(baseURL, token string) *Client {
 	return &Client{
 		BaseURL:    strings.TrimRight(baseURL, "/"),
@@ -113,6 +119,8 @@ func (c *Client) Delete(filePath string) error {
 	return nil
 }
 
+// syncSkip reports whether a path is excluded from sync: the tokens file,
+// hidden dotfiles, conflict backups and logs never travel.
 func syncSkip(rel string) bool {
 	return rel == tokensFile ||
 		strings.HasPrefix(rel, ".") ||
@@ -120,6 +128,8 @@ func syncSkip(rel string) bool {
 		strings.HasSuffix(rel, ".log")
 }
 
+// LocalTree walks the data directory and returns every file in it as a
+// FileEntry.
 func LocalTree(dataDir string) ([]FileEntry, error) {
 	var entries []FileEntry
 	err := filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
@@ -163,7 +173,8 @@ func (r *Result) Total() int {
 // Local-only changes are pushed, remote-only changes are pulled, deletions
 // propagate both ways, and genuine conflicts pick a deterministic winner while
 // preserving the loser as a sibling ".conflict" file. It never silently
-// overwrites a local edit.
+// overwrites a local edit. When both sides changed and made the same change,
+// the trees have already converged and the pair is just re-based.
 func (c *Client) Sync(dataDir string) (*Result, error) {
 	base, err := loadManifest(dataDir)
 	if err != nil {
@@ -230,8 +241,8 @@ func (c *Client) Sync(dataDir string) (*Result, error) {
 				next[p] = rc
 			}
 
-		default: // both sides changed since base
-			if lc == rc { // same change made on both — already converged
+		default:
+			if lc == rc {
 				setBase(next, p, lc)
 				continue
 			}
@@ -247,8 +258,10 @@ func (c *Client) Sync(dataDir string) (*Result, error) {
 	return res, nil
 }
 
+// resolveConflict handles a path where both sides changed since base. Content
+// always beats a deletion, so nothing is lost; between two edits it picks a
+// deterministic winner and keeps the loser as <path>.conflict.
 func (c *Client) resolveConflict(dataDir, p string, local, remote FileEntry, next map[string]string, res *Result) error {
-	// Delete-vs-edit: content always beats a deletion, so nothing is lost.
 	if local.Checksum == "" {
 		if err := c.downloadFile(dataDir, p); err != nil {
 			return err
@@ -268,7 +281,6 @@ func (c *Client) resolveConflict(dataDir, p string, local, remote FileEntry, nex
 		return nil
 	}
 
-	// Edit-vs-edit: deterministic winner, loser backed up to <path>.conflict.
 	if localWins(local, remote) {
 		remoteData, err := c.Download(p)
 		if err != nil {
@@ -433,6 +445,8 @@ func manifestPath(dataDir string) string {
 	return filepath.Join(dataDir, manifestName)
 }
 
+// loadManifest reads the last-synced base. A corrupt manifest must not block
+// sync, so it is rebuilt from scratch and treated as an empty base.
 func loadManifest(dataDir string) (map[string]string, error) {
 	data, err := os.ReadFile(manifestPath(dataDir))
 	if err != nil {
@@ -443,7 +457,6 @@ func loadManifest(dataDir string) (map[string]string, error) {
 	}
 	var m manifest
 	if err := json.Unmarshal(data, &m); err != nil {
-		// A corrupt manifest must not block sync; rebuild it from scratch.
 		return map[string]string{}, nil
 	}
 	if m.Files == nil {

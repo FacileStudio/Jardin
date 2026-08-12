@@ -57,6 +57,8 @@ func logPath() string {
 	return filepath.Join(config.DataDir(), "daemon.log")
 }
 
+// Run starts the background sync loop as the current process: it enables the
+// usage status line and blocks until interrupted.
 func Run() error {
 	self, err := selfPath()
 	if err != nil {
@@ -124,6 +126,8 @@ func markInstalled(now time.Time) {
 	os.Chtimes(path, now, now)
 }
 
+// DetectAgents returns the names of the code assistants whose rule files exist
+// on this machine.
 func DetectAgents() []string {
 	home, _ := os.UserHomeDir()
 	markers := []struct {
@@ -144,6 +148,7 @@ func DetectAgents() []string {
 	return found
 }
 
+// Install registers the background service (launchd or systemd) for this user.
 func Install() error {
 	self, err := selfPath()
 	if err != nil {
@@ -159,6 +164,7 @@ func Install() error {
 	}
 }
 
+// Uninstall removes the background service.
 func Uninstall() error {
 	switch runtime.GOOS {
 	case "darwin":
@@ -170,6 +176,7 @@ func Uninstall() error {
 	}
 }
 
+// Installed reports whether the background service is registered.
 func Installed() bool {
 	switch runtime.GOOS {
 	case "darwin":
@@ -188,6 +195,8 @@ func launchdPath() string {
 	return filepath.Join(home, "Library", "LaunchAgents", Label+".plist")
 }
 
+// PlistContent returns the launchd plist for a periodic sync at the given
+// service binary path.
 func PlistContent(self string) string {
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -243,6 +252,8 @@ func systemdDir() string {
 	return filepath.Join(home, ".config", "systemd", "user")
 }
 
+// ServiceContent returns the systemd unit for a periodic sync at the given
+// service binary path.
 func ServiceContent(self string) string {
 	return fmt.Sprintf(`[Unit]
 Description=Jardin background sync
@@ -253,6 +264,7 @@ ExecStart=%s daemon run
 `, self)
 }
 
+// TimerContent returns the systemd timer that schedules the sync service.
 func TimerContent() string {
 	return fmt.Sprintf(`[Unit]
 Description=Jardin background sync timer
