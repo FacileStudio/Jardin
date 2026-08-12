@@ -11,6 +11,7 @@ const recapHookCommand = "command -v mycelium >/dev/null 2>&1 && mycelium recap 
 
 const statusLineCommand = "mycelium usage --statusline"
 
+// Claude is the adapter for Claude Code's config format.
 type Claude struct{}
 
 func init() {

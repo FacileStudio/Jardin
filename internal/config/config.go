@@ -9,6 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// MyceliumConfig is the persisted client configuration: which server and space
+// to sync, the credential, and the order rules are read in.
 type MyceliumConfig struct {
 	Machine    string   `yaml:"machine,omitempty"`
 	URL        string   `yaml:"url,omitempty"`
@@ -50,6 +52,7 @@ func (c *MyceliumConfig) AuthToken() string {
 	return c.Token
 }
 
+// DataDir is the root of the local memory store, overridable via DATA_DIR.
 func DataDir() string {
 	if dir := os.Getenv("DATA_DIR"); dir != "" {
 		return dir
@@ -58,18 +61,29 @@ func DataDir() string {
 	return filepath.Join(home, ".mycelium")
 }
 
+// ConfigPath is where the client configuration file lives.
 func ConfigPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".mycelium.yml")
 }
 
-func MemoryDir() string   { return filepath.Join(DataDir(), "memory") }
-func RulesDir() string    { return filepath.Join(DataDir(), "rules") }
-func SkillsDir() string   { return filepath.Join(DataDir(), "skills") }
+// MemoryDir returns the memory store's root.
+func MemoryDir() string { return filepath.Join(DataDir(), "memory") }
+
+// RulesDir returns the directory holding rule files.
+func RulesDir() string { return filepath.Join(DataDir(), "rules") }
+
+// SkillsDir returns the directory holding skill files.
+func SkillsDir() string { return filepath.Join(DataDir(), "skills") }
+
+// SessionsDir returns the directory holding session data.
 func SessionsDir() string { return filepath.Join(DataDir(), "sessions") }
 
+// MachinesDir returns the directory holding machine profiles.
 func MachinesDir() string { return filepath.Join(DataDir(), "machines") }
 
+// LoadMyceliumConfig reads the config file, returning an empty config when no
+// file exists yet.
 func LoadMyceliumConfig() (*MyceliumConfig, error) {
 	path := ConfigPath()
 	cfg := &MyceliumConfig{}
@@ -86,6 +100,7 @@ func LoadMyceliumConfig() (*MyceliumConfig, error) {
 	return cfg, nil
 }
 
+// SaveMyceliumConfig writes the config file with owner-only permissions.
 func SaveMyceliumConfig(cfg *MyceliumConfig) error {
 	path := ConfigPath()
 	data, err := yaml.Marshal(cfg)

@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// Cursor is the adapter for Cursor's config format.
 type Cursor struct{}
 
 func init() {

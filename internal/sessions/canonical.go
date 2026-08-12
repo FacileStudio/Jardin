@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+// CanonicalEvent is one session event in the transport shape: type, role and
+// timestamp, plus the agent/machine/project it belongs to and optional usage.
 type CanonicalEvent struct {
 	Type      string          `json:"type"`
 	Role      string          `json:"role"`
@@ -21,6 +23,7 @@ type CanonicalEvent struct {
 	Usage     *CanonicalUsage `json:"usage,omitempty"`
 }
 
+// CanonicalUsage is the token accounting attached to a canonical event.
 type CanonicalUsage struct {
 	Input       int64          `json:"input"`
 	Output      int64          `json:"output"`
@@ -31,6 +34,7 @@ type CanonicalUsage struct {
 	Cost        *CanonicalCost `json:"cost,omitempty"`
 }
 
+// CanonicalCost is the monetary cost of a canonical event.
 type CanonicalCost struct {
 	Input      float64 `json:"input"`
 	Output     float64 `json:"output"`

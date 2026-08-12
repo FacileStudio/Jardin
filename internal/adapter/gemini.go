@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// Gemini is the adapter for Gemini's config format.
 type Gemini struct{}
 
 func init() {

@@ -112,6 +112,9 @@ func TestLoopbackPortRejectsAnythingButAPort(t *testing.T) {
 
 // A port that is not a port is refused before the browser leaves for the IdP,
 // and is never allowed to become the host of the redirect back.
+// A CLI flow without a usable port is refused up front: with one, the request
+// gets past validation and only then finds that this test server has no
+// identity provider configured.
 func TestStartRefusesACLIFlowWithoutAUsablePort(t *testing.T) {
 	srv := New(t.TempDir(), "secret")
 	ts := httptest.NewServer(srv.Handler())
@@ -135,8 +138,6 @@ func TestStartRefusesACLIFlowWithoutAUsablePort(t *testing.T) {
 		}
 	}
 
-	// With a usable port the request gets past validation and only then
-	// finds that this test server has no identity provider configured.
 	resp, err := client.Get(ts.URL + "/api/auth/oidc?flow=cli&port=51234")
 	if err != nil {
 		t.Fatal(err)
@@ -167,6 +168,8 @@ func TestTheFlowCookieCarriesTheCLIParametersToTheCallback(t *testing.T) {
 	}
 }
 
+// The exchanged code is minted into a working credential and consumed: a
+// second exchange for the same code is refused.
 func TestALoginCodeIsExchangedOnceAndOnlyOnce(t *testing.T) {
 	srv := New(t.TempDir(), "secret")
 	ts := httptest.NewServer(srv.Handler())
@@ -182,7 +185,6 @@ func TestALoginCodeIsExchangedOnceAndOnlyOnce(t *testing.T) {
 		t.Fatal("the exchange returned no token")
 	}
 
-	// The token has to be a working credential, not just a string.
 	if status, _ := doJSON(t, ts, "GET", "/api/auth/me", body["token"], nil); status != http.StatusOK {
 		t.Fatalf("the exchanged token does not authenticate: %d", status)
 	}

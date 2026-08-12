@@ -81,6 +81,7 @@ type Emitter struct {
 	emitted   int
 }
 
+// EmitterStatus is the emitter's health as the settings page shows it.
 type EmitterStatus struct {
 	Connected          bool   `json:"connected"`
 	LastError          string `json:"last_error,omitempty"`
@@ -89,6 +90,7 @@ type EmitterStatus struct {
 	UsageAlertsPending int    `json:"usage_alerts_pending"`
 }
 
+// NewEmitter builds the single emitter for a server and wires it in.
 func NewEmitter(srv *Server) *Emitter {
 	e := &Emitter{srv: srv, kick: make(chan struct{}, 1)}
 	srv.emitter = e
@@ -238,6 +240,9 @@ func (e *Emitter) disconnect() int {
 	return gen
 }
 
+// setConnected flips the connectivity flag for the current generation, and
+// when the bus comes back it clears the outage clock so the next unrelated
+// blip gets its own grace period instead of inheriting an old one.
 func (e *Emitter) setConnected(gen int, v bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -246,12 +251,15 @@ func (e *Emitter) setConnected(gen int, v bool) {
 	}
 	e.connected = v
 	if v {
-		// The bus is back. Clear the outage clock so the next unrelated
-		// blip gets its own grace period instead of inheriting an old one.
 		e.downSince = time.Time{}
 	}
 }
 
+// clientError logs a client failure at a level that matches what it means: a
+// reconnect the client will retry is the mechanism working, not an incident —
+// an Antenne restart produces a handful of these and resolves itself in
+// seconds, and keeping them at error level turned every deploy of the bus red.
+// The terminal failure still lands at error.
 func (e *Emitter) clientError(gen int, err error) {
 	msg := err.Error()
 	e.mu.Lock()
@@ -264,11 +272,6 @@ func (e *Emitter) clientError(gen int, err error) {
 		return
 	}
 
-	// A reconnect the client will retry is the mechanism working, not an
-	// incident: an Antenne restart produces a handful of these and resolves
-	// itself in seconds. Keeping them at error level meant every deploy of
-	// the bus turned this app's log red, which is how a colour stops meaning
-	// anything. The terminal failure still lands at error.
 	var transient *antenneclient.TransientError
 	if errors.As(err, &transient) {
 		e.srv.Log.Warn("emitter: reconnecting",

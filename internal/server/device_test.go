@@ -11,13 +11,15 @@ import (
 	"time"
 )
 
+// deviceTestServer boots a real server over a temp dir and returns it with a
+// session token as the dashboard would obtain it, so device tests speak to the
+// same handlers production serves.
 func deviceTestServer(t *testing.T) (*httptest.Server, string) {
 	t.Helper()
 	srv := New(t.TempDir(), "secret")
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
-	// Admin/session token, as the dashboard obtains it.
 	status, body := doJSON(t, ts, "POST", "/api/auth/login", "", map[string]string{"password": "secret"})
 	if status != http.StatusOK {
 		t.Fatalf("login failed: %d", status)
@@ -51,6 +53,9 @@ func doJSON(t *testing.T, ts *httptest.Server, method, path, token string, paylo
 	return resp.StatusCode, out
 }
 
+// The full happy path: a started request polls pending, the dashboard sees
+// and approves it, polling then yields a working token, and that pool token is
+// consumed — the second poll for the same device code is rejected.
 func TestDeviceFlowApprove(t *testing.T) {
 	ts, admin := deviceTestServer(t)
 
@@ -63,23 +68,19 @@ func TestDeviceFlowApprove(t *testing.T) {
 		t.Fatalf("missing codes: %+v", start)
 	}
 
-	// Before approval, polling is pending.
 	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/poll", "", map[string]string{"device_code": deviceCode}); code != http.StatusAccepted {
 		t.Fatalf("expected pending (202), got %d", code)
 	}
 
-	// Dashboard sees the pending request.
 	code, info := doJSON(t, ts, "GET", "/api/auth/device/info?code="+userCode, admin, nil)
 	if code != http.StatusOK || info["machine"] != "laptop" || info["status"] != "pending" {
 		t.Fatalf("info wrong: %d %+v", code, info)
 	}
 
-	// Approve from the authenticated session.
 	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/approve", admin, map[string]string{"user_code": userCode}); code != http.StatusOK {
 		t.Fatalf("approve: %d", code)
 	}
 
-	// Polling now yields a working token.
 	code, res := doJSON(t, ts, "POST", "/api/auth/device/poll", "", map[string]string{"device_code": deviceCode})
 	if code != http.StatusOK || res["token"] == "" {
 		t.Fatalf("expected token, got %d %+v", code, res)
@@ -88,29 +89,30 @@ func TestDeviceFlowApprove(t *testing.T) {
 		t.Fatalf("issued token rejected: %d", s)
 	}
 
-	// The token can only be retrieved once.
 	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/poll", "", map[string]string{"device_code": deviceCode}); code != http.StatusBadRequest {
 		t.Fatalf("expected consumed (400), got %d", code)
 	}
 }
 
+// Approving is admin-only: a sync-scoped machine token is forbidden and an
+// unauthenticated call is rejected outright.
 func TestDeviceApproveRequiresAdmin(t *testing.T) {
 	ts, admin := deviceTestServer(t)
 
-	// A sync-scoped machine token must not be able to approve devices.
 	_, syncTok := doJSON(t, ts, "POST", "/api/auth/login", "", map[string]string{"password": "secret", "machine": "box"})
 	_, start := doJSON(t, ts, "POST", "/api/auth/device/start", "", map[string]string{"machine": "laptop"})
 
 	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/approve", syncTok["token"], map[string]string{"user_code": start["user_code"]}); code != http.StatusForbidden {
 		t.Fatalf("sync token should be forbidden, got %d", code)
 	}
-	// Unauthenticated approve is rejected too.
 	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/approve", "", map[string]string{"user_code": start["user_code"]}); code != http.StatusUnauthorized {
 		t.Fatalf("anonymous approve should be 401, got %d", code)
 	}
 	_ = admin
 }
 
+// The store caps pending requests and normalizes user-code lookups: entry is
+// forgiving, so lowercase and a mangled separator still resolve.
 func TestDeviceStoreCapAndNormalization(t *testing.T) {
 	d := newDeviceStore()
 	now := time.Now()
@@ -127,7 +129,6 @@ func TestDeviceStoreCapAndNormalization(t *testing.T) {
 		t.Fatalf("expected cap error, got %v", err)
 	}
 
-	// User entry is forgiving: lowercase and a mangled separator still resolve.
 	scrambled := strings.ToLower(strings.ReplaceAll(last.UserCode, "-", "  "))
 	if _, ok := d.info(scrambled); !ok {
 		t.Fatalf("normalized lookup failed for %q", last.UserCode)

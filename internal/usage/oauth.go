@@ -81,6 +81,9 @@ func FetchOAuth(ctx context.Context, dataDir, token string) (Snapshot, error) {
 	return snapshot, nil
 }
 
+// fetchOAuth pulls a usage snapshot from the OAuth status endpoint. The
+// response body is never surfaced or logged: it is the one place an echoed
+// credential could leak into a terminal or a log file.
 func fetchOAuth(ctx context.Context, token string) (Snapshot, error) {
 	if token == "" {
 		return Snapshot{}, errors.New("no usage token — run `mycelium usage login` with a token from `claude setup-token`")
@@ -105,8 +108,6 @@ func fetchOAuth(ctx context.Context, token string) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
-	// The response body is never surfaced or logged: it is the one place an
-	// echoed credential could leak into a terminal or a log file.
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return Snapshot{}, ErrTokenRejected
 	}

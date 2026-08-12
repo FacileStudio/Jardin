@@ -9,6 +9,7 @@ import (
 	"github.com/FacileStudio/Mycelium/internal/config"
 )
 
+// Init creates the directory skeleton and seed files a fresh install needs.
 func Init() error {
 	dirs := []string{
 		"memory", "memory/bugs", "memory/tools", "memory/projects",
@@ -28,9 +29,18 @@ func Init() error {
 	return nil
 }
 
-func ListRules() ([]string, error)  { return listMdFiles(config.RulesDir()) }
-func ListSkills() ([]string, error) { return listMdFiles(config.SkillsDir()) }
+// ListRules returns the rule file names under the rules directory.
+func ListRules() ([]string, error) {
+	return listMdFiles(config.RulesDir())
+}
 
+// ListSkills returns the skill file names under the skills directory.
+func ListSkills() ([]string, error) {
+	return listMdFiles(config.SkillsDir())
+}
+
+// ReadRules loads rules in the given order, falling back to directory order
+// for anything not listed. A duplicate or unreadable name is skipped.
 func ReadRules(order []string) ([]NamedFile, error) {
 	dir := config.RulesDir()
 	names, err := listMdFiles(dir)
@@ -61,6 +71,7 @@ func ReadRules(order []string) ([]NamedFile, error) {
 	return files, nil
 }
 
+// ReadSkills loads every skill file under the skills directory.
 func ReadSkills() ([]NamedFile, error) {
 	dir := config.SkillsDir()
 	names, err := listMdFiles(dir)
@@ -78,6 +89,8 @@ func ReadSkills() ([]NamedFile, error) {
 	return files, nil
 }
 
+// ReadMachine returns the machine profile for the given name, or an empty
+// string when no profile exists.
 func ReadMachine(machine string) (string, error) {
 	path := filepath.Join(config.MachinesDir(), machine+".md")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -86,6 +99,7 @@ func ReadMachine(machine string) (string, error) {
 	return readFile(path)
 }
 
+// NamedFile is a markdown file with its name (sans extension) and content.
 type NamedFile struct {
 	Name    string
 	Content string

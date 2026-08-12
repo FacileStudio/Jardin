@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// StatRow is one aggregation bucket of time and token usage.
 type StatRow struct {
 	Key       string  `json:"key"`
 	Sessions  int     `json:"sessions"`
@@ -35,6 +36,7 @@ func groupKey(b *Block, by string) string {
 	}
 }
 
+// Aggregate sums blocks since the given time into per-group rows.
 func Aggregate(blocks []Block, since time.Time, by string) []StatRow {
 	rows := make(map[string]*StatRow)
 	for i := range blocks {
@@ -74,6 +76,7 @@ func Aggregate(blocks []Block, since time.Time, by string) []StatRow {
 	return out
 }
 
+// Recent returns the newest blocks, capped at limit.
 func Recent(blocks []Block, limit int) []Block {
 	sorted := make([]Block, len(blocks))
 	copy(sorted, blocks)
@@ -101,6 +104,7 @@ func ParseSince(s string, now time.Time) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("invalid since %q (use 7d, 30d, 12h, or all)", s)
 }
 
+// FormatDuration renders a duration for display.
 func FormatDuration(d time.Duration) string {
 	d = d.Round(time.Minute)
 	h := int(d.Hours())
@@ -111,6 +115,7 @@ func FormatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dm", m)
 }
 
+// FormatCost renders a cost for display.
 func FormatCost(n float64) string {
 	switch {
 	case n >= 100:
@@ -124,6 +129,7 @@ func FormatCost(n float64) string {
 	}
 }
 
+// FormatTokens renders a token count for display.
 func FormatTokens(n int64) string {
 	switch {
 	case n >= 1_000_000:

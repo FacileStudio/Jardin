@@ -26,6 +26,7 @@ var (
 	TimelineGroupKeys = append(append([]string{}, GroupKeys...), TotalKey)
 )
 
+// TimelineSeries is one group's series across buckets.
 type TimelineSeries struct {
 	Key       string    `json:"key"`
 	Seconds   []int64   `json:"seconds"`
@@ -36,6 +37,8 @@ type TimelineSeries struct {
 	CostTotal []float64 `json:"cost_total"`
 }
 
+// Series is the answer to a timeline query: labeled buckets with one series
+// per group.
 type Series struct {
 	Bucket string           `json:"bucket"`
 	By     string           `json:"by"`

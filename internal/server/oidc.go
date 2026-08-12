@@ -204,10 +204,10 @@ func cliState(value string) string {
 	return value
 }
 
+// oidcStart begins the browser flow. The CLI parameters are checked before
+// anything else happens, so a caller that cannot be redirected back is told
+// now rather than after a round trip through the identity provider.
 func (s *Server) oidcStart(w http.ResponseWriter, r *http.Request) {
-	// The CLI parameters are checked before anything else happens, so a
-	// caller that cannot be redirected back is told now rather than after a
-	// round trip through the identity provider.
 	var pending oidcFlow
 	if r.URL.Query().Get(flowParam) == flowCLI {
 		pending.CLI = true
@@ -299,9 +299,6 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if pending.CLI {
-		// A CLI flow that lost its port must not silently fall back to
-		// the web redirect: that would put a live session token in the
-		// fragment of a page nobody asked for.
 		if pending.Port == "" {
 			httpjson.WriteError(w, apierrors.Invalid("the cli login lost its loopback port, start again"))
 			return
@@ -324,6 +321,8 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 // issueLoginCode ends the CLI half of the flow: a one-time code goes to the
 // listener the CLI opened, never a token. The host is ours and only the port
 // came from the request, so this redirect cannot be pointed off the machine.
+// The state is echoed only when the CLI sent one: a binary installed before
+// this flow existed sends nothing, and must still complete its login.
 func (s *Server) issueLoginCode(w http.ResponseWriter, r *http.Request, email, scope, port, nonce string) {
 	code, err := generateToken()
 	if err != nil {
@@ -337,8 +336,6 @@ func (s *Server) issueLoginCode(w http.ResponseWriter, r *http.Request, email, s
 	}
 
 	query := url.Values{"code": {code}}
-	// Echoed only when the CLI sent one: a binary installed before this
-	// flow existed sends nothing, and must still complete its login.
 	if nonce != "" {
 		query.Set("state", nonce)
 	}
@@ -354,7 +351,13 @@ func (s *Server) issueLoginCode(w http.ResponseWriter, r *http.Request, email, s
 
 // oidcExchange is the CLI's half: one-time code in, session token out. It is a
 // token endpoint in everything but name, so it answers under the no-store that
-// OAuth 2.1 §7.1 requires of any response carrying a credential.
+// OAuth 2.1 §7.1 requires of any response carrying a credential. A code
+// presented twice is a replay, not a typo — it was worth a session once, so
+// either the CLI retried or someone else has it, and either way it is worth a
+// line in the log. The token issued is the same credential a browser login
+// gets, under its own name: sharing the browser's name would sign the dashboard
+// out and the next dashboard login would break the daemon, because minting a
+// session evicts every token that shares its name.
 func (s *Server) oidcExchange(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 
@@ -368,18 +371,11 @@ func (s *Server) oidcExchange(w http.ResponseWriter, r *http.Request) {
 
 	code, ok := s.loginCodes.consume(hashToken(req.Code), time.Now().UTC())
 	if !ok {
-		// A code presented twice is a replay, not a typo: it was worth
-		// a session once, so either the CLI retried or someone else
-		// has it. Either way it is worth a line in the log.
 		s.Log.Warn("oidc: login code rejected", slog.String("ip", clientIP(r)))
 		httpjson.WriteError(w, apierrors.Unauthorized("invalid or expired code"))
 		return
 	}
 
-	// The same credential a browser login gets — same scope, same TTL —
-	// under its own name. Sharing the browser's name would make a CLI login
-	// sign the dashboard out and the next dashboard login break the daemon,
-	// because minting a session evicts every token that shares its name.
 	token, err := s.mintNamedSession("cli:"+code.Email, code.Email, code.Scope)
 	if err != nil {
 		s.Log.Error("oidc: session mint failed", slog.Any("error", err))

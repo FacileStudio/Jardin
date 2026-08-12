@@ -17,6 +17,8 @@ const StaleAfter = 3 * LiveInterval
 // LiveInterval is the cadence the daemon publishes liveness at.
 const LiveInterval = 60 * time.Second
 
+// LiveBlock is one open work block on a machine: project, agent, timing and
+// running totals.
 type LiveBlock struct {
 	Project     string    `json:"project"`
 	Agent       string    `json:"agent"`
@@ -28,6 +30,8 @@ type LiveBlock struct {
 	TokensOut   int64     `json:"tokens_out"`
 }
 
+// LiveSnapshot is what one machine is working on right now, as published by
+// its daemon.
 type LiveSnapshot struct {
 	Machine   string      `json:"machine"`
 	UpdatedAt time.Time   `json:"updated_at"`

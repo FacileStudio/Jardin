@@ -20,6 +20,7 @@ import (
 // into an alert the moment the feature is switched on.
 const defaultUsageThreshold = 80.0
 
+// AntenneSettings is the event-bus connection a server is configured with.
 type AntenneSettings struct {
 	Enabled        bool              `json:"enabled"`
 	Instance       string            `json:"instance"`
@@ -31,6 +32,8 @@ type AntenneSettings struct {
 	UsageThreshold float64           `json:"usage_threshold,omitempty"`
 }
 
+// Settings is the persisted server configuration: the live Antenne settings
+// plus a legacy shape that is adopted once.
 type Settings struct {
 	Antenne AntenneSettings  `json:"antenne"`
 	Legacy  *AntenneSettings `json:"nook,omitempty"`

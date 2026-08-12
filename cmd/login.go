@@ -158,6 +158,11 @@ func selectLoginSpace(cfg *config.MyceliumConfig, arg string) error {
 	return nil
 }
 
+// deviceLogin runs the RFC 8628 device-authorization flow against an API
+// that offers no browser sign-in (or when the machine has no browser). The
+// poll loop treats two statuses as terminal — denied, expired or already
+// consumed (400/403) — and everything else, pending (202), rate-limited (429)
+// or a transient blip, as keep-waiting.
 func deviceLogin(serverURL, machine string) (string, error) {
 	status, body, err := postJSON(serverURL+"/api/auth/device/start", map[string]string{"machine": machine})
 	if err != nil {
@@ -211,11 +216,9 @@ func deviceLogin(serverURL, machine string) (string, error) {
 			fmt.Println()
 			return res.Token, nil
 		case http.StatusBadRequest, http.StatusForbidden:
-			// Terminal: denied, expired, or already consumed.
 			fmt.Println()
 			return "", fmt.Errorf("authorization failed: %s", strings.TrimSpace(string(body)))
 		default:
-			// Pending (202), rate-limited (429), or a transient blip — keep waiting.
 			continue
 		}
 	}
@@ -271,18 +274,19 @@ func serverOffersSSO(serverURL string) bool {
 // something on its own. It opens a loopback port, sends the browser to the API
 // with that port attached, and the API — once the provider has done its part —
 // redirects back with a one-time code good for sixty seconds.
+//
+// The loopback listener asks the kernel for a free port, so two shells can
+// log in at the same time without agreeing on anything. The nonce is what
+// lets the listener tell its own callback from one somebody else sent:
+// without it any local process that guesses the port can hand us a code of
+// its choosing and we would exchange it.
 func ssoLogin(serverURL string) (string, error) {
-	// Port zero asks the kernel for a free one, so two shells can log in at
-	// the same time without agreeing on anything.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", fmt.Errorf("cannot open a loopback port to receive the login: %w", err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 
-	// The nonce is what lets the listener tell its own callback from one
-	// somebody else sent. Without it any local process that guesses the
-	// port can hand us a code of its choosing and we would exchange it.
 	nonce, err := loginNonce()
 	if err != nil {
 		listener.Close()
@@ -325,6 +329,8 @@ func ssoLogin(serverURL string) (string, error) {
 // awaitLoginCode serves the one redirect the API sends the browser to, and
 // keeps listening through anything else: a browser asks for /favicon.ico
 // unprompted, and failing a login over that is a bug nobody can diagnose.
+// It shuts the listener down rather than closing it, so the page the browser
+// is still reading finishes arriving before the socket goes away.
 func awaitLoginCode(listener net.Listener, nonce string) (string, error) {
 	type outcome struct {
 		code string
@@ -362,8 +368,6 @@ func awaitLoginCode(listener net.Listener, nonce string) (string, error) {
 		result = outcome{err: fmt.Errorf("timed out waiting for the browser — run 'mycelium login' again")}
 	}
 
-	// Shutdown rather than Close, so the page the browser is still reading
-	// finishes arriving before the socket goes away.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	server.Shutdown(ctx)

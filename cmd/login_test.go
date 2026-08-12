@@ -22,14 +22,16 @@ func loopbackListener(t *testing.T) (net.Listener, string) {
 	return listener, fmt.Sprintf("http://127.0.0.1:%d/", listener.Addr().(*net.TCPAddr).Port)
 }
 
+// TestTheListenerTakesTheCodeFromItsOwnCallback proves the callback carries
+// its nonce and that stray browser traffic does not kill the login: a browser
+// asks for /favicon.ico unprompted, and the exchange must survive it rather
+// than fail on the first stray request.
 func TestTheListenerTakesTheCodeFromItsOwnCallback(t *testing.T) {
 	listener, base := loopbackListener(t)
 
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		// A browser asks for /favicon.ico unprompted, and the login
-		// must survive it rather than fail on the first stray request.
 		if resp, err := http.Get(base + "favicon.ico"); err == nil {
 			resp.Body.Close()
 		}
@@ -154,13 +156,15 @@ func TestTheEnvironmentOverridesTheConfigFile(t *testing.T) {
 
 // Logging out must take the token and nothing else: that file also holds the
 // sync settings, and clobbering them destroys state nobody asked to reset.
+// Revocation runs against a local server so the best-effort call is exercised
+// without reaching for a name that cannot resolve, and running logout again
+// on an already-logged-out machine is not an error — the state a user in a
+// hurry on a borrowed machine is most likely to be in.
 func TestLogoutClearsTheTokenAndKeepsEverythingElse(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv(config.TokenEnv, "")
 
-	// A local server, so the best-effort revocation is exercised without
-	// the test reaching for a name it cannot resolve.
 	revoked := make(chan string, 2)
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		revoked <- r.Header.Get("Authorization")
@@ -202,8 +206,6 @@ func TestLogoutClearsTheTokenAndKeepsEverythingElse(t *testing.T) {
 		t.Fatalf("logout changed more than the token:\n got %+v\nwant %+v", *after, *stored)
 	}
 
-	// Running it again is not an error, which is the state a user in a
-	// hurry on a borrowed machine is most likely to be in.
 	if err := logoutCmd.RunE(logoutCmd, nil); err != nil {
 		t.Fatalf("logout while logged out: %v", err)
 	}

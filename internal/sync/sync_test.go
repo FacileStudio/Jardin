@@ -138,6 +138,9 @@ func TestSyncPropagatesRemoteDelete(t *testing.T) {
 }
 
 // A genuine edit-vs-edit conflict must converge without losing either version.
+// Both edits survive: the winner under its own name, the loser as a sibling
+// .conflict file that never syncs to the server, and a second sync with no
+// further edits converges to a no-op.
 func TestSyncConflictKeepsBothVersions(t *testing.T) {
 	c, clientDir, serverDir := setup(t)
 	establishBase(t, c, clientDir, serverDir, "rules/a.md", "v1")
@@ -164,12 +167,10 @@ func TestSyncConflictKeepsBothVersions(t *testing.T) {
 		t.Fatalf("a version was lost: winner=%q loser=%q", winner, loser)
 	}
 
-	// Conflict backups never sync to the server.
 	if exists(serverDir, "rules/a.md.conflict") {
 		t.Fatal(".conflict file leaked to the server")
 	}
 
-	// Converged: a second sync with no edits is a no-op.
 	res2, err := c.Sync(clientDir)
 	if err != nil {
 		t.Fatal(err)

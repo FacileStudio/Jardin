@@ -22,6 +22,7 @@ const (
 	roleMember = "member"
 )
 
+// Space is a named sync scope with its member-to-role map.
 type Space struct {
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
@@ -31,6 +32,7 @@ type Space struct {
 	UpdatedAt   string            `json:"updated_at"`
 }
 
+// SpaceResponse is the space as a member sees it, with their own role.
 type SpaceResponse struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -40,6 +42,7 @@ type SpaceResponse struct {
 	UpdatedAt   string `json:"updated_at"`
 }
 
+// MemberResponse is one member of a space.
 type MemberResponse struct {
 	Email    string `json:"email"`
 	Name     string `json:"name"`

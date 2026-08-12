@@ -8,12 +8,15 @@ import (
 	"strings"
 )
 
+// SearchResult is one matching line from a memory file.
 type SearchResult struct {
 	Path    string `json:"path"`
 	Line    int    `json:"line"`
 	Content string `json:"content"`
 }
 
+// Search returns every line under memoryPath that contains the query,
+// case-insensitively, as SearchResults with paths relative to memoryPath.
 func Search(memoryPath, query string) ([]SearchResult, error) {
 	pattern, err := regexp.Compile("(?i)" + regexp.QuoteMeta(query))
 	if err != nil {
@@ -45,6 +48,7 @@ func Search(memoryPath, query string) ([]SearchResult, error) {
 	return results, err
 }
 
+// ReadIndex returns the memory index.md file.
 func ReadIndex(memoryPath string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(memoryPath, "index.md"))
 	if err != nil {

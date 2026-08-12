@@ -47,17 +47,21 @@ type ctxKey int
 
 const identityKey ctxKey = 0
 
+// Identity is the authenticated caller as the handlers see it.
 type Identity struct {
 	Email     string
 	Scope     string
 	TokenHash string
 }
 
+// identityFrom pulls the authenticated Identity out of a request context.
 func identityFrom(r *http.Request) Identity {
 	id, _ := r.Context().Value(identityKey).(Identity)
 	return id
 }
 
+// Server is the HTTP API. Tokens, rate limiters and the emitter live here so
+// handlers share one stateful process.
 type Server struct {
 	DataDir            string
 	Password           string
@@ -76,6 +80,7 @@ type Server struct {
 	oidc               oidcRuntime
 }
 
+// FileEntry is one syncable file's identity over the wire.
 type FileEntry struct {
 	Path     string `json:"path"`
 	Checksum string `json:"checksum"`
@@ -83,6 +88,7 @@ type FileEntry struct {
 	ModTime  string `json:"mod_time"`
 }
 
+// TokenInfo is a minted API token as stored on disk.
 type TokenInfo struct {
 	Hash      string `json:"-"`
 	Name      string `json:"name"`
@@ -93,12 +99,16 @@ type TokenInfo struct {
 	LastSeen  string `json:"last_seen"`
 }
 
+// StatusResponse is the /api/status payload: machine identity plus the rule
+// and skill names that apply to it.
 type StatusResponse struct {
 	Machine string   `json:"machine"`
 	Rules   []string `json:"rules"`
 	Skills  []string `json:"skills"`
 }
 
+// New builds a Server over a data directory with the given bootstrap
+// password.
 func New(dataDir, password string) *Server {
 	s := &Server{
 		DataDir:    dataDir,
@@ -290,6 +300,11 @@ func pathParam(r *http.Request, key string) string {
 	return decoded
 }
 
+// auth guards every authenticated handler. A session token's scope is frozen
+// at mint time, but admin status can change afterward (promotion, demotion,
+// .users.json edits), so for any token bound to a user email the scope is
+// re-derived from the live user record instead of trusting what was baked in
+// at login.
 func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.Password == "" && s.OIDC == nil {
@@ -328,10 +343,6 @@ func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 			httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
 			return
 		}
-		// A session token's scope is frozen at mint time, but admin status can
-		// change afterward (promotion, demotion, .users.json edits). For any
-		// token bound to a user email, re-derive the scope from the live user
-		// record instead of trusting what was baked in at login.
 		scope := info.Scope
 		if info.UserEmail != "" {
 			s.mu.RLock()
