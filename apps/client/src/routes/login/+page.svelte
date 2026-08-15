@@ -8,9 +8,6 @@
 	const labelClass = 'text-sm font-medium leading-none';
 	const primaryButtonClass =
 		'inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50';
-	const outlineButtonClass =
-		'inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50';
-
 	let password = $state('');
 	let error = $state('');
 	let busy = $state(false);
@@ -93,7 +90,7 @@
 				</h1>
 				<p class="mt-1.5 text-sm text-muted-foreground">
 					{ssoOnly
-						? 'Connectez-vous avec votre compte organisation.'
+						? 'Connectez-vous avec votre compte Facile.'
 						: 'Connectez-vous à votre compte Mycelium.'}
 				</p>
 			</div>
@@ -101,6 +98,24 @@
 			{#if !configLoaded}
 				<div class="h-40"></div>
 			{:else}
+				{#if oidcEnabled}
+					<a href="/api/auth/oidc" data-sveltekit-reload class={primaryButtonClass}>
+						<iconify-icon
+							icon="solar:key-minimalistic-square-bold-duotone"
+							width="18"
+							class="mr-2"
+						></iconify-icon>
+						Se connecter avec Facile
+					</a>
+					{#if !ssoOnly}
+						<div class="my-6 flex items-center gap-3">
+							<span class="h-px flex-1 bg-border"></span>
+							<span class="text-xs text-muted-foreground">ou</span>
+							<span class="h-px flex-1 bg-border"></span>
+						</div>
+					{/if}
+				{/if}
+
 				{#if !ssoOnly}
 					<form onsubmit={submit} class="space-y-4">
 						<div class="space-y-1.5">
@@ -129,19 +144,6 @@
 					</form>
 				{/if}
 
-				{#if oidcEnabled}
-					{#if !ssoOnly}
-						<div class="my-5 flex items-center gap-3">
-							<div class="h-px flex-1 bg-border"></div>
-							<span class="text-xs text-muted-foreground">ou</span>
-							<div class="h-px flex-1 bg-border"></div>
-						</div>
-					{/if}
-
-					<a href="/api/auth/oidc" class="block">
-						<button type="button" class={outlineButtonClass}>Continuer avec SSO</button>
-					</a>
-				{/if}
 			{/if}
 		</div>
 	</div>
