@@ -75,7 +75,7 @@
 					></iconify-icon>
 					<span class="text-fc-xl font-semibold text-fc-fg">Jardin</span>
 				</a>
-				<Button href="/login" iconRight={icons.arrow}>Se connecter</Button>
+				<Button href="/login" iconRight={icons.arrow} class="rounded-fc-md">Se connecter</Button>
 			</div>
 		</header>
 
@@ -96,7 +96,7 @@
 					vos machines. Un seul endroit, zéro friction.
 				</p>
 				<div class="mt-10 flex flex-wrap items-center gap-4">
-					<Button href="/login" size="lg" iconRight={icons.arrow}>Commencer</Button>
+					<Button href="/login" size="lg" iconRight={icons.arrow} class="rounded-fc-md">Commencer</Button>
 					<Button
 						href="https://github.com/FacileStudio/Jardin"
 						target="_blank"
@@ -104,6 +104,7 @@
 						variant="outline"
 						size="lg"
 						iconRight={icons.code}
+						class="rounded-fc-md"
 					>
 						GitHub
 					</Button>
@@ -245,7 +246,7 @@
 						Un binaire Go. Zéro dépendance. Vos données restent chez vous.
 					</p>
 					<div class="mt-10 flex flex-wrap justify-center gap-3">
-						<Button href="/login" size="lg">Se connecter</Button>
+						<Button href="/login" size="lg" class="rounded-fc-md">Se connecter</Button>
 						<Button
 							href="https://github.com/FacileStudio/Jardin"
 							target="_blank"
@@ -253,6 +254,7 @@
 							variant="outline"
 							size="lg"
 							iconRight={icons.code}
+							class="rounded-fc-md"
 						>
 							Voir le code
 						</Button>
