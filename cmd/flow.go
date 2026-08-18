@@ -55,6 +55,27 @@ var flowAddCmd = &cobra.Command{
 	},
 }
 
+var flowUntrustCmd = &cobra.Command{
+	Use:   "untrust <name>",
+	Short: "Drop a flow's pin so it must be reviewed again before it runs",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			removed, err := flow.Prune()
+			if err != nil {
+				return err
+			}
+			ui.Success("Pruned %d pin(s) with no flow file.", removed)
+			return nil
+		}
+		if err := flow.Untrust(args[0]); err != nil {
+			return err
+		}
+		ui.Success("Dropped the pin for %q. It will refuse to run until trusted again.", args[0])
+		return nil
+	},
+}
+
 var flowRunCmd = &cobra.Command{
 	Use:   "run <name>",
 	Short: "Execute a flow, stream its output and write the run artifact",
@@ -174,6 +195,7 @@ func init() {
 	flowCmd.AddCommand(flowRunsCmd)
 	flowCmd.AddCommand(flowShowCmd)
 	flowCmd.AddCommand(flowTrustCmd)
+	flowCmd.AddCommand(flowUntrustCmd)
 	for _, c := range []*cobra.Command{flowListCmd, flowRunsCmd, flowShowCmd} {
 		c.Flags().BoolVar(&flowJSON, "json", false, "emit JSON")
 	}

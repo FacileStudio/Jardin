@@ -2,7 +2,10 @@ package flow
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/FacileStudio/Jardin/internal/config"
 )
 
 func trustDir(t *testing.T) string {
@@ -136,5 +139,41 @@ func TestTrustFileIsOwnerOnly(t *testing.T) {
 	}
 	if mode := info.Mode().Perm(); mode != 0600 {
 		t.Fatalf("mode = %04o, want 0600", mode)
+	}
+}
+
+// TestPruneDropsPinsWithNoFlowFile covers the leak found in review: deleting a
+// flow left its checksum in the store forever, because the store is
+// authoritative rather than derived and nothing rebuilt it from a walk.
+func TestPruneDropsPinsWithNoFlowFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DATA_DIR", dir)
+	if err := os.MkdirAll(config.FlowsDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	live := &Flow{Name: "live", Checksum: "sha256:aaa"}
+	gone := &Flow{Name: "gone", Checksum: "sha256:bbb"}
+	for _, f := range []*Flow{live, gone} {
+		if err := Trust(f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	path := filepath.Join(config.FlowsDir(), "live"+Extension)
+	if err := os.WriteFile(path, []byte("name: live\nsteps:\n  - name: a\n    run: 'true'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := Prune()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed != 1 {
+		t.Fatalf("want 1 pruned pin, got %d", removed)
+	}
+	if sum, _ := TrustedChecksum("live"); sum != "sha256:aaa" {
+		t.Fatalf("prune must keep a pin whose flow exists, got %q", sum)
+	}
+	if sum, _ := TrustedChecksum("gone"); sum != "" {
+		t.Fatalf("prune must drop a pin whose flow is gone, got %q", sum)
 	}
 }

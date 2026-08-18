@@ -2,6 +2,7 @@ package memory
 
 import (
 	"math"
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -83,30 +84,40 @@ func (c corpus) inverseDocumentFrequency(term string) float64 {
 
 // score is BM25: saturating term frequency, length-normalised, IDF-weighted.
 // Unlike a strict AND, a document missing some terms still ranks.
-func (c corpus) score(d doc, weights map[string]float64) float64 {
+func (c corpus) score(d doc, weights []termWeight) float64 {
 	total := 0.0
-	for term, idf := range weights {
-		tf := float64(d.termFrequency(term))
+	for _, w := range weights {
+		tf := float64(d.termFrequency(w.term))
 		if tf == 0 {
 			continue
 		}
 		norm := bm25K1 * (1 - bm25B + bm25B*float64(d.length)/c.avgLength)
-		total += idf * (tf * (bm25K1 + 1)) / (tf + norm)
+		total += w.idf * (tf * (bm25K1 + 1)) / (tf + norm)
 	}
 	return total
 }
 
-func (c corpus) weights(terms []string) map[string]float64 {
-	weights := make(map[string]float64, len(terms))
+// termWeight pairs a query term with its IDF. Weights are carried as an
+// ordered slice, never a map: scoring sums floats, float addition is not
+// associative, and Go randomises map iteration — so a map would make the same
+// query return different scores on different runs.
+type termWeight struct {
+	term string
+	idf  float64
+}
+
+func (c corpus) weights(terms []string) []termWeight {
+	weights := make([]termWeight, 0, len(terms))
 	for _, term := range terms {
-		weights[term] = c.inverseDocumentFrequency(term)
+		weights = append(weights, termWeight{term: term, idf: c.inverseDocumentFrequency(term)})
 	}
+	sort.Slice(weights, func(i, j int) bool { return weights[i].term < weights[j].term })
 	return weights
 }
 
 // bestLines picks the lines of a document that carry the most query weight, so
 // the caller sees why the page matched without opening it.
-func bestLines(d doc, weights map[string]float64, limit int) []SearchResult {
+func bestLines(d doc, weights []termWeight, limit int) []SearchResult {
 	var hits []SearchResult
 	for i, line := range strings.Split(d.body, "\n") {
 		weight := lineWeight(line, weights)
@@ -127,13 +138,13 @@ func bestLines(d doc, weights map[string]float64, limit int) []SearchResult {
 	return hits
 }
 
-func lineWeight(line string, weights map[string]float64) float64 {
+func lineWeight(line string, weights []termWeight) float64 {
 	tokens := tokenize(line)
 	total := 0.0
-	for term, idf := range weights {
+	for _, w := range weights {
 		for _, tok := range tokens {
-			if strings.HasPrefix(tok, term) {
-				total += idf
+			if strings.HasPrefix(tok, w.term) {
+				total += w.idf
 				break
 			}
 		}
