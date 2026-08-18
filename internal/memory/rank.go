@@ -13,12 +13,13 @@ const (
 )
 
 type doc struct {
-	path   string
-	page   string
-	line   int
-	body   string
-	tokens map[string]int
-	length int
+	path    string
+	page    string
+	line    int
+	display string
+	body    string
+	tokens  map[string]int
+	length  int
 }
 
 func tokenize(text string) []string {

@@ -6,7 +6,7 @@
 | [Configuration](configuration.md) | Every environment variable and default |
 | [Usage](usage.md) | Every CLI command and flag |
 | [Development](development.md) | Local setup, tests, the quality gate |
-| [Deployment](deployment.md) | Docker Compose, Dokploy, Traefik routing, releases |
+| [Deployment](deployment.md) | Docker Compose, Dokploy, Traefik routing, the inference sidecars, releases |
 | [API](api.md) | HTTP endpoints and payloads |
 
 Back to the [README](../README.md).

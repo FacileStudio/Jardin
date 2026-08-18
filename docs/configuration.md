@@ -26,6 +26,10 @@ deliberate — a half-configured server is worse than one that refuses to boot.
 | `OIDC_SUCCESS_URL` | no | `<request base>/auth/callback` | Where the callback sends the browser, with the session in the URL fragment |
 | `JOURNAL_URL` | no | — | Journal ingest URL. Log shipping needs both this and the token |
 | `JOURNAL_TOKEN` | no | — | Per-app Journal key |
+| `OLLAMA_URL` | no | — | Ollama base URL. Setting it turns semantic search on and makes the three below readable |
+| `EMBED_MODEL` | no | `bge-m3` | Embedding model. Only read when `OLLAMA_URL` is set |
+| `VECTOR_STORE` | no | `flat` | `flat` (a file under `DATA_DIR/.embeddings`) or `qdrant` |
+| `QDRANT_URL` | conditional | — | Required once `VECTOR_STORE=qdrant` |
 
 `APP_ENV`, `PORT`, `LOG_LEVEL`, `CORS_ALLOWED_ORIGINS`, `JOURNAL_URL` and `JOURNAL_TOKEN`
 are `troncenv.Core` fields, so they carry the same names here as in every other Facile API.
@@ -36,7 +40,7 @@ Jardin fills `Core` field by field rather than calling `troncenv.LoadCore`, beca
 suite spellings — `ALLOWED_ORIGINS`, `DOMAINS`, `DOMAIN`, `CORS_ORIGINS`,
 `TRUSTED_ORIGINS`, `CLIENT_ORIGIN` — first one set wins.
 
-### The three refusals
+### The refusals
 
 `jardin serve` exits 1 rather than start when:
 
@@ -45,9 +49,29 @@ suite spellings — `ALLOWED_ORIGINS`, `DOMAINS`, `DOMAIN`, `CORS_ORIGINS`,
   `OIDC_REDIRECT_URL` is missing.
 - `APP_ENV=production` with neither `PASSWORD` nor `OIDC_ISSUER` — otherwise every request
   is served as admin.
+- `EMBED_MODEL`, `VECTOR_STORE` or `QDRANT_URL` is set without `OLLAMA_URL` — they would do
+  nothing, and a silent no-op is worse than a refusal.
+- `VECTOR_STORE` is neither `flat` nor `qdrant`, or is `qdrant` with no `QDRANT_URL`.
 
 Outside production, running with neither `PASSWORD` nor `OIDC_ISSUER` is allowed and every
 request is served as admin. The server logs a warning at startup saying exactly that.
+
+### Semantic search is dormant until `OLLAMA_URL` is set
+
+`OLLAMA_URL` is the switch, exactly as `OIDC_ISSUER` is for SSO. Unset, `internal/env`
+returns a nil `*Embedding`, no embedding worker starts, and memory search answers with BM25
+lexical results only — a complete, supported mode, not a degraded one.
+
+The compose file passes all four through as empty strings, and `troncenv.String` reads an
+empty value as unset — so the shipped defaults leave the feature dormant rather than tripping
+the refusals above.
+
+Once it is on, an unreachable model is not a refusal. Embedding failures are logged and the
+work is requeued, and search falls back to lexical results for as long as the model is away.
+
+`flat` scans every vector on every query, which a wiki-sized corpus can afford, and stores
+the index inside `DATA_DIR` — so it lives in the same volume as the tree it indexes and
+survives a redeploy. `qdrant` is for a corpus a full scan no longer suits.
 
 ### Flags that override the environment
 

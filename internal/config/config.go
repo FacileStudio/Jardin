@@ -12,13 +12,17 @@ import (
 // JardinConfig is the persisted client configuration: which server and space
 // to sync, the credential, and the order rules are read in.
 type JardinConfig struct {
-	Machine    string   `yaml:"machine,omitempty"`
-	URL        string   `yaml:"url,omitempty"`
-	Token      string   `yaml:"token,omitempty"`
-	Space      string   `yaml:"space,omitempty"`
-	UsageToken string   `yaml:"usage_token,omitempty"`
-	RuleOrder  []string `yaml:"rule_order,omitempty"`
-	Agents     []string `yaml:"agents,omitempty"`
+	Machine    string `yaml:"machine,omitempty"`
+	URL        string `yaml:"url,omitempty"`
+	Token      string `yaml:"token,omitempty"`
+	Space      string `yaml:"space,omitempty"`
+	UsageToken string `yaml:"usage_token,omitempty"`
+	// VectorSearch opts this machine into semantic memory search. It is off by
+	// default: the server half needs an embedding model, and a machine whose
+	// server has none should not pay a round trip to be told so on every query.
+	VectorSearch bool     `yaml:"vector_search,omitempty"`
+	RuleOrder    []string `yaml:"rule_order,omitempty"`
+	Agents       []string `yaml:"agents,omitempty"`
 }
 
 // The environment overrides for the server session. Precedence is flag, then
@@ -29,12 +33,27 @@ type JardinConfig struct {
 // URLEnvAlt is the spelling CLI-STANDARD §6.3 gives the whole suite; JARDIN_URL
 // is the short form documented for Jardin. Both are read, JARDIN_URL wins.
 const (
-	TokenEnv  = "JARDIN_TOKEN"
-	URLEnv    = "JARDIN_URL"
-	URLEnvAlt = "JARDIN_SERVER_URL"
+	TokenEnv = "JARDIN_TOKEN"
+	// VectorSearchEnv overrides the config file's vector_search, matching how
+	// the URL and token are overridable: a test, or a CI job with no config
+	// file, must be able to choose without one.
+	VectorSearchEnv = "JARDIN_VECTOR_SEARCH"
+	URLEnv          = "JARDIN_URL"
+	URLEnvAlt       = "JARDIN_SERVER_URL"
 )
 
 // ServerURL resolves the instance to talk to, environment first.
+// SemanticEnabled reports whether this machine should ask the server for
+// semantic results. It is off unless asked for: the server half needs an
+// embedding model, and a machine whose server has none should not pay a round
+// trip to be told so on every query.
+func (c *JardinConfig) SemanticEnabled() bool {
+	if value := strings.TrimSpace(os.Getenv(VectorSearchEnv)); value != "" {
+		return value == "1" || strings.EqualFold(value, "true")
+	}
+	return c.VectorSearch
+}
+
 func (c *JardinConfig) ServerURL() string {
 	for _, key := range []string{URLEnv, URLEnvAlt} {
 		if value := strings.TrimSpace(os.Getenv(key)); value != "" {

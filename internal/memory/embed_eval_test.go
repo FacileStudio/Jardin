@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -23,7 +24,7 @@ func TestHybridBeatsLexical(t *testing.T) {
 		t.Skip("no wiki on this machine")
 	}
 	cases := loadGolden(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Hour)
 	defer cancel()
 
 	backend := NewOllama(base, embedModelName())
@@ -39,6 +40,19 @@ func TestHybridBeatsLexical(t *testing.T) {
 	report(t, "hybrid", measureRanker(t, dir, cases, hybridRanker(ctx, t, backend, store)))
 }
 
+func evalIndexDir(t *testing.T, model ModelID) string {
+	t.Helper()
+	base := os.Getenv("EMBED_INDEX_DIR")
+	if base == "" {
+		base = filepath.Join(os.TempDir(), "jardin-eval-index")
+	}
+	dir := filepath.Join(base, model.Name)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 func embedModelName() string {
 	if name := os.Getenv("EMBED_MODEL"); name != "" {
 		return name
@@ -48,7 +62,7 @@ func embedModelName() string {
 
 func indexWiki(ctx context.Context, t *testing.T, dir string, backend Backend, model ModelID) Store {
 	t.Helper()
-	store, err := OpenFlatStore(t.TempDir(), model)
+	store, err := OpenFlatStore(evalIndexDir(t, model), model)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,12 +74,21 @@ func indexWiki(ctx context.Context, t *testing.T, dir string, backend Backend, m
 	for _, p := range pages {
 		chunks = append(chunks, Chunks(p.path, p.body)...)
 	}
-	started := time.Now()
-	for start := 0; start < len(chunks); start += embedBatch {
-		end := min(start+embedBatch, len(chunks))
-		upsertBatch(ctx, t, backend, store, chunks[start:end])
+	known := store.Hashes()
+	var todo []Chunk
+	for _, c := range chunks {
+		if known[ChunkKey(c)] != ChunkHash(c) {
+			todo = append(todo, c)
+		}
 	}
-	t.Logf("indexed %d chunks in %s", len(chunks), time.Since(started).Round(time.Second))
+	started := time.Now()
+	for start := 0; start < len(todo); start += embedBatch {
+		end := min(start+embedBatch, len(todo))
+		upsertBatch(ctx, t, backend, store, todo[start:end])
+		t.Logf("embedded %d/%d chunks (%s elapsed)", end, len(todo), time.Since(started).Round(time.Second))
+	}
+	t.Logf("index ready: %d chunks total, %d embedded this run in %s",
+		len(chunks), len(todo), time.Since(started).Round(time.Second))
 	return store
 }
 
@@ -97,7 +120,11 @@ func denseRanker(ctx context.Context, t *testing.T, backend Backend, store Store
 		if err != nil || len(vectors) == 0 {
 			return nil, err
 		}
-		return toResults(store.Nearest(vectors[0], 50)), nil
+		hits, err := store.Nearest(vectors[0], 50)
+		if err != nil {
+			return nil, err
+		}
+		return toResults(hits), nil
 	}
 }
 

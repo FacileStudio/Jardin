@@ -32,7 +32,7 @@ func SearchChunks(memoryPath, query string) ([]SearchResult, error) {
 		results = append(results, SearchResult{
 			Path:    d.page,
 			Line:    d.line,
-			Content: excerpt(d.body),
+			Content: d.display,
 			Score:   int(score * 100),
 		})
 	}
@@ -48,16 +48,44 @@ func readChunkDocs(memoryPath string) ([]doc, error) {
 	var units []doc
 	for _, p := range pages {
 		for _, c := range Chunks(p.path, p.body) {
-			units = append(units, newUnit(ChunkKey(c), c.Path, c.Line, c.Text()))
+			unit := newUnit(ChunkKey(c), c.Path, c.Line, c.Text())
+			unit.display = chunkDisplay(c)
+			units = append(units, unit)
 		}
 	}
 	return units, nil
 }
 
+// chunkDisplay is what a reader sees for a hit: the block's own heading and the
+// first line of its body. The enrichment header is deliberately left out — it
+// repeats the path already printed beside the line number.
+func chunkDisplay(c Chunk) string {
+	body := excerpt(c.Body)
+	if c.Heading == "" {
+		return body
+	}
+	if body == "" {
+		return c.Heading
+	}
+	return c.Heading + " — " + body
+}
+
+// isBlockMeta matches the provenance lines every wiki finding opens with. They
+// are the same on every block, so showing one as a hit's excerpt tells a reader
+// nothing about why the block matched.
+func isBlockMeta(line string) bool {
+	for _, prefix := range []string{"**Date**", "**Source**", "**Sources**", "---"} {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func excerpt(body string) string {
 	for _, line := range strings.Split(body, "\n") {
 		trimmed := strings.TrimSpace(line)
-		if trimmed != "" && !strings.HasPrefix(trimmed, "**Date**") {
+		if trimmed != "" && !isBlockMeta(trimmed) {
 			return trimmed
 		}
 	}
