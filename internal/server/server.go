@@ -78,6 +78,10 @@ type Server struct {
 	devPolls           *rateLimiter
 	emitter            *Emitter
 	oidc               oidcRuntime
+
+	// Semantic is the vector half of memory search. Nil leaves it dormant:
+	// the server starts, search answers lexically, and nothing enqueues.
+	Semantic *Semantic
 }
 
 // FileEntry is one syncable file's identity over the wire.
@@ -215,7 +219,9 @@ func (s *Server) Handler() *chi.Mux {
 		r.Get("/status", s.auth(false, s.status))
 
 		r.Get("/memory/search", s.auth(false, s.memorySearch))
+		r.Post("/memory/search", s.auth(false, s.memorySearchPost))
 		r.Get("/memory/index", s.auth(false, s.memoryIndex))
+		r.Get("/memory/index/status", s.auth(false, s.memoryIndexStatus))
 
 		r.Get("/sessions/stats", s.auth(false, s.sessionsStats))
 		r.Get("/sessions/recent", s.auth(false, s.sessionsRecent))
@@ -688,6 +694,7 @@ func (s *Server) syncPutFile(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
+	s.enqueueEmbed(root, full)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -706,6 +713,7 @@ func (s *Server) syncDeleteFile(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, apierrors.Internal("internal error", err))
 		return
 	}
+	s.enqueueEmbed(root, full)
 	w.WriteHeader(http.StatusNoContent)
 }
 

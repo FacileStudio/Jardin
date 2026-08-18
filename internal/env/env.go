@@ -13,6 +13,27 @@ import (
 // DefaultPort is the port `mycelium serve` binds when PORT is unset.
 const DefaultPort = 8420
 
+const (
+	// EmbedDefaultModel is the embedding model used when EMBED_MODEL is unset.
+	EmbedDefaultModel = "bge-m3"
+	// VectorStoreFlat is the exact, dependency-free index: every vector is
+	// scanned on every query, which a wiki-sized corpus can afford.
+	VectorStoreFlat = "flat"
+	// VectorStoreQdrant is the external index, for a corpus a full scan no
+	// longer suits. It needs QDRANT_URL.
+	VectorStoreQdrant = "qdrant"
+)
+
+// Embedding is the semantic-search configuration. A nil *Embedding means the
+// feature is dormant: the server starts fine and memory search answers with
+// lexical results only.
+type Embedding struct {
+	OllamaURL   string
+	Model       string
+	VectorStore string
+	QdrantURL   string
+}
+
 // OIDC is the Authentik client configuration. A nil *OIDC means SSO is dormant.
 type OIDC struct {
 	Issuer       string
@@ -31,10 +52,11 @@ type OIDC struct {
 type Config struct {
 	troncenv.Core
 
-	DataDir  string
-	Password string
-	SSOOnly  bool
-	OIDC     *OIDC
+	DataDir   string
+	Password  string
+	SSOOnly   bool
+	OIDC      *OIDC
+	Embedding *Embedding
 }
 
 // Load reads and validates the configuration. Every error it returns is a
@@ -96,7 +118,40 @@ func Load() (Config, error) {
 		cfg.OIDC = &oidc
 	}
 
+	if cfg.Embedding, err = loadEmbedding(); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, cfg.validate()
+}
+
+// loadEmbedding reads the semantic-search configuration. OLLAMA_URL is the
+// switch, exactly as OIDC_ISSUER is for SSO: unset leaves the feature dormant,
+// and setting any of the other three without it is a misconfiguration rather
+// than a silent no-op, so the server refuses to start on it.
+func loadEmbedding() (*Embedding, error) {
+	embedding := Embedding{
+		OllamaURL:   troncenv.String("OLLAMA_URL", ""),
+		Model:       troncenv.String("EMBED_MODEL", EmbedDefaultModel),
+		VectorStore: troncenv.String("VECTOR_STORE", VectorStoreFlat),
+		QdrantURL:   troncenv.String("QDRANT_URL", ""),
+	}
+	if embedding.OllamaURL == "" {
+		if embedding.Model != EmbedDefaultModel || embedding.VectorStore != VectorStoreFlat ||
+			embedding.QdrantURL != "" {
+			return nil, fmt.Errorf("env: EMBED_MODEL, VECTOR_STORE and QDRANT_URL require OLLAMA_URL, " +
+				"otherwise semantic search stays dormant and they do nothing")
+		}
+		return nil, nil
+	}
+	if embedding.VectorStore != VectorStoreFlat && embedding.VectorStore != VectorStoreQdrant {
+		return nil, fmt.Errorf("env: VECTOR_STORE must be %q or %q, got %q",
+			VectorStoreFlat, VectorStoreQdrant, embedding.VectorStore)
+	}
+	if embedding.VectorStore == VectorStoreQdrant && embedding.QdrantURL == "" {
+		return nil, fmt.Errorf("env: VECTOR_STORE=%s requires QDRANT_URL", VectorStoreQdrant)
+	}
+	return &embedding, nil
 }
 
 // validate rejects the combinations that leave the server with no working way

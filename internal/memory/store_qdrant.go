@@ -133,16 +133,16 @@ func (s *QdrantStore) DeletePaths(paths []string) error {
 }
 
 // Nearest returns the closest chunks to the query, best first, ties broken on
-// key so repeated runs rank identically. A failed request returns no results:
-// retrieval is expected to degrade, not to panic.
-func (s *QdrantStore) Nearest(query Vector, limit int) []Scored {
+// key so repeated runs rank identically. A failed request is an error, not an
+// empty result: the caller has to be able to say search degraded.
+func (s *QdrantStore) Nearest(query Vector, limit int) ([]Scored, error) {
 	if limit <= 0 || len(query) != s.model.Dims {
-		return nil
+		return nil, fmt.Errorf("qdrant: refusing a %d-dim query against a %d-dim index", len(query), s.model.Dims)
 	}
 	body := map[string]any{"query": query, "limit": limit, "with_payload": true}
 	var out qdrantQueryResponse
 	if err := s.send(http.MethodPost, s.path("/points/query"), body, &out); err != nil {
-		return nil
+		return nil, err
 	}
 	scored := make([]Scored, 0, len(out.Result.Points))
 	for _, point := range out.Result.Points {
@@ -159,7 +159,7 @@ func (s *QdrantStore) Nearest(query Vector, limit int) []Scored {
 		}
 		return scored[i].Key < scored[j].Key
 	})
-	return scored
+	return scored, nil
 }
 
 func (s *QdrantStore) ensure() error {

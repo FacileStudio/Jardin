@@ -158,7 +158,7 @@ func (s *FlatStore) reindex() {
 // them, highest first. Equal scores break on Key, so the same index and query
 // always produce the same order: a ranking that drifts between runs cannot be
 // measured, let alone improved. A limit of zero or less returns everything.
-func (s *FlatStore) Nearest(query Vector, limit int) []Scored {
+func (s *FlatStore) Nearest(query Vector, limit int) ([]Scored, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	scored := make([]Scored, 0, len(s.entries))
@@ -179,7 +179,7 @@ func (s *FlatStore) Nearest(query Vector, limit int) []Scored {
 	if limit > 0 && limit < len(scored) {
 		scored = scored[:limit]
 	}
-	return scored
+	return scored, nil
 }
 
 func (s *FlatStore) persist() error {

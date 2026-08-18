@@ -61,7 +61,9 @@ var Registry = Response{Modules: []Module{
 		Description: "Search and routing over the wiki, without transferring it.",
 		Routes: []Route{
 			{Method: "GET", Path: "/memory/search", Summary: "Search memory pages", Description: "Full-text search over the wiki; `q` is the query.", Auth: "bearer", ResponseBody: "[]SearchResult", Errors: append(anyToken, badRequest)},
+			{Method: "POST", Path: "/memory/search", Summary: "Search memory pages, lexically and semantically", Description: "Fuses the BM25 ranking with a vector ranking using Reciprocal Rank Fusion, and returns ranked chunks rather than lines. `space_id` scopes the search to a space the caller belongs to. `degraded` is true when the embedding backend or its index was absent or unreachable and the answer is lexical-only — never an error.", Auth: "bearer", RequestBody: "MemorySearchRequest", ResponseBody: "MemorySearchResponse", Errors: append(anyToken, badRequest, forbidden)},
 			{Method: "GET", Path: "/memory/index", Summary: "Return the index", Description: "The one-line-per-page router that decides what to read next.", Auth: "bearer", ResponseBody: "IndexResponse", Errors: anyToken},
+			{Method: "GET", Path: "/memory/index/status", Summary: "Report embedding index progress", Description: "Progress of the vector index behind semantic search, for a progress bar: `enabled` is false with every other field zeroed when no embedding backend is configured. `total_chunks` is what the wiki holds, `indexed_chunks` what the store holds, and `chunks_per_second`/`eta_seconds` are measured over the pass in flight and are zero when idle. `last_error` carries the most recent embedding failure, so a model outage is visible rather than a stalled bar. `space_id` scopes the counts to a space the caller belongs to.", Auth: "bearer", ResponseBody: "MemoryIndexStatusResponse", Errors: append(anyToken, forbidden)},
 		},
 	},
 	{

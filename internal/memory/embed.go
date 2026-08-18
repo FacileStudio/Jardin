@@ -62,12 +62,16 @@ type Scored struct {
 // Store holds vectors and answers nearest-neighbour queries. The shipped
 // implementation scans every vector, which is exact; an approximate index
 // would be a different implementation of this interface, not a change to it.
+//
+// Nearest returns an error rather than an empty slice on failure: a caller
+// reporting whether search degraded cannot tell "the backend is down" from
+// "nothing matched" if both look like no results.
 type Store interface {
 	Model() ModelID
 	Hashes() map[string]string
 	Upsert(entries []Entry) error
 	DeletePaths(paths []string) error
-	Nearest(query Vector, limit int) []Scored
+	Nearest(query Vector, limit int) ([]Scored, error)
 }
 
 // ChunkKey identifies a chunk stably across runs.

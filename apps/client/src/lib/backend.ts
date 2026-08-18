@@ -96,6 +96,32 @@ export interface FileEntry {
 	mod_time: string;
 }
 
+/*
+ * `chunks_per_second` and `eta_seconds` are the server's own measurement of the run, never
+ * timed by the client from two samples. `enabled: false` is the normal state of a wiki with
+ * no embedding model configured, and zeroes the rest of the payload rather than omitting it.
+ */
+export interface MemoryIndexModel {
+	name: string;
+	digest: string;
+	dims: number;
+}
+
+export interface MemoryIndexState {
+	enabled: boolean;
+	model?: MemoryIndexModel;
+	store: string;
+	total_chunks: number;
+	indexed_chunks: number;
+	pending_paths: number;
+	indexing: boolean;
+	started_at?: string;
+	updated_at?: string;
+	chunks_per_second: number;
+	eta_seconds: number;
+	last_error: string;
+}
+
 export interface SessionStatRow {
 	key: string;
 	sessions: number;
@@ -281,6 +307,7 @@ export const backend = {
 			`/memory/search?q=${encodeURIComponent(query)}${spaceQuery('&')}`
 		),
 	memoryIndex: () => request<string>('GET', `/memory/index${spaceQuery()}`),
+	memoryIndexStatus: () => request<MemoryIndexState>('GET', `/memory/index/status${spaceQuery()}`),
 
 	syncTree: () => request<FileEntry[]>('GET', '/sync/tree'),
 	syncFile: (path: string) => request<string>('GET', `/sync/files/${path}`),

@@ -164,7 +164,7 @@ func TestQdrantNearestSortsByScore(t *testing.T) {
 			{"score":0.5,"payload":{"key":"a.md#2","path":"a.md","line":2}}]},"status":"ok"}`)
 	})
 
-	got := store.Nearest(Vector{1, 0, 0, 0}, 3)
+	got, _ := store.Nearest(Vector{1, 0, 0, 0}, 3)
 	want := []string{"a.md#7", "a.md#2", "b.md#1"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d results, want %d", len(got), len(want))
@@ -264,7 +264,7 @@ func TestQdrantLiveRoundTrip(t *testing.T) {
 	if hashes := store.Hashes(); len(hashes) != 2 || hashes["a.md#1"] != "h1" {
 		t.Fatalf("hashes %v, want both entries", hashes)
 	}
-	near := store.Nearest(Vector{1, 0, 0, 0}, 2)
+	near, _ := store.Nearest(Vector{1, 0, 0, 0}, 2)
 	if len(near) != 2 || near[0].Key != "a.md#1" || near[0].Score <= near[1].Score {
 		t.Fatalf("nearest %+v, want a.md#1 ranked first", near)
 	}

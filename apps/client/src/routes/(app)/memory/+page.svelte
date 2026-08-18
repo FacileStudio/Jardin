@@ -17,6 +17,7 @@
 	} from '@facile/muse';
 	import { backend, type FileEntry } from '$lib/backend';
 	import EntityCard from '$lib/components/EntityCard.svelte';
+	import IndexStatus from '$lib/components/IndexStatus.svelte';
 	import {
 		bucketByDay,
 		bucketLabel,
@@ -240,6 +241,8 @@
 	{/if}
 
 	<section class="flex flex-col gap-4">
+		<IndexStatus />
+
 		<form class="flex flex-col gap-3 sm:flex-row" onsubmit={search}>
 			<div class="min-w-0 flex-1">
 				<Input bind:value={query} placeholder="Search memory…" aria-label="Search memory" />

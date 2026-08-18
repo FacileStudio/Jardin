@@ -30,11 +30,22 @@ services:
       # Mycelium is not on journal's docker network, so use https://journal.facile.studio/api)
       JOURNAL_URL: ${JOURNAL_URL:-}
       JOURNAL_TOKEN: ${JOURNAL_TOKEN:-}
+      # Semantic memory search. OLLAMA_URL is the switch: unset leaves the
+      # feature dormant and memory search stays lexical-only. The three others
+      # are refused without it rather than silently ignored, so they are passed
+      # empty here and internal/env supplies the defaults (bge-m3, flat).
+      # ollama and qdrant are NOT services of this stack — see the facile-ai
+      # network below and docs/deployment.md.
+      OLLAMA_URL: ${OLLAMA_URL:-}
+      EMBED_MODEL: ${EMBED_MODEL:-}
+      VECTOR_STORE: ${VECTOR_STORE:-}
+      QDRANT_URL: ${QDRANT_URL:-}
     volumes:
       - mycelium-data:/data
     networks:
       - default
       - dokploy-network
+      - facile-ai
     labels:
       traefik.enable: "true"
       traefik.docker.network: dokploy-network
@@ -58,5 +69,15 @@ volumes:
   mycelium-data:
 
 networks:
+  # Traefik reaches the container here.
   dokploy-network:
+    external: true
+  # Shared inference sidecars — ollama (bge-m3) and qdrant — run as standalone
+  # containers on la ruche, outside every app's compose project, so their model
+  # and index volumes survive a redeploy of any one app. Joining this network is
+  # the whole dependency: no new service, no new router, no new hostname, and
+  # nothing new published. `scripts/ai-sidecars.sh` creates the network and the
+  # containers, and must have run once before the first deploy that needs them —
+  # compose refuses to start against a missing external network.
+  facile-ai:
     external: true

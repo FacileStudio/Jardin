@@ -47,8 +47,8 @@ func TestFlatStoreRoundTrip(t *testing.T) {
 	if got := len(reopened.Hashes()); got != 3 {
 		t.Fatalf("hashes after reopen = %d, want 3", got)
 	}
-	before := store.Nearest(Vector{1, 1, 0}, 0)
-	after := reopened.Nearest(Vector{1, 1, 0}, 0)
+	before, _ := store.Nearest(Vector{1, 1, 0}, 0)
+	after, _ := reopened.Nearest(Vector{1, 1, 0}, 0)
 	if len(before) != len(after) {
 		t.Fatalf("result count %d != %d", len(before), len(after))
 	}
@@ -74,7 +74,7 @@ func TestFlatStoreModelMismatchStartsEmpty(t *testing.T) {
 	if got := len(store.Hashes()); got != 0 {
 		t.Fatalf("hashes = %d, want 0 after model change", got)
 	}
-	if got := store.Nearest(Vector{1, 0, 0}, 0); len(got) != 0 {
+	if got := mustNearest(t, store, Vector{1, 0, 0}, 0); len(got) != 0 {
 		t.Fatalf("nearest = %d results, want 0", len(got))
 	}
 	if store.Model() != other {
@@ -100,7 +100,7 @@ func TestFlatStoreDeletePaths(t *testing.T) {
 	if err := store.Upsert([]Entry{flatEntry("a.md#1", "a.md", 1, Vector{1, 0, 0})}); err != nil {
 		t.Fatalf("Upsert after delete: %v", err)
 	}
-	if got := len(store.Nearest(Vector{1, 0, 0}, 0)); got != 2 {
+	if got := len(mustNearest(t, store, Vector{1, 0, 0}, 0)); got != 2 {
 		t.Fatalf("nearest = %d results, want 2", got)
 	}
 }
@@ -119,7 +119,7 @@ func TestFlatStoreNearestRanksAndBreaksTiesOnKey(t *testing.T) {
 
 	want := []string{"a.md#1", "m.md#1", "z.md#1", "q.md#1"}
 	for run := 0; run < 20; run++ {
-		got := store.Nearest(Vector{1, 0, 0}, 0)
+		got, _ := store.Nearest(Vector{1, 0, 0}, 0)
 		if len(got) != len(want) {
 			t.Fatalf("run %d: %d results, want %d", run, len(got), len(want))
 		}
@@ -137,13 +137,13 @@ func TestFlatStoreNearestRanksAndBreaksTiesOnKey(t *testing.T) {
 func TestFlatStoreNearestLimit(t *testing.T) {
 	store := flatOpen(t, t.TempDir(), flatTestModel())
 	flatSeed(t, store)
-	if got := store.Nearest(Vector{1, 0, 0}, 2); len(got) != 2 {
+	if got := mustNearest(t, store, Vector{1, 0, 0}, 2); len(got) != 2 {
 		t.Fatalf("limit 2 returned %d results", len(got))
 	}
-	if got := store.Nearest(Vector{1, 0, 0}, 99); len(got) != 3 {
+	if got := mustNearest(t, store, Vector{1, 0, 0}, 99); len(got) != 3 {
 		t.Fatalf("limit above size returned %d results", len(got))
 	}
-	if got := store.Nearest(Vector{1, 0, 0}, -1); len(got) != 3 {
+	if got := mustNearest(t, store, Vector{1, 0, 0}, -1); len(got) != 3 {
 		t.Fatalf("negative limit returned %d results", len(got))
 	}
 }
@@ -151,10 +151,10 @@ func TestFlatStoreNearestLimit(t *testing.T) {
 func TestFlatStoreEmptyIsHarmless(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "never-created")
 	store := flatOpen(t, dir, flatTestModel())
-	if got := store.Nearest(Vector{1, 0, 0}, 5); len(got) != 0 {
+	if got := mustNearest(t, store, Vector{1, 0, 0}, 5); len(got) != 0 {
 		t.Fatalf("empty store returned %d results", len(got))
 	}
-	if got := store.Nearest(nil, 0); len(got) != 0 {
+	if got := mustNearest(t, store, nil, 0); len(got) != 0 {
 		t.Fatalf("nil query returned %d results", len(got))
 	}
 	if len(store.Hashes()) != 0 {
@@ -193,4 +193,13 @@ func TestFlatStoreFileModes(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("temp files left behind: %v", entries)
 	}
+}
+
+func mustNearest(t *testing.T, s Store, query Vector, limit int) []Scored {
+	t.Helper()
+	scored, err := s.Nearest(query, limit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return scored
 }
