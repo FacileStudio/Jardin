@@ -117,3 +117,41 @@ func rankOfFirstExpected(t *testing.T, dir string, c goldenCase) int {
 	}
 	return 0
 }
+
+const crossLangFile = "testdata/golden-crosslang.json"
+
+// TestCrossLanguageRetrieval gauges how reachable the French half of the wiki
+// is from an English query. It deliberately has no floor and never fails: it
+// measures a migration in progress, not a regression. Every case here is a page
+// still written in French, so the number rises as pages convert and is the
+// cheapest way to see whether the English-only rule is being followed.
+func TestCrossLanguageRetrieval(t *testing.T) {
+	dir, ok := wikiDir()
+	if !ok {
+		t.Skip("no wiki on this machine")
+	}
+	data, err := os.ReadFile(crossLangFile)
+	if err != nil {
+		t.Fatalf("cross-language set unreadable: %v", err)
+	}
+	var cases []goldenCase
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatalf("cross-language set is not valid JSON: %v", err)
+	}
+
+	hits, reciprocal := 0, 0.0
+	for _, c := range cases {
+		rank := rankOfFirstExpected(t, dir, c)
+		if rank > 0 && rank <= evalK {
+			hits++
+		}
+		if rank > 0 {
+			reciprocal += 1.0 / float64(rank)
+		} else {
+			t.Logf("unreachable in English: %q → %v", c.Query, c.Expect)
+		}
+	}
+	n := float64(len(cases))
+	t.Logf("cross-language recall@%d = %.3f (%d/%d)   MRR = %.3f",
+		evalK, float64(hits)/n, hits, len(cases), reciprocal/n)
+}

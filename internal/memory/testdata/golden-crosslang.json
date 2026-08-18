@@ -1,0 +1,14 @@
+[
+  {"query": "postgres backups on the server", "expect": ["projects/facile-backups.md"]},
+  {"query": "the space model is duplicated across several go apps", "expect": ["projects/facile-spaces-duplication.md"]},
+  {"query": "how identity is split and named across the suite", "expect": ["conventions/facile-identity-naming.md"]},
+  {"query": "network exposure and deployment of the backends", "expect": ["conventions/facile-backend-exposure.md"]},
+  {"query": "the sso photo wins and an upload is the fallback for avatars", "expect": ["conventions/facile-avatars.md"]},
+  {"query": "the frozen design of the shared auth library", "expect": ["projects/facile-porte-design.md"]},
+  {"query": "back office split into two containers from one image", "expect": ["projects/boutique-two-face-split.md"]},
+  {"query": "binding a value on an input causes an endless render loop", "expect": ["bugs/muse-input-bindable-default-render-loop.md"]},
+  {"query": "a password keyed on an email address that can change", "expect": ["bugs/porte-credential-keyed-on-mutable-email.md"]},
+  {"query": "recorded procedures pinned before they are allowed to run", "expect": ["tools/mycelium-flow.md"]},
+  {"query": "chaining data between steps is the missing piece", "expect": ["projects/mycelium-flow-roadmap.md"]},
+  {"query": "wiring an auth kit onto the wrong store gives a missing table error", "expect": ["bugs/porte-mixed-store-wiring.md"]}
+]
