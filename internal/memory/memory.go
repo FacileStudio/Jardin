@@ -8,11 +8,7 @@ import (
 	"strings"
 )
 
-const (
-	distinctTermWeight = 10
-	headingBonus       = 3
-	linesPerFile       = 3
-)
+const linesPerFile = 3
 
 // SearchResult is one matching line from a memory file. Score ranks it against
 // the other results for the same query; it is not comparable across queries.
@@ -23,16 +19,49 @@ type SearchResult struct {
 	Score   int    `json:"score"`
 }
 
-// Search returns memory lines matching a query, best first. Every term must
-// appear somewhere in a file for that file to match, in any order, and the
-// lines returned are the ones carrying the most terms. A term matches inside a
-// longer word, so "trust" finds "trusted" and ".flow-trust.json".
+// Search returns memory lines matching a query, best first. Pages are ranked
+// with BM25 over the whole query, so a paraphrase still finds its page: a term
+// present in nearly every page contributes almost nothing, a rare identifier
+// dominates, and a page missing some terms still ranks. A term matches as a
+// prefix, so "trust" finds "trusted".
 func Search(memoryPath, query string) ([]SearchResult, error) {
 	terms := queryTerms(query)
 	if len(terms) == 0 {
 		return nil, nil
 	}
+	docs, err := readDocs(memoryPath)
+	if err != nil {
+		return nil, err
+	}
+	c := newCorpus(docs)
+	weights := c.weights(terms)
+
 	var results []SearchResult
+	for _, d := range c.docs {
+		if c.score(d, weights) <= 0 {
+			continue
+		}
+		results = append(results, bestLines(d, weights, linesPerFile)...)
+	}
+	sortResults(results)
+	return results, nil
+}
+
+func queryTerms(query string) []string {
+	seen := make(map[string]bool)
+	var terms []string
+	for _, tok := range tokenize(query) {
+		if seen[tok] {
+			continue
+		}
+		seen[tok] = true
+		terms = append(terms, tok)
+	}
+	return terms
+}
+
+func readDocs(memoryPath string) ([]doc, error) {
+	var docs []doc
 	err := filepath.Walk(memoryPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
 			return nil
@@ -42,80 +71,18 @@ func Search(memoryPath, query string) ([]SearchResult, error) {
 			return nil
 		}
 		rel, _ := filepath.Rel(memoryPath, path)
-		results = append(results, searchFile(rel, string(data), terms)...)
+		docs = append(docs, newDoc(rel, string(data)))
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to search %s: %w", memoryPath, err)
+		return nil, fmt.Errorf("failed to read %s: %w", memoryPath, err)
 	}
+	sort.Slice(docs, func(i, j int) bool { return docs[i].path < docs[j].path })
+	return docs, nil
+}
+
+func sortResults(results []SearchResult) {
 	sort.SliceStable(results, func(i, j int) bool { return better(results[i], results[j]) })
-	return results, nil
-}
-
-func queryTerms(query string) []string {
-	seen := make(map[string]bool)
-	var terms []string
-	for _, field := range strings.Fields(strings.ToLower(query)) {
-		if field == "" || seen[field] {
-			continue
-		}
-		seen[field] = true
-		terms = append(terms, field)
-	}
-	return terms
-}
-
-func searchFile(rel, content string, terms []string) []SearchResult {
-	if !containsAll(strings.ToLower(content), terms) {
-		return nil
-	}
-	var hits []SearchResult
-	for i, line := range strings.Split(content, "\n") {
-		score := scoreLine(strings.ToLower(line), terms)
-		if score == 0 {
-			continue
-		}
-		hits = append(hits, SearchResult{
-			Path:    rel,
-			Line:    i + 1,
-			Content: strings.TrimSpace(line),
-			Score:   score,
-		})
-	}
-	sort.SliceStable(hits, func(i, j int) bool { return better(hits[i], hits[j]) })
-	if len(hits) > linesPerFile {
-		hits = hits[:linesPerFile]
-	}
-	return hits
-}
-
-func containsAll(lowerContent string, terms []string) bool {
-	for _, term := range terms {
-		if !strings.Contains(lowerContent, term) {
-			return false
-		}
-	}
-	return true
-}
-
-func scoreLine(lowerLine string, terms []string) int {
-	distinct, total := 0, 0
-	for _, term := range terms {
-		count := strings.Count(lowerLine, term)
-		if count == 0 {
-			continue
-		}
-		distinct++
-		total += count
-	}
-	if distinct == 0 {
-		return 0
-	}
-	score := distinct*distinctTermWeight + total
-	if strings.HasPrefix(strings.TrimSpace(lowerLine), "#") {
-		score += headingBonus
-	}
-	return score
 }
 
 func better(a, b SearchResult) bool {
