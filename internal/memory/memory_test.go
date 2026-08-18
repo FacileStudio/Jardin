@@ -47,19 +47,29 @@ func TestSearchIgnoresWordOrder(t *testing.T) {
 	}
 }
 
-// TestSearchRequiresEveryTerm keeps a page that carries only one term out of
-// the results, which is what made single-word matching so noisy.
-func TestSearchRequiresEveryTerm(t *testing.T) {
+// TestSearchRanksFullMatchesAbovePartialOnes replaced an older test that
+// required every term to be present. BM25 deliberately lets a page missing a
+// term still rank, because a paraphrased query rarely shares every word with
+// its page; what must hold is that carrying more of the query ranks higher.
+func TestSearchRanksFullMatchesAbovePartialOnes(t *testing.T) {
 	dir := wikiFixture(t)
 	results, err := Search(dir, "trust store")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(results) == 0 {
+		t.Fatal("want results")
+	}
+	partial := filepath.Join("tools", "half-match.md")
 	for _, r := range results {
-		if r.Path == filepath.Join("tools", "half-match.md") {
-			t.Fatalf("a page missing one term must not match: %+v", r)
+		if r.Path == partial {
+			break
+		}
+		if r.Path == filepath.Join("tools", "flow.md") {
+			return
 		}
 	}
+	t.Fatalf("the page carrying both terms must outrank the one carrying one: %+v", results)
 }
 
 // TestSearchRanksTheDensestLineFirst proves the ordering is by match quality
