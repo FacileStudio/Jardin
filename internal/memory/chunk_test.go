@@ -110,3 +110,43 @@ func TestChunksOverTheRealWiki(t *testing.T) {
 		t.Fatalf("%d chunks would embed as empty text", empty)
 	}
 }
+
+// TestChunksSplitOversizedBlocks covers the silent failure this bounds:
+// embedding models truncate rather than error, so log.md — one 190k-character
+// block with no headings — indexed as its opening paragraph while every status
+// reported it healthy.
+func TestChunksSplitOversizedBlocks(t *testing.T) {
+	var body strings.Builder
+	body.WriteString("# Log\n")
+	for i := 0; i < 400; i++ {
+		body.WriteString("## [2026-08-18] ingest | a reasonably long log line about something\n")
+	}
+	chunks := Chunks("log.md", body.String())
+	if len(chunks) < 2 {
+		t.Fatalf("an oversized page must split, got %d chunk(s)", len(chunks))
+	}
+	for _, c := range chunks {
+		if len(c.Text()) > MaxChunkChars*2 {
+			t.Fatalf("a part is still %d chars, over the bound", len(c.Text()))
+		}
+		if c.Header == "" {
+			t.Fatal("every part must keep the header that says where it came from")
+		}
+	}
+	lines := map[int]bool{}
+	for _, c := range chunks {
+		if lines[c.Line] {
+			t.Fatalf("parts must carry distinct line numbers, %d repeats", c.Line)
+		}
+		lines[c.Line] = true
+	}
+}
+
+// TestChunksLeaveNormalBlocksAlone keeps the split from fragmenting the ordinary
+// finding, which is what retrieval is tuned on.
+func TestChunksLeaveNormalBlocksAlone(t *testing.T) {
+	chunks := Chunks("tools/x.md", samplePage)
+	if len(chunks) != 3 {
+		t.Fatalf("a normal page must not fragment, got %d", len(chunks))
+	}
+}

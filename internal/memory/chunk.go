@@ -25,6 +25,13 @@ func (c Chunk) Text() string {
 	return c.Header + "\n\n" + c.Body
 }
 
+// MaxChunkChars bounds what one chunk carries. Embedding models truncate
+// rather than fail: all-minilm keeps 512 tokens and drops the rest silently, so
+// a page with no headings — log.md is one chunk of 190k characters — would
+// index as its opening paragraph while reporting itself perfectly healthy.
+// Roughly four characters per token leaves room for the header on every part.
+const MaxChunkChars = 1600
+
 // Chunks splits a page into retrievable blocks. It is a pure function of the
 // page bytes: the same file always yields the same chunks, which is what lets
 // an index key on a content hash and skip re-embedding unchanged blocks.
@@ -61,7 +68,35 @@ func appendChunk(chunks []Chunk, c Chunk, body []string) []Chunk {
 	if c.Heading != "" {
 		c.Header += " / " + c.Heading
 	}
-	return append(chunks, c)
+	return append(chunks, split(c)...)
+}
+
+// split breaks an oversized block at line boundaries so no part is truncated by
+// the model. Parts keep the block's heading and header, so each still says
+// where it came from, and each carries its own line number so a hit points at
+// the right place in the file.
+func split(c Chunk) []Chunk {
+	if len(c.Text()) <= MaxChunkChars {
+		return []Chunk{c}
+	}
+	var parts []Chunk
+	part, lineAt := c, c.Line
+	var buf []string
+	size := 0
+	for i, line := range strings.Split(c.Body, "\n") {
+		if size+len(line) > MaxChunkChars && len(buf) > 0 {
+			part.Body, part.Line = strings.Join(buf, "\n"), lineAt
+			parts = append(parts, part)
+			buf, size, lineAt = nil, 0, c.Line+i
+		}
+		buf = append(buf, line)
+		size += len(line) + 1
+	}
+	if len(buf) > 0 {
+		part.Body, part.Line = strings.Join(buf, "\n"), lineAt
+		parts = append(parts, part)
+	}
+	return parts
 }
 
 func chunkHeader(path, title, kind string) string {

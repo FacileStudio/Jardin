@@ -38,6 +38,17 @@ type EmbedWorker struct {
 	lastError string
 }
 
+// reconcileInterval is how often the worker re-derives what is missing from the
+// index. It is the whole answer to a failed embed: a page that could not be
+// embedded — because the model was down, restarting, or out of memory — is
+// simply still missing, and the next sweep queues it again. No retry queue, no
+// backoff schedule, no dead-letter list, because the index already knows what
+// it does not have.
+//
+// It costs a walk of the wiki and a hash of every chunk, which is milliseconds,
+// and it is idempotent: an index that is up to date queues nothing at all.
+const reconcileInterval = 15 * time.Minute
+
 // NewEmbedWorker builds the worker for a server's semantic half and wires it
 // in. It returns nil when no embedding backend is configured, and every method
 // tolerates a nil receiver, so a caller can build and run it unconditionally.
@@ -118,10 +129,17 @@ func (w *EmbedWorker) Run(ctx context.Context) {
 	if w.hasPending() {
 		w.wake()
 	}
+	heal := time.NewTicker(reconcileInterval)
+	defer heal.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-heal.C:
+			if queued := w.reconcileAll(ctx); queued > 0 {
+				w.log().Info("embed reconcile requeued pages", slog.Int("pages", queued))
+			}
+			continue
 		case <-w.kick:
 		}
 		if !w.settle(ctx) {
