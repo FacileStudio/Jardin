@@ -9,6 +9,7 @@ import (
 	"github.com/FacileStudio/Jardin/internal/adapter"
 	"github.com/FacileStudio/Jardin/internal/cell"
 	"github.com/FacileStudio/Jardin/internal/config"
+	"github.com/FacileStudio/Jardin/internal/daemon"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -18,11 +19,32 @@ var installAll bool
 var installCmd = &cobra.Command{
 	Use:   "install [agent]",
 	Short: "Generate config for an agent",
-	Long:  "Generate agent-specific config from rules and skills.\nAvailable agents: claude, gemini, codex, cursor, copilot, hermes, opencode",
+	Long:  "Generate agent-specific config from rules and skills.\n\nWith no argument, generates for the agents detected on this machine.\n--all generates for every adapter, including tools that are not installed.\nAvailable agents: claude, gemini, codex, cursor, copilot, hermes, opencode",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !installAll && len(args) == 0 {
-			return cmd.Help()
+			detected := daemon.DetectAgents()
+			if len(detected) == 0 {
+				return cmd.Help()
+			}
+			cfg, err := config.LoadJardinConfig()
+			if err != nil {
+				return err
+			}
+			input, err := buildInput(cfg)
+			if err != nil {
+				return err
+			}
+			for _, name := range detected {
+				a, err := adapter.Get(name)
+				if err != nil {
+					return err
+				}
+				if err := runAdapter(a, input); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
 
 		cfg, err := config.LoadJardinConfig()
