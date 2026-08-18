@@ -268,3 +268,16 @@ func TestSyncSkipsMachineLocalFiles(t *testing.T) {
 		t.Fatalf("expected only rules/a.md to upload, got %+v", res)
 	}
 }
+
+// Run artifacts capture step output, which is exactly where a leaked secret
+// would land, so they stay on the machine that produced them. Flow files sync.
+func TestSyncSkipsRunArtifacts(t *testing.T) {
+	for rel, want := range map[string]bool{
+		"runs/x/y.json": true,
+		"flows/x.yml":   false,
+	} {
+		if got := syncSkip(rel); got != want {
+			t.Fatalf("syncSkip(%q) = %v, want %v", rel, got, want)
+		}
+	}
+}

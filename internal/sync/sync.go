@@ -120,10 +120,11 @@ func (c *Client) Delete(filePath string) error {
 }
 
 // syncSkip reports whether a path is excluded from sync: the tokens file,
-// hidden dotfiles, conflict backups and logs never travel.
+// hidden dotfiles, conflict backups, logs and flow run artifacts never travel.
 func syncSkip(rel string) bool {
 	return rel == tokensFile ||
 		strings.HasPrefix(rel, ".") ||
+		strings.HasPrefix(rel, "runs/") ||
 		strings.HasSuffix(rel, conflictExt) ||
 		strings.HasSuffix(rel, ".log")
 }

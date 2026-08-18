@@ -76,6 +76,12 @@ func RulesDir() string { return filepath.Join(DataDir(), "rules") }
 // SkillsDir returns the directory holding skill files.
 func SkillsDir() string { return filepath.Join(DataDir(), "skills") }
 
+// FlowsDir returns the directory holding flow files.
+func FlowsDir() string { return filepath.Join(DataDir(), "flows") }
+
+// RunsDir returns the directory holding flow run artifacts.
+func RunsDir() string { return filepath.Join(DataDir(), "runs") }
+
 // SessionsDir returns the directory holding session data.
 func SessionsDir() string { return filepath.Join(DataDir(), "sessions") }
 
