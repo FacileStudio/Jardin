@@ -88,7 +88,7 @@ flow is edited.
 | `mycelium flow run <name>` | Execute; stream step output; write the artifact; exit non-zero if the run failed |
 | `mycelium flow runs <name>` | Recent runs: timestamp, status, duration |
 | `mycelium flow show <name> [run]` | One run in full; defaults to the latest |
-| `mycelium flow trust <name>` | Show the diff against the trusted checksum, then re-pin |
+| `mycelium flow trust <name>` | Print the flow, confirm, then pin. `--yes` for non-interactive |
 
 `--json` on `list`, `runs` and `show`, because the primary caller is an agent.
 
@@ -101,9 +101,15 @@ belong in v0, not a follow-up.
 
 ### 1. Trust on first use
 
-`~/.mycelium/.flow-trust.json` maps flow path to sha256 of its bytes. `flow run`
+`~/.mycelium/.flow-trust.json` maps flow name to sha256 of its bytes. `flow run`
 hashes the file first and refuses to execute when the hash is absent or
-differs, printing the diff and the `flow trust` command to accept it.
+differs, naming the `flow trust` command to accept it.
+
+The store keeps a hash, not the trusted content, so `flow trust` cannot show a
+diff. It prints the whole flow file instead and asks for confirmation, and it
+refuses outright when stdin is not a terminal unless `--yes` is passed. A
+control whose entire value is human review must not be satisfiable by comparing
+two hex strings nobody reads.
 
 The store is a dotfile, and `syncSkip` in `internal/sync/sync.go` already
 excludes every path starting with `.`, so trust is per machine for free. A

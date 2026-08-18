@@ -166,3 +166,44 @@ func TestExecuteUsesWorkDir(t *testing.T) {
 		t.Errorf("step ran in %q, want %q", got, dir)
 	}
 }
+
+// TestCaptureRedactsAcrossChunkBoundaries proves a secret split over two writes
+// is still masked on the live stream. os/exec copies in fixed-size reads, so a
+// long-running step will split a value sooner or later.
+func TestCaptureRedactsAcrossChunkBoundaries(t *testing.T) {
+	var live strings.Builder
+	redact := newRedactor([]string{"API_TOKEN=supersecretvalue"})
+	c := newCapture(newSink(&live), "[s] ", redact)
+
+	if _, err := c.Write([]byte("prefix super")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Write([]byte("secretvalue suffix\n")); err != nil {
+		t.Fatal(err)
+	}
+	c.flush()
+
+	if got := live.String(); strings.Contains(got, "supersecretvalue") {
+		t.Fatalf("secret leaked to the live stream: %q", got)
+	}
+	if got := live.String(); !strings.Contains(got, "***") {
+		t.Fatalf("want the masked value, got %q", got)
+	}
+}
+
+// TestCaptureFlushesAPartialLine keeps a step's last line from vanishing when
+// it never printed a newline.
+func TestCaptureFlushesAPartialLine(t *testing.T) {
+	var live strings.Builder
+	c := newCapture(newSink(&live), "[s] ", func(s string) string { return s })
+	if _, err := c.Write([]byte("no trailing newline")); err != nil {
+		t.Fatal(err)
+	}
+	if live.String() != "" {
+		t.Fatalf("a partial line must wait for flush, got %q", live.String())
+	}
+	c.flush()
+	if got := live.String(); got != "[s] no trailing newline\n" {
+		t.Fatalf("got %q", got)
+	}
+}

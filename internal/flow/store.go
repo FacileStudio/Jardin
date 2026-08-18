@@ -15,8 +15,9 @@ import (
 const runExtension = ".json"
 
 // List returns every flow file under the flows directory, sorted by name. A
-// file that fails to parse aborts the listing rather than disappearing from it,
-// because a silently skipped flow is a flow nobody notices is broken.
+// file that fails to parse is reported as an error AND left out of the slice,
+// which stays populated: a broken flow must be loud, but it must not take every
+// working flow down with it.
 func List() ([]*Flow, error) {
 	dir := config.FlowsDir()
 	entries, err := os.ReadDir(dir)
@@ -27,17 +28,22 @@ func List() ([]*Flow, error) {
 		return nil, fmt.Errorf("failed to read %s: %w", dir, err)
 	}
 	flows := make([]*Flow, 0, len(entries))
+	var broken []string
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != Extension {
 			continue
 		}
 		f, err := readFlow(filepath.Join(dir, entry.Name()))
 		if err != nil {
-			return nil, err
+			broken = append(broken, err.Error())
+			continue
 		}
 		flows = append(flows, f)
 	}
 	sort.Slice(flows, func(i, j int) bool { return flows[i].Name < flows[j].Name })
+	if len(broken) > 0 {
+		return flows, fmt.Errorf("%s", strings.Join(broken, "; "))
+	}
 	return flows, nil
 }
 

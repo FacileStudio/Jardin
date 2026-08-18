@@ -13,6 +13,7 @@ import (
 
 var flowJSON bool
 var flowRunsLimit int
+var flowTrustYes bool
 
 var flowCmd = &cobra.Command{
 	Use:   "flow",
@@ -23,14 +24,11 @@ var flowListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List flows with their step count and trust state",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		flows, err := flow.List()
-		if err != nil {
-			return err
-		}
+		flows, listErr := flow.List()
 		if flowJSON {
 			return printJSON(flowListRows(flows))
 		}
-		if len(flows) == 0 {
+		if len(flows) == 0 && listErr == nil {
 			fmt.Println("No flows.")
 			return nil
 		}
@@ -38,7 +36,7 @@ var flowListCmd = &cobra.Command{
 		for _, f := range flows {
 			fmt.Println(flowRecapLine(f, width))
 		}
-		return nil
+		return listErr
 	},
 }
 
@@ -142,13 +140,19 @@ var flowTrustCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if pinned == f.Checksum {
+			ui.Success("%q is already pinned at this exact content.", f.Name)
+			return nil
+		}
 		if pinned == "" {
-			ui.Step("First pin of %q on this machine.", f.Name)
+			ui.Step("First pin of %q on this machine. Read it before accepting it.", f.Name)
 		} else {
-			ui.Step("%q was already pinned on this machine.", f.Name)
+			ui.Step("%q changed since it was approved here. Read what it does now.", f.Name)
 			ui.Hint("approved %s", pinned)
 		}
-		ui.Hint("current  %s", f.Checksum)
+		if err := confirmTrust(f); err != nil {
+			return err
+		}
 		if err := flow.Trust(f); err != nil {
 			return err
 		}
@@ -173,6 +177,7 @@ func init() {
 	for _, c := range []*cobra.Command{flowListCmd, flowRunsCmd, flowShowCmd} {
 		c.Flags().BoolVar(&flowJSON, "json", false, "emit JSON")
 	}
+	flowTrustCmd.Flags().BoolVar(&flowTrustYes, "yes", false, "pin without the interactive confirmation")
 	flowRunsCmd.Flags().IntVar(&flowRunsLimit, "limit", 20, "how many runs to list")
 	rootCmd.AddCommand(flowCmd)
 }

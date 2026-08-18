@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/FacileStudio/Mycelium/internal/flow"
 	"github.com/FacileStudio/Mycelium/internal/ui"
+	"golang.org/x/term"
 )
 
 func flowNameWidth(flows []*flow.Flow) int {
@@ -106,6 +108,30 @@ func refuseUntrusted(f *flow.Flow) error {
 	}
 	ui.Hint("Read it, then accept it with: mycelium flow trust %s", f.Name)
 	return fmt.Errorf("flow %q is not trusted on this machine", f.Name)
+}
+
+func confirmTrust(f *flow.Flow) error {
+	data, err := os.ReadFile(f.Path)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\n%s\n%s\n\n", ui.Dim("--- "+f.Path), strings.TrimRight(string(data), "\n"))
+	ui.Hint("current  %s", f.Checksum)
+	if flowTrustYes {
+		return nil
+	}
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return fmt.Errorf("refusing to pin %q unreviewed: rerun with --yes once you have read it", f.Name)
+	}
+	fmt.Printf("Pin %s so it may run here? [y/N] ", f.Name)
+	answer, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && answer == "" {
+		return err
+	}
+	if strings.ToLower(strings.TrimSpace(answer)) != "y" {
+		return fmt.Errorf("flow %q was not pinned", f.Name)
+	}
+	return nil
 }
 
 func resolveRun(args []string) (*flow.Run, error) {

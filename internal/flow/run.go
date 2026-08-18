@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -87,13 +88,17 @@ func runStep(ctx context.Context, step Step, dir string, stream io.Writer) StepR
 
 	started := time.Now()
 	err := cmd.Run()
+	out.flush()
+	errOut.flush()
+	stdout, outCut := out.result()
+	stderr, errCut := errOut.result()
 	return StepResult{
 		Name:       step.Name,
 		ExitCode:   exitCodeOf(err),
 		DurationMS: time.Since(started).Milliseconds(),
-		Stdout:     redact(out.String()),
-		Stderr:     redact(errOut.String()),
-		Truncated:  out.truncated || errOut.truncated,
+		Stdout:     redact(stdout),
+		Stderr:     redact(stderr),
+		Truncated:  outCut || errCut,
 		TimedOut:   errors.Is(stepCtx.Err(), context.DeadlineExceeded),
 	}
 }
@@ -195,7 +200,9 @@ func (s *sink) writeString(text string) {
 }
 
 type capture struct {
+	mu        sync.Mutex
 	buf       []byte
+	pending   []byte
 	truncated bool
 	stream    *sink
 	prefix    string
@@ -207,6 +214,8 @@ func newCapture(stream *sink, prefix string, redact func(string) string) *captur
 }
 
 func (c *capture) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if room := MaxStreamBytes - len(c.buf); room > 0 {
 		if len(p) > room {
 			c.buf = append(c.buf, p[:room]...)
@@ -217,29 +226,53 @@ func (c *capture) Write(p []byte) (int, error) {
 	} else if len(p) > 0 {
 		c.truncated = true
 	}
-	c.mirror(p)
+	c.mirrorLines(p)
 	return len(p), nil
 }
 
-func (c *capture) mirror(p []byte) {
+func (c *capture) mirrorLines(p []byte) {
 	if c.stream == nil || len(p) == 0 {
 		return
 	}
-	text := c.redact(string(p))
+	c.pending = append(c.pending, p...)
+	cut := bytes.LastIndexByte(c.pending, '\n')
+	if cut < 0 {
+		return
+	}
+	complete := string(c.pending[:cut+1])
+	c.pending = append(c.pending[:0], c.pending[cut+1:]...)
+	c.emit(complete)
+}
+
+func (c *capture) emit(text string) {
 	var b strings.Builder
-	for _, line := range strings.SplitAfter(text, "\n") {
+	for _, line := range strings.SplitAfter(c.redact(text), "\n") {
 		if line == "" {
 			continue
 		}
 		b.WriteString(c.prefix)
 		b.WriteString(line)
-	}
-	if !strings.HasSuffix(text, "\n") {
-		b.WriteString("\n")
+		if !strings.HasSuffix(line, "\n") {
+			b.WriteString("\n")
+		}
 	}
 	c.stream.writeString(b.String())
 }
 
-func (c *capture) String() string {
-	return string(c.buf)
+// flush writes whatever the step left without a trailing newline, so a partial
+// last line is not swallowed.
+func (c *capture) flush() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stream == nil || len(c.pending) == 0 {
+		return
+	}
+	c.emit(string(c.pending))
+	c.pending = c.pending[:0]
+}
+
+func (c *capture) result() (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return string(c.buf), c.truncated
 }
