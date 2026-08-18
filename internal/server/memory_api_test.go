@@ -98,6 +98,12 @@ func (f *fakeStore) Upsert(entries []memory.Entry) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.upserted = append(f.upserted, entries...)
+	if f.hashes == nil {
+		f.hashes = map[string]string{}
+	}
+	for _, entry := range entries {
+		f.hashes[entry.Key] = entry.Hash
+	}
 	return nil
 }
 
