@@ -242,3 +242,27 @@ func TestLoadRunMissingIDErrors(t *testing.T) {
 		t.Fatal("expected an error for a flow with no runs")
 	}
 }
+
+// TestSaveRunPrunesOldArtifacts covers the only unbounded thing mycelium writes:
+// a flow on a schedule would otherwise leave an artifact per run forever, and
+// every newest-run lookup decodes all of them.
+func TestSaveRunPrunesOldArtifacts(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	base := time.Date(2026, 8, 18, 21, 0, 0, 0, time.UTC)
+	for i := 0; i < RunRetention+10; i++ {
+		run := &Run{Flow: "gate", StartedAt: base.Add(time.Duration(i) * time.Second), Status: StatusOK}
+		if _, err := SaveRun(run); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runs, err := ListRuns("gate", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != RunRetention {
+		t.Fatalf("want %d artifacts kept, got %d", RunRetention, len(runs))
+	}
+	if !runs[0].StartedAt.Equal(base.Add(time.Duration(RunRetention+9) * time.Second)) {
+		t.Fatalf("pruning must keep the newest, got %s", runs[0].StartedAt)
+	}
+}
