@@ -228,7 +228,7 @@ func fuse(idx chunkIndex, rankings [][]string, limit int) []MemoryHit {
 			Heading: c.Heading,
 			Line:    c.Line,
 			Score:   score,
-			Excerpt: excerptOf(c.Body),
+			Excerpt: excerptOf(memory.StripBlockMeta(c.Body)),
 		})
 	}
 	sort.Slice(hits, func(i, j int) bool { return betterHit(hits[i], hits[j]) })

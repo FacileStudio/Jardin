@@ -70,6 +70,21 @@ func chunkDisplay(c Chunk) string {
 	return c.Heading + " — " + body
 }
 
+// StripBlockMeta drops the provenance lines a wiki finding opens with. They are
+// identical on every block, so leading an excerpt with them spends a reader's
+// attention — and an agent's tokens — on nothing that says why the block
+// matched.
+func StripBlockMeta(body string) string {
+	var kept []string
+	for _, line := range strings.Split(body, "\n") {
+		if len(kept) == 0 && (strings.TrimSpace(line) == "" || isBlockMeta(strings.TrimSpace(line))) {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.TrimSpace(strings.Join(kept, "\n"))
+}
+
 // isBlockMeta matches the provenance lines every wiki finding opens with. They
 // are the same on every block, so showing one as a hit's excerpt tells a reader
 // nothing about why the block matched.
