@@ -65,6 +65,28 @@ func Untrust(name string) error {
 	return writeTrust(pins)
 }
 
+// Prune drops pins whose flow file no longer exists and reports how many went.
+// The trust store is authoritative rather than derived, so a deleted or renamed
+// flow leaves its pin behind forever unless something clears it.
+func Prune() (int, error) {
+	pins, err := readTrust()
+	if err != nil {
+		return 0, err
+	}
+	removed := 0
+	for name := range pins {
+		if _, statErr := os.Stat(filepath.Join(config.FlowsDir(), name+Extension)); statErr == nil {
+			continue
+		}
+		delete(pins, name)
+		removed++
+	}
+	if removed == 0 {
+		return 0, nil
+	}
+	return removed, writeTrust(pins)
+}
+
 func readTrust() (map[string]string, error) {
 	path := TrustPath()
 	data, err := os.ReadFile(path)

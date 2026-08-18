@@ -3,6 +3,7 @@ package memory
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -115,4 +116,52 @@ func indexOf(haystack, needle string) int {
 		}
 	}
 	return -1
+}
+
+// TestSearchIsReproducible is the determinism gate. Scoring sums floats, and
+// float addition is not associative, so any iteration over a map would make
+// the same query return different scores between runs — and a ranking that
+// moves on its own cannot be improved, because no change can be measured.
+func TestSearchIsReproducible(t *testing.T) {
+	dir := wikiFixture(t)
+	first, err := Search(dir, "trust store lazy pin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 20; i++ {
+		again, err := Search(dir, "trust store lazy pin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(first, again) {
+			t.Fatalf("run %d differs:\nfirst: %+v\nagain: %+v", i, first, again)
+		}
+	}
+}
+
+// TestSearchIsReproducibleOnTheRealWiki runs the same check against the corpus
+// that actually matters, where 200 files and hundreds of distinct terms give
+// map-order nondeterminism room to show itself.
+func TestSearchIsReproducibleOnTheRealWiki(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("no home directory")
+	}
+	dir := filepath.Join(home, ".mycelium", "memory")
+	if _, err := os.Stat(dir); err != nil {
+		t.Skip("no wiki on this machine")
+	}
+	first, err := Search(dir, "porte oidc email verified lockout")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		again, err := Search(dir, "porte oidc email verified lockout")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(first, again) {
+			t.Fatalf("run %d differs on the real wiki", i)
+		}
+	}
 }

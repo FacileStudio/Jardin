@@ -50,7 +50,6 @@ architecture:
     "internal/daemon": []
     "internal/cell": []
     "internal/env": []
-    "internal/perception": []
     "internal/selfupdate": []
     "internal/config": []
     "internal/documentation": []
