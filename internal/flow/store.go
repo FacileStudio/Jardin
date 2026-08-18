@@ -137,6 +137,37 @@ func LoadRun(name, runID string) (*Run, error) {
 	return readRun(path)
 }
 
+// Scaffold writes a starter flow file and returns its path. The flow is not
+// trusted by it: whoever reviews it pins it with Trust.
+func Scaffold(name string) (string, error) {
+	if err := validName(name); err != nil {
+		return "", err
+	}
+	path := filepath.Join(config.FlowsDir(), name+Extension)
+	if _, err := os.Stat(path); err == nil {
+		return "", fmt.Errorf("flow %q already exists at %s", name, path)
+	}
+	if err := os.MkdirAll(config.FlowsDir(), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(template(name)), 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func template(name string) string {
+	return fmt.Sprintf(`name: %s
+description: ""
+
+# Steps run in order through "sh -c". Keep "run" to a single invocation and put
+# any logic in a script, so a bashism cannot break one machine and not another.
+steps:
+  - name: first
+    run: echo "replace me"
+`, name)
+}
+
 func newestRun(name string) (*Run, error) {
 	runs, err := ListRuns(name, 1)
 	if err != nil {

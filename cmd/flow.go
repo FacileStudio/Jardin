@@ -42,6 +42,21 @@ var flowListCmd = &cobra.Command{
 	},
 }
 
+var flowAddCmd = &cobra.Command{
+	Use:   "add <name>",
+	Short: "Scaffold a new flow",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		path, err := flow.Scaffold(args[0])
+		if err != nil {
+			return err
+		}
+		ui.Success("Flow %q created at %s", args[0], path)
+		ui.Hint("Edit it, then have it reviewed and pinned: mycelium flow trust %s", args[0])
+		return nil
+	},
+}
+
 var flowRunCmd = &cobra.Command{
 	Use:   "run <name>",
 	Short: "Execute a flow, stream its output and write the run artifact",
@@ -62,7 +77,7 @@ var flowRunCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		ui.Step("Running %s (%d steps)", f.Name, len(f.Steps))
+		ui.Step("Running %s (%s)", f.Name, stepCount(len(f.Steps)))
 		opts := flow.Options{WorkDir: dir, Machine: machineName(), Stream: os.Stdout}
 		run := flow.Execute(cmd.Context(), f, opts)
 		path, err := flow.SaveRun(run)
@@ -137,7 +152,7 @@ var flowTrustCmd = &cobra.Command{
 		if err := flow.Trust(f); err != nil {
 			return err
 		}
-		ui.Success("Trusted %q. %d steps may now run here.", f.Name, len(f.Steps))
+		ui.Success("Trusted %q. %s may now run here.", f.Name, stepCount(len(f.Steps)))
 		return nil
 	},
 }
@@ -150,6 +165,7 @@ func printJSON(v any) error {
 
 func init() {
 	flowCmd.AddCommand(flowListCmd)
+	flowCmd.AddCommand(flowAddCmd)
 	flowCmd.AddCommand(flowRunCmd)
 	flowCmd.AddCommand(flowRunsCmd)
 	flowCmd.AddCommand(flowShowCmd)
