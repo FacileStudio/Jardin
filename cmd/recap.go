@@ -69,12 +69,7 @@ func flowRecap() string {
 	if err != nil || len(flows) == 0 {
 		return ""
 	}
-	width := 0
-	for _, f := range flows {
-		if len(f.Name) > width {
-			width = len(f.Name)
-		}
-	}
+	width := flowNameWidth(flows)
 	lines := make([]string, 0, len(flows)+2)
 	lines = append(lines, "Flows on this machine (run one instead of re-deriving it):")
 	for _, f := range flows {
@@ -82,14 +77,6 @@ func flowRecap() string {
 	}
 	lines = append(lines, "Run with: jardin flow run <name>")
 	return strings.Join(lines, "\n")
-}
-
-func flowRecapLine(f *flow.Flow, width int) string {
-	line := fmt.Sprintf("  %-*s  %2d steps  %-10s", width, f.Name, len(f.Steps), trustState(f))
-	if f.Description != "" {
-		return line + "  " + f.Description
-	}
-	return strings.TrimRight(line, " ")
 }
 
 func init() {
