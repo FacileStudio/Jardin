@@ -158,7 +158,7 @@ func (idx chunkIndex) keyAt(path string, line int) (string, bool) {
 // yields an empty ranking rather than an error response, because a wiki that
 // cannot be walked is still not a reason to 500 a search.
 func (s *Server) lexicalRanking(dir, query string, idx chunkIndex) []string {
-	results, err := memory.Search(dir, query)
+	results, err := memory.SearchChunks(dir, query)
 	if err != nil {
 		s.Log.Error("memory search: lexical half failed", slog.Any("error", err))
 		return nil
