@@ -165,3 +165,24 @@ func TestSearchIsReproducibleOnTheRealWiki(t *testing.T) {
 		}
 	}
 }
+
+// TestSearchFoldsAccents covers a wiki written largely in French being searched
+// by people and agents who type without accents. Before folding, "chainage"
+// found nothing while "chaînage" found the page instantly, so an entire
+// language's worth of content was reachable only by typing it exactly.
+func TestSearchFoldsAccents(t *testing.T) {
+	dir := t.TempDir()
+	page := "---\ntitle: T\ntype: tool\n---\n\n### Chaînage des étapes\nLes étapes reçoivent leurs entrées par l'environnement.\n"
+	if err := os.WriteFile(filepath.Join(dir, "a.md"), []byte(page), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, query := range []string{"chainage etapes", "chaînage étapes", "CHAINAGE Etapes"} {
+		results, err := SearchChunks(dir, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(results) == 0 {
+			t.Fatalf("query %q found nothing; accents must not decide whether a page is reachable", query)
+		}
+	}
+}
