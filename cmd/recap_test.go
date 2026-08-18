@@ -40,14 +40,17 @@ func TestFlowRecapIsEmptyWithoutFlows(t *testing.T) {
 // tell which flows exist and which of them would refuse to run.
 func TestFlowRecapNamesEveryFlowAndItsTrust(t *testing.T) {
 	t.Setenv("DATA_DIR", t.TempDir())
-	pinned := writeFlow(t, "deploy-check", "name: deploy-check\ndescription: Ship it.\nsteps:\n  - name: a\n    run: 'true'\n")
-	writeFlow(t, "db-backup", "name: db-backup\nsteps:\n  - name: a\n    run: 'true'\n  - name: b\n    run: 'true'\n")
+	const oneStep = "name: deploy-check\ndescription: Ship it.\nsteps:\n  - name: a\n    run: 'true'\n"
+	const twoSteps = "name: db-backup\nsteps:\n  - name: a\n    run: 'true'\n  - name: b\n    run: 'true'\n"
+	pinned := writeFlow(t, "deploy-check", oneStep)
+	writeFlow(t, "db-backup", twoSteps)
 	if err := flow.Trust(pinned); err != nil {
 		t.Fatal(err)
 	}
 
 	got := flowRecap()
-	for _, want := range []string{"db-backup", "2 steps", "not pinned", "deploy-check", "trusted", "Ship it.", "jardin flow run"} {
+	wants := []string{"db-backup", "2 steps", "not pinned", "deploy-check", "trusted", "Ship it.", "jardin flow run"}
+	for _, want := range wants {
 		if !strings.Contains(got, want) {
 			t.Fatalf("recap missing %q:\n%s", want, got)
 		}

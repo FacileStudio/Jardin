@@ -66,14 +66,17 @@ func joinSections(parts ...string) string {
 
 func flowRecap() string {
 	flows, err := flow.List()
-	if err != nil || len(flows) == 0 {
+	if len(flows) == 0 && err == nil {
 		return ""
 	}
 	width := flowNameWidth(flows)
-	lines := make([]string, 0, len(flows)+2)
+	lines := make([]string, 0, len(flows)+3)
 	lines = append(lines, "Flows on this machine (run one instead of re-deriving it):")
 	for _, f := range flows {
 		lines = append(lines, flowRecapLine(f, width))
+	}
+	if err != nil {
+		lines = append(lines, "  a flow file does not parse and is missing from this list: "+err.Error())
 	}
 	lines = append(lines, "Run with: jardin flow run <name>")
 	return strings.Join(lines, "\n")
