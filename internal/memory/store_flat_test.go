@@ -203,3 +203,59 @@ func mustNearest(t *testing.T, s Store, query Vector, limit int) []Scored {
 	}
 	return scored
 }
+
+// TestFlatStoreSurvivesACorruptIndex proves the derived cache heals itself. The
+// trust store fails loudly on corruption because it is authoritative; this one
+// must not, or a truncated write would leave search permanently broken with no
+// way back except a human with rm.
+func TestFlatStoreSurvivesACorruptIndex(t *testing.T) {
+	dir := t.TempDir()
+	model := ModelID{Name: "m", Dims: 3}
+	store, err := OpenFlatStore(dir, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Upsert([]Entry{{Key: "a", Path: "a.md", Hash: "h", Vector: Vector{1, 0, 0}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, flatIndexFile), []byte("{ truncated"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := OpenFlatStore(dir, model)
+	if err != nil {
+		t.Fatalf("a corrupt derived index must reopen empty, not error: %v", err)
+	}
+	if len(reopened.Hashes()) != 0 {
+		t.Fatal("a corrupt index must start empty so a reconcile refills it")
+	}
+	if err := reopened.Upsert([]Entry{{Key: "a", Path: "a.md", Hash: "h", Vector: Vector{1, 0, 0}}}); err != nil {
+		t.Fatalf("the store must be writable again after corruption: %v", err)
+	}
+	if len(reopened.Hashes()) != 1 {
+		t.Fatal("want the rebuilt entry")
+	}
+}
+
+// TestFlatStoreRejectsAMismatchedQuery covers a stale index meeting a new
+// model: Cosine returns zero on a dimension mismatch, so wrong-width vectors
+// rank last instead of panicking or scoring nonsense.
+func TestFlatStoreRejectsAMismatchedQuery(t *testing.T) {
+	dir := t.TempDir()
+	store, err := OpenFlatStore(dir, ModelID{Name: "m", Dims: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Upsert([]Entry{{Key: "a", Path: "a.md", Vector: Vector{1, 0, 0}}}); err != nil {
+		t.Fatal(err)
+	}
+	scored, err := store.Nearest(Vector{1, 0}, 5)
+	if err != nil {
+		t.Fatalf("a mismatched query must be inert, not an error: %v", err)
+	}
+	for _, s := range scored {
+		if s.Score != 0 {
+			t.Fatalf("a %d-dim query against %d-dim vectors must score zero, got %v", 2, 3, s.Score)
+		}
+	}
+}

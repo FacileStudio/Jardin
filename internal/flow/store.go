@@ -14,6 +14,11 @@ import (
 
 const runExtension = ".json"
 
+// RunRetention is how many artifacts a flow keeps. Old runs are history, not
+// state: the wiki holds what was learned, and nobody reads the four hundredth
+// most recent gate run.
+const RunRetention = 50
+
 // List returns every flow file under the flows directory, sorted by name. A
 // file that fails to parse is reported as an error AND left out of the slice,
 // which stays populated: a broken flow must be loud, but it must not take every
@@ -84,6 +89,9 @@ func SaveRun(r *Run) (string, error) {
 	}
 	if err := os.Chmod(path, 0600); err != nil {
 		return "", fmt.Errorf("failed to secure %s: %w", path, err)
+	}
+	if err := pruneRuns(dir); err != nil {
+		return path, fmt.Errorf("wrote %s but could not prune old runs: %w", path, err)
 	}
 	return path, nil
 }
@@ -174,6 +182,10 @@ steps:
 `, name)
 }
 
+// newestRun returns a flow's latest run. It decodes every artifact, which is
+// bounded by RunRetention rather than by how long the flow has existed —
+// sorting on the filename would be cheaper and wrong, since RFC3339Nano trims
+// trailing zeros and does not sort lexicographically.
 func newestRun(name string) (*Run, error) {
 	runs, err := ListRuns(name, 1)
 	if err != nil {
@@ -183,6 +195,33 @@ func newestRun(name string) (*Run, error) {
 		return nil, fmt.Errorf("flow %q has no recorded runs", name)
 	}
 	return runs[0], nil
+}
+
+// pruneRuns keeps the most recent RunRetention artifacts for a flow and deletes
+// the rest. Run artifacts are the only unbounded thing jardin writes: a flow on
+// a five-minute schedule produces a hundred thousand files a year, and every
+// ListRuns decodes all of them.
+func pruneRuns(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	var artifacts []os.DirEntry
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == runExtension {
+			artifacts = append(artifacts, entry)
+		}
+	}
+	if len(artifacts) <= RunRetention {
+		return nil
+	}
+	sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].Name() > artifacts[j].Name() })
+	for _, doomed := range artifacts[RunRetention:] {
+		if err := os.Remove(filepath.Join(dir, doomed.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func readFlow(path string) (*Flow, error) {
