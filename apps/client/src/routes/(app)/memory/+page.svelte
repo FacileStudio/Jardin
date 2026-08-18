@@ -15,7 +15,7 @@
 		icons,
 		toast
 	} from '@facile/muse';
-	import { backend, type FileEntry } from '$lib/backend';
+	import { backend, type FileEntry, type MemorySearchHit } from '$lib/backend';
 	import EntityCard from '$lib/components/EntityCard.svelte';
 	import IndexStatus from '$lib/components/IndexStatus.svelte';
 	import {
@@ -38,8 +38,9 @@
 	const WINDOW_DAYS = 30;
 
 	let query = $state('');
-	let results: { path: string; line: number; content: string }[] = $state([]);
+	let results: MemorySearchHit[] = $state([]);
 	let searched = $state(false);
+	let searchDegraded = $state(false);
 	let searching = $state(false);
 	let files: FileEntry[] = $state([]);
 
@@ -164,7 +165,9 @@
 		if (!query.trim()) return;
 		searching = true;
 		try {
-			results = await backend.memorySearch(query);
+			const answer = await backend.memorySearch(query);
+			results = answer.results;
+			searchDegraded = answer.degraded;
 		} catch (e) {
 			results = [];
 			toast.danger(e instanceof Error ? e.message : 'Search failed.');
@@ -257,6 +260,12 @@
 			</Button>
 		</form>
 
+		{#if searchDegraded && searched}
+			<p class="text-fc-xs text-fc-fg-muted">
+				Matched words only — the semantic half is unavailable.
+			</p>
+		{/if}
+
 		{#if results.length > 0}
 			<div class="flex flex-col gap-2">
 				{#each results as result (result.path + ':' + result.line)}
@@ -269,7 +278,10 @@
 						<span class="font-fc-mono text-fc-xs text-fc-fg-muted">
 							{result.path}:{result.line}
 						</span>
-						<span class="truncate text-fc-sm text-fc-fg">{result.content}</span>
+						{#if result.heading}
+							<span class="text-fc-sm font-medium text-fc-fg">{result.heading}</span>
+						{/if}
+						<span class="truncate text-fc-sm text-fc-fg-muted">{result.excerpt}</span>
 					</Card>
 				{/each}
 			</div>

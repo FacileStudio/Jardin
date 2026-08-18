@@ -112,7 +112,7 @@ func (w *EmbedWorker) Run(ctx context.Context) {
 	if w == nil {
 		return
 	}
-	if queued := w.Reconcile(ctx, w.srv.DataDir); queued > 0 {
+	if queued := w.reconcileAll(ctx); queued > 0 {
 		w.log().Info("embed reconcile queued pages", slog.Int("pages", queued))
 	}
 	if w.hasPending() {

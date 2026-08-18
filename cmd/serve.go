@@ -19,7 +19,12 @@ import (
 )
 
 const (
-	semanticProbeTimeout = 30 * time.Second
+	// semanticProbeTimeout is deliberately short. The probe runs before the
+	// listener starts, so it is the one place an optional backend can hold the
+	// whole server down: a sidecar that resolves but hangs would otherwise eat
+	// most of the healthcheck's start window and invite a restart loop. A
+	// sidecar on the same host answers in well under this.
+	semanticProbeTimeout = 3 * time.Second
 	vectorIndexDir       = ".embeddings"
 	qdrantCollection     = "mycelium_memory"
 )
