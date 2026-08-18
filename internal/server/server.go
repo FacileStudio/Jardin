@@ -804,6 +804,7 @@ func (s *Server) resolveSyncPath(root, rel string) (string, bool) {
 func syncSkip(rel string) bool {
 	return rel == "tokens.json" ||
 		strings.HasPrefix(rel, ".") ||
+		strings.HasPrefix(rel, "runs/") ||
 		strings.HasSuffix(rel, ".conflict") ||
 		rel == "spaces" || strings.HasPrefix(rel, "spaces"+string(os.PathSeparator)) || strings.HasPrefix(rel, "spaces/")
 }

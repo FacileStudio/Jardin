@@ -49,6 +49,21 @@ func (w *EmbedWorker) Reconcile(ctx context.Context, root string) int {
 	return queued
 }
 
+// reconcileAll reconciles the common tree and every space. A space's existing
+// pages are as unindexed as the common tree's were, and nothing else would ever
+// queue them: the worker reacts to writes, and a space that is not being edited
+// produces none.
+func (w *EmbedWorker) reconcileAll(ctx context.Context) int {
+	if w == nil {
+		return 0
+	}
+	queued := w.Reconcile(ctx, w.srv.DataDir)
+	for id := range w.srv.loadSpaces() {
+		queued += w.Reconcile(ctx, filepath.Join(w.srv.spacesPath(), id))
+	}
+	return queued
+}
+
 // pageNeedsIndexing reports whether any chunk of a page is missing from the
 // index or has changed since it was embedded. It derives the chunk path through
 // embedTargetFor, the same function the sync path uses, so a reconcile can

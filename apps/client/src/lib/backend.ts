@@ -101,6 +101,19 @@ export interface FileEntry {
  * timed by the client from two samples. `enabled: false` is the normal state of a wiki with
  * no embedding model configured, and zeroes the rest of the payload rather than omitting it.
  */
+export interface MemorySearchHit {
+	path: string;
+	heading: string;
+	line: number;
+	score: number;
+	excerpt: string;
+}
+
+export interface MemorySearchResponse {
+	results: MemorySearchHit[];
+	degraded: boolean;
+}
+
 export interface MemoryIndexModel {
 	name: string;
 	digest: string;
@@ -301,11 +314,12 @@ export interface UserInfo {
 export const backend = {
 	status: () => request<JardinStatus>('GET', `/status${spaceQuery()}`),
 
-	memorySearch: (query: string) =>
-		request<{ path: string; line: number; content: string }[]>(
-			'GET',
-			`/memory/search?q=${encodeURIComponent(query)}${spaceQuery('&')}`
-		),
+	memorySearch: (query: string, limit = 20) =>
+		request<MemorySearchResponse>('POST', `/memory/search`, {
+			query,
+			limit,
+			space_id: getActiveSpaceId() ?? ''
+		}),
 	memoryIndex: () => request<string>('GET', `/memory/index${spaceQuery()}`),
 	memoryIndexStatus: () => request<MemoryIndexState>('GET', `/memory/index/status${spaceQuery()}`),
 
