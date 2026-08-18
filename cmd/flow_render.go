@@ -21,8 +21,15 @@ func flowNameWidth(flows []*flow.Flow) int {
 	return width
 }
 
+func stepCount(n int) string {
+	if n == 1 {
+		return "1 step"
+	}
+	return fmt.Sprintf("%d steps", n)
+}
+
 func flowRecapLine(f *flow.Flow, width int) string {
-	line := fmt.Sprintf("  %-*s  %2d steps  %-10s", width, f.Name, len(f.Steps), trustState(f))
+	line := fmt.Sprintf("  %-*s  %-8s %-10s", width, f.Name, stepCount(len(f.Steps)), trustState(f))
 	if f.Description != "" {
 		return line + "  " + f.Description
 	}
@@ -122,7 +129,7 @@ func resolveRun(args []string) (*flow.Run, error) {
 }
 
 func reportRun(r *flow.Run, path string) error {
-	summary := fmt.Sprintf("%d steps in %s", len(r.Steps), r.Duration().Round(time.Millisecond))
+	summary := fmt.Sprintf("%s in %s", stepCount(len(r.Steps)), r.Duration().Round(time.Millisecond))
 	if r.Status == flow.StatusOK {
 		ui.Success("%s: %s", r.Flow, summary)
 		ui.Hint("%s", path)
