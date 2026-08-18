@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/FacileStudio/Jardin/internal/config"
+	"github.com/FacileStudio/Jardin/internal/flow"
 	"github.com/FacileStudio/Jardin/internal/sessions"
 	"github.com/spf13/cobra"
 )
@@ -34,7 +36,7 @@ var recapCmd = &cobra.Command{
 		}
 
 		project := sessions.ResolveProject(cwd)
-		recap := sessions.Recap(config.DataDir(), project, time.Now())
+		recap := joinSections(sessions.Recap(config.DataDir(), project, time.Now()), flowRecap())
 		if recap == "" {
 			return nil
 		}
@@ -50,6 +52,44 @@ var recapCmd = &cobra.Command{
 		}
 		return json.NewEncoder(os.Stdout).Encode(out)
 	},
+}
+
+func joinSections(parts ...string) string {
+	kept := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if strings.TrimSpace(p) != "" {
+			kept = append(kept, strings.TrimRight(p, "\n"))
+		}
+	}
+	return strings.Join(kept, "\n\n")
+}
+
+func flowRecap() string {
+	flows, err := flow.List()
+	if err != nil || len(flows) == 0 {
+		return ""
+	}
+	width := 0
+	for _, f := range flows {
+		if len(f.Name) > width {
+			width = len(f.Name)
+		}
+	}
+	lines := make([]string, 0, len(flows)+2)
+	lines = append(lines, "Flows on this machine (run one instead of re-deriving it):")
+	for _, f := range flows {
+		lines = append(lines, flowRecapLine(f, width))
+	}
+	lines = append(lines, "Run with: jardin flow run <name>")
+	return strings.Join(lines, "\n")
+}
+
+func flowRecapLine(f *flow.Flow, width int) string {
+	line := fmt.Sprintf("  %-*s  %2d steps  %-10s", width, f.Name, len(f.Steps), trustState(f))
+	if f.Description != "" {
+		return line + "  " + f.Description
+	}
+	return strings.TrimRight(line, " ")
 }
 
 func init() {
