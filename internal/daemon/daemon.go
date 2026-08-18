@@ -128,6 +128,13 @@ func markInstalled(now time.Time) {
 
 // DetectAgents returns the names of the code assistants whose rule files exist
 // on this machine.
+// DetectAgents reports the agents whose home-level config directory exists.
+//
+// Only home-scoped adapters can be found this way. Cursor writes .cursor/rules/
+// and Copilot writes .github/copilot-instructions.md, both relative to a
+// project, so there is nothing under $HOME to look for and neither belongs
+// here. Opencode does have a home config, and its absence was why `doctor`
+// reported four agents where `install --all` writes seven.
 func DetectAgents() []string {
 	home, _ := os.UserHomeDir()
 	markers := []struct {
@@ -138,6 +145,7 @@ func DetectAgents() []string {
 		{"codex", filepath.Join(home, ".codex")},
 		{"gemini", filepath.Join(home, ".gemini")},
 		{"hermes", filepath.Join(home, "SOUL.md")},
+		{"opencode", filepath.Join(home, ".config", "opencode")},
 	}
 	var found []string
 	for _, m := range markers {
