@@ -22,10 +22,43 @@ type doc struct {
 	length  int
 }
 
+// tokenize lowercases, folds accents away, and splits on anything that is not
+// a letter or a digit. Folding matters because the wiki is largely French while
+// the queries put to it rarely carry accents: without it, "chainage" cannot
+// find "chaînage", and a whole language's worth of pages goes missing for
+// anyone typing on a keyboard that makes accents inconvenient.
 func tokenize(text string) []string {
-	return strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+	folded := strings.Map(foldAccent, strings.ToLower(text))
+	return strings.FieldsFunc(folded, func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
+}
+
+// foldAccent maps a lowercase accented Latin rune onto its unaccented form.
+// It is a table rather than Unicode normalisation because golang.org/x/text is
+// not a dependency of this binary and one search feature does not justify
+// making it one; the ligatures it cannot express one-to-one are rare enough in
+// the corpus to leave alone.
+func foldAccent(r rune) rune {
+	switch r {
+	case 'à', 'á', 'â', 'ã', 'ä', 'å':
+		return 'a'
+	case 'ç':
+		return 'c'
+	case 'è', 'é', 'ê', 'ë':
+		return 'e'
+	case 'ì', 'í', 'î', 'ï':
+		return 'i'
+	case 'ñ':
+		return 'n'
+	case 'ò', 'ó', 'ô', 'õ', 'ö':
+		return 'o'
+	case 'ù', 'ú', 'û', 'ü':
+		return 'u'
+	case 'ý', 'ÿ':
+		return 'y'
+	}
+	return r
 }
 
 func newDoc(path, body string) doc {
