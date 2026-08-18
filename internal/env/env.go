@@ -15,7 +15,7 @@ const DefaultPort = 8420
 
 const (
 	// EmbedDefaultModel is the embedding model used when EMBED_MODEL is unset.
-	EmbedDefaultModel = "bge-m3"
+	EmbedDefaultModel = "all-minilm"
 	// VectorStoreFlat is the exact, dependency-free index: every vector is
 	// scanned on every query, which a wiki-sized corpus can afford.
 	VectorStoreFlat = "flat"
@@ -125,6 +125,12 @@ func Load() (Config, error) {
 	return cfg, cfg.validate()
 }
 
+// loadEmbedding reads the semantic-search configuration. An empty OLLAMA_URL
+// leaves the feature dormant and every other embedding variable is ignored
+// rather than refused: docker-compose.yml supplies a model, a store and a
+// Qdrant URL by default, so refusing them alongside an empty OLLAMA_URL would
+// make "set OLLAMA_URL to empty to turn it off" fail to boot.
+//
 // loadEmbedding reads the semantic-search configuration. OLLAMA_URL is the
 // switch, exactly as OIDC_ISSUER is for SSO: unset leaves the feature dormant,
 // and setting any of the other three without it is a misconfiguration rather
@@ -137,11 +143,6 @@ func loadEmbedding() (*Embedding, error) {
 		QdrantURL:   troncenv.String("QDRANT_URL", ""),
 	}
 	if embedding.OllamaURL == "" {
-		if embedding.Model != EmbedDefaultModel || embedding.VectorStore != VectorStoreFlat ||
-			embedding.QdrantURL != "" {
-			return nil, fmt.Errorf("env: EMBED_MODEL, VECTOR_STORE and QDRANT_URL require OLLAMA_URL, " +
-				"otherwise semantic search stays dormant and they do nothing")
-		}
 		return nil, nil
 	}
 	if embedding.VectorStore != VectorStoreFlat && embedding.VectorStore != VectorStoreQdrant {

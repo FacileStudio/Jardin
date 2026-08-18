@@ -30,16 +30,24 @@ services:
       # Mycelium is not on journal's docker network, so use https://journal.facile.studio/api)
       JOURNAL_URL: ${JOURNAL_URL:-}
       JOURNAL_TOKEN: ${JOURNAL_TOKEN:-}
-      # Semantic memory search. OLLAMA_URL is the switch: unset leaves the
-      # feature dormant and memory search stays lexical-only. The three others
-      # are refused without it rather than silently ignored, so they are passed
-      # empty here and internal/env supplies the defaults (bge-m3, flat).
+      # Semantic memory search, wired to the shared sidecars by default so a
+      # standard deploy needs no panel configuration at all.
+      #
+      # Note the expansion is ${VAR-default}, NOT ${VAR:-default}: the colonless
+      # form substitutes only when the variable is UNSET, so all three intents
+      # are expressible.
+      #   unset            -> the sidecars below, semantic search on
+      #   set to a URL     -> somebody else's ollama, anywhere
+      #   set to empty     -> dormant, memory search stays lexical-only
+      # A colon here would make the last row impossible, since empty and unset
+      # would both mean "use the default".
+      #
       # ollama and qdrant are NOT services of this stack — see the facile-ai
       # network below and docs/deployment.md.
-      OLLAMA_URL: ${OLLAMA_URL:-}
-      EMBED_MODEL: ${EMBED_MODEL:-}
-      VECTOR_STORE: ${VECTOR_STORE:-}
-      QDRANT_URL: ${QDRANT_URL:-}
+      OLLAMA_URL: ${OLLAMA_URL-http://ollama:11434}
+      EMBED_MODEL: ${EMBED_MODEL-all-minilm}
+      VECTOR_STORE: ${VECTOR_STORE-flat}
+      QDRANT_URL: ${QDRANT_URL-http://qdrant:6333}
     volumes:
       - mycelium-data:/data
     networks:
