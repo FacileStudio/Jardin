@@ -14,6 +14,8 @@ const (
 
 type doc struct {
 	path   string
+	page   string
+	line   int
 	body   string
 	tokens map[string]int
 	length int
@@ -26,12 +28,16 @@ func tokenize(text string) []string {
 }
 
 func newDoc(path, body string) doc {
+	return newUnit(path, path, 1, body)
+}
+
+func newUnit(id, page string, line int, body string) doc {
 	tokens := tokenize(body)
 	counts := make(map[string]int, len(tokens))
 	for _, tok := range tokens {
 		counts[tok]++
 	}
-	return doc{path: path, body: body, tokens: counts, length: len(tokens)}
+	return doc{path: id, page: page, line: line, body: body, tokens: counts, length: len(tokens)}
 }
 
 // termFrequency counts a term in a document, treating the term as a prefix so
