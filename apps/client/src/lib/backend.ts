@@ -311,6 +311,37 @@ export interface UserInfo {
 	admin: boolean;
 }
 
+export interface FlowStepSummary {
+	name: string;
+	kind: 'run' | 'type';
+	type?: string;
+	depends_on?: string[];
+	needs?: Record<string, string>;
+}
+
+export interface FlowSummary {
+	name: string;
+	description?: string;
+	steps: FlowStepSummary[];
+}
+
+/*
+ * Trust pins and run history live under a dotfile and runs/, neither of which syncs
+ * (internal/sync's syncSkip excludes both) — a flow that fails to parse still has to render,
+ * since an author still needs to see and fix it, so parse_error stands in for summary rather
+ * than the request failing.
+ */
+export interface FlowDetail {
+	raw: string;
+	summary?: FlowSummary;
+	parse_error?: string;
+}
+
+export interface ModelInfo {
+	type: string;
+	path: string;
+}
+
 export const backend = {
 	status: () => request<JardinStatus>('GET', `/status${spaceQuery()}`),
 
@@ -337,6 +368,12 @@ export const backend = {
 	skillGet: (name: string) => request<string>('GET', `/skills/${name}${spaceQuery()}`),
 	skillSave: (name: string, content: string) => request<void>('PUT', `/skills/${name}${spaceQuery()}`, content),
 	skillDelete: (name: string) => request<void>('DELETE', `/skills/${name}${spaceQuery()}`),
+
+	flowsList: () => request<string[]>('GET', `/flows${spaceQuery()}`),
+	flowGet: (name: string) => request<FlowDetail>('GET', `/flows/${name}${spaceQuery()}`),
+
+	modelsList: () => request<ModelInfo[]>('GET', `/models${spaceQuery()}`),
+	modelGet: (path: string) => request<string>('GET', `/models/${path}${spaceQuery()}`),
 
 	sessionsStats: (since: string, by: string) =>
 		request<SessionStats>('GET', `/sessions/stats?since=${since}&by=${by}${spaceQuery('&')}`),

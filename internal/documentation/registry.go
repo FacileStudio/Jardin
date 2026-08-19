@@ -121,6 +121,21 @@ var Registry = Response{Modules: []Module{
 		},
 	},
 	{
+		Name:        "flows",
+		Description: "Recorded shell procedures. Trust pins and run history are per-machine and never reach the server; this is the definition only.",
+		Routes: []Route{
+			{Method: "GET", Path: "/flows", Summary: "List flows", Auth: "bearer", ResponseBody: "[]string", Errors: anyToken},
+			{Method: "GET", Path: "/flows/{name}", Summary: "Read one flow", Auth: "bearer", PathParams: []Field{nameParam}, ResponseBody: "FlowDetail", Errors: append(anyToken, notFound)},
+		},
+	},
+	{
+		Name:        "models",
+		Description: "Typed step extensions under extensions/models. The server has no bun and no shell, so a model is served as raw source, never executed. Reading one is a wildcard route (GET /models/{path}, where path may contain slashes) and is not listed here for the same reason /sync/files/* is not.",
+		Routes: []Route{
+			{Method: "GET", Path: "/models", Summary: "List models", Auth: "bearer", ResponseBody: "[]ModelInfo", Errors: anyToken},
+		},
+	},
+	{
 		Name:        "users",
 		Description: "Who can sign in to this instance.",
 		Routes: []Route{

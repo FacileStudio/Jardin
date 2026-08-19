@@ -20,7 +20,7 @@
 	let collapsed = $state(false);
 	let scroller: HTMLElement | null = $state(null);
 
-	const MOBILE_HIDDEN = ['/machines', '/spaces'];
+	const MOBILE_HIDDEN = ['/machines', '/spaces', '/flows', '/models'];
 
 	/*
 	 * The unscoped tree is the *common* tree — that is what the API and its tests call it
@@ -38,6 +38,8 @@
 		{ label: 'Memory', href: '/memory', icon: icons.folder },
 		{ label: 'Rules', href: '/rules', icon: icons.shield },
 		{ label: 'Skills', href: '/skills', icon: icons.bolt },
+		{ label: 'Flows', href: '/flows', icon: icons.plug },
+		{ label: 'Models', href: '/models', icon: icons.code },
 		{ label: 'Machines', href: '/machines', icon: icons.server },
 		{ label: 'Sessions', href: '/sessions', icon: icons.history },
 		{ label: 'Spaces', href: '/spaces', icon: icons.usersGroup }
@@ -97,6 +99,7 @@
 	 * MobileNav is a fixed-width pill: six icons plus the avatar need 412px and the floor is
 	 * 360px, so the bar carries the four daily destinations. Spaces stays reachable through
 	 * the switcher's "Manage spaces" footer in the Topbar, and Machines from the Sessions page.
+	 * Flows and Models have no such shortcut yet — on mobile they are a URL away, not a tap.
 	 */
 	const mobilePages = $derived(navPages.filter((p) => !MOBILE_HIDDEN.includes(p.href)));
 
