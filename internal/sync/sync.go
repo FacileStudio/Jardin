@@ -254,6 +254,9 @@ func (c *Client) Sync(dataDir string) (*Result, error) {
 		}
 	}
 
+	if err := pruneSingleWriterConflicts(dataDir); err != nil {
+		return nil, err
+	}
 	if err := saveManifest(dataDir, next); err != nil {
 		return nil, err
 	}
