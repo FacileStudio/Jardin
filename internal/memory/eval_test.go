@@ -92,8 +92,9 @@ func requireCorpus(t *testing.T, dir string, cases []goldenCase) {
 // showing up as a silent drop in recall.
 func TestGoldenSetPointsAtPagesThatExist(t *testing.T) {
 	dir := realWiki(t)
-	requireCorpus(t, dir, loadGolden(t))
-	for _, c := range loadGolden(t) {
+	cases := loadGolden(t)
+	requireCorpus(t, dir, cases)
+	for _, c := range cases {
 		for _, want := range c.Expect {
 			if _, err := os.Stat(filepath.Join(dir, want)); err != nil {
 				t.Errorf("golden set references a missing page %q (query %q) — fix the golden set, this is not a recall miss", want, c.Query)

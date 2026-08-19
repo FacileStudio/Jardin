@@ -27,7 +27,9 @@ func modelsRoot(root string) string {
 }
 
 // modelsList walks the models tree, skipping _lib — shared helper code a
-// model imports, not a model itself.
+// model imports, not a model itself. The walk error is left alone: a scope with
+// no models directory yet has no models, which is an empty list rather than a
+// failed request.
 func (s *Server) modelsList(w http.ResponseWriter, r *http.Request) {
 	root, ok := s.scopeRoot(w, r)
 	if !ok {
