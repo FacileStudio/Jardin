@@ -44,7 +44,7 @@ architecture:
     "internal/sessions": [sessions.go, store.go, stats.go, scan.go, timeline.go, claude.go, canonical.go, live.go]
     "internal/usage": [usage.go]
     "internal/adapter": [adapter.go]
-    "internal/flow": [flow.go, store.go, run.go, trust.go]
+    "internal/flow": [flow.go, store.go, run.go, trust.go, needs.go]
     "internal/sync": []
     "internal/memory": []
     "internal/daemon": []

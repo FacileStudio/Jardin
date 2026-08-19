@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -178,6 +179,7 @@ func printRun(r *flow.Run) {
 		} else {
 			ui.Error("%s", head)
 		}
+		printResolved(s)
 		for _, stream := range []string{s.Stdout, s.Stderr} {
 			if strings.TrimSpace(stream) != "" {
 				fmt.Println(strings.TrimRight(stream, "\n"))
@@ -186,6 +188,19 @@ func printRun(r *flow.Run) {
 		if s.Truncated {
 			ui.Hint("output truncated")
 		}
+	}
+}
+
+// printResolved lists the values a step received from earlier steps, so a run
+// can be read back without guessing what "$VERSION" held at the time.
+func printResolved(s flow.StepResult) {
+	names := make([]string, 0, len(s.Resolved))
+	for name := range s.Resolved {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		ui.Hint("%s=%s", name, s.Resolved[name])
 	}
 }
 

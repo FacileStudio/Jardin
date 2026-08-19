@@ -22,6 +22,12 @@ const (
 	MaxTimeout = 3600
 	// MaxStreamBytes caps how much of each captured stream a run artifact keeps.
 	MaxStreamBytes = 1 << 20
+	// MaxValueBytes caps a value chained from one step to the next. The wall is
+	// the operating system, not us: Linux refuses a single environment entry
+	// over MAX_ARG_STRLEN (128KB) and execve fails with E2BIG, whose message
+	// names the shell rather than the flow. Half of that leaves room for
+	// several needs plus the inherited environment.
+	MaxValueBytes = 64 << 10
 	// Extension is the file extension every flow file carries.
 	Extension = ".yml"
 )
@@ -36,11 +42,14 @@ const (
 )
 
 // Step is one shell command in a flow. Run is handed to "sh -c" unchanged; no
-// interpolation happens anywhere, so values reach a command only through Env.
+// interpolation happens anywhere, so values reach a command only through Env
+// and Needs. Needs binds an environment variable to an earlier step's output,
+// written as "<step>.<field>".
 type Step struct {
 	Name         string            `yaml:"name"`
 	Run          string            `yaml:"run"`
 	Env          map[string]string `yaml:"env,omitempty"`
+	Needs        map[string]string `yaml:"needs,omitempty"`
 	Timeout      int               `yaml:"timeout,omitempty"`
 	AllowFailure bool              `yaml:"allow_failure,omitempty"`
 }
@@ -64,16 +73,17 @@ type Flow struct {
 	Checksum    string `yaml:"-"`
 }
 
-// StepResult records what one step did. Stdout and Stderr are redacted and
-// truncated before they reach this struct.
+// StepResult records what one step did. Stdout, Stderr and Resolved are
+// redacted, and the streams truncated, before they reach this struct.
 type StepResult struct {
-	Name       string `json:"name"`
-	ExitCode   int    `json:"exit_code"`
-	DurationMS int64  `json:"duration_ms"`
-	Stdout     string `json:"stdout"`
-	Stderr     string `json:"stderr"`
-	Truncated  bool   `json:"truncated"`
-	TimedOut   bool   `json:"timed_out"`
+	Name       string            `json:"name"`
+	ExitCode   int               `json:"exit_code"`
+	DurationMS int64             `json:"duration_ms"`
+	Stdout     string            `json:"stdout"`
+	Stderr     string            `json:"stderr"`
+	Resolved   map[string]string `json:"resolved,omitempty"`
+	Truncated  bool              `json:"truncated"`
+	TimedOut   bool              `json:"timed_out"`
 }
 
 // Run records one execution of a flow. FlowChecksum pins which version of the
@@ -146,6 +156,9 @@ func (f *Flow) validateSteps() error {
 		}
 		if seen[s.Name] {
 			return fmt.Errorf("step %q is declared twice", s.Name)
+		}
+		if err := validateNeeds(s, seen); err != nil {
+			return err
 		}
 		seen[s.Name] = true
 		if strings.TrimSpace(s.Run) == "" {
