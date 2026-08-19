@@ -83,6 +83,52 @@ func collectCanonical(dataDir string, state *ScanState, resolve func(cwd string)
 	return events, nil
 }
 
+// canonicalEventFrom decodes one canonical line into an Event. It reports
+// false for anything that is not an assistant message carrying usage, and for
+// a timestamp it cannot parse, since a block's bounds come from that instant.
+func canonicalEventFrom(raw []byte, agentDir string, resolve func(cwd string) string) (Event, bool) {
+	var ce CanonicalEvent
+	if err := json.Unmarshal(raw, &ce); err != nil {
+		return Event{}, false
+	}
+	if ce.Type != "message" || ce.Role != "assistant" || ce.Usage == nil {
+		return Event{}, false
+	}
+	t, err := time.Parse(time.RFC3339Nano, ce.Timestamp)
+	if err != nil {
+		return Event{}, false
+	}
+	agent := ce.Agent
+	if agent == "" {
+		agent = agentDir
+	}
+	project := ce.Project
+	if project == "" {
+		project = resolve("")
+	}
+	branch := ce.Branch
+	if branch == "HEAD" {
+		branch = ""
+	}
+	ev := Event{
+		Time:       t,
+		Agent:      agent,
+		Project:    project,
+		Branch:     branch,
+		Model:      ce.Model,
+		TokensIn:   ce.Usage.Input + ce.Usage.CacheWrite,
+		TokensOut:  ce.Usage.Output,
+		CacheRead:  ce.Usage.CacheRead,
+		CacheWrite: ce.Usage.CacheWrite,
+	}
+	if ce.Usage.Cost != nil {
+		ev.CostInput = ce.Usage.Cost.Input
+		ev.CostOutput = ce.Usage.Cost.Output
+		ev.CostTotal = ce.Usage.Cost.Total
+	}
+	return ev, true
+}
+
 func tailCanonicalFile(path string, offset int64, resolve func(cwd string) string) ([]Event, int64, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -105,52 +151,9 @@ func tailCanonicalFile(path string, offset int64, resolve func(cwd string) strin
 			break
 		}
 		newOffset += int64(len(raw))
-
-		var ce CanonicalEvent
-		if err := json.Unmarshal(raw, &ce); err != nil {
-			continue
+		if ev, ok := canonicalEventFrom(raw, agentDir, resolve); ok {
+			events = append(events, ev)
 		}
-		if ce.Type != "message" || ce.Role != "assistant" || ce.Usage == nil {
-			continue
-		}
-
-		t, err := time.Parse(time.RFC3339Nano, ce.Timestamp)
-		if err != nil {
-			continue
-		}
-
-		agent := ce.Agent
-		if agent == "" {
-			agent = agentDir
-		}
-
-		project := ce.Project
-		if project == "" {
-			project = resolve("")
-		}
-
-		branch := ce.Branch
-		if branch == "HEAD" {
-			branch = ""
-		}
-
-		ev := Event{
-			Time:       t,
-			Agent:      agent,
-			Project:    project,
-			Branch:     branch,
-			Model:      ce.Model,
-			TokensIn:   ce.Usage.Input + ce.Usage.CacheWrite,
-			TokensOut:  ce.Usage.Output,
-			CacheRead:  ce.Usage.CacheRead,
-			CacheWrite: ce.Usage.CacheWrite,
-		}
-		if ce.Usage.Cost != nil {
-			ev.CostInput = ce.Usage.Cost.Input
-			ev.CostOutput = ce.Usage.Cost.Output
-			ev.CostTotal = ce.Usage.Cost.Total
-		}
-		events = append(events, ev)
 	}
 	return events, newOffset, nil
 }

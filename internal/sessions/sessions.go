@@ -89,6 +89,32 @@ func newScanState() *ScanState {
 	}
 }
 
+// applyEvent widens the open block to cover the event's instant and adds its
+// counters. An event may arrive out of order within a batch, so the block's
+// bounds move in either direction rather than only forward.
+func applyEvent(open *Block, ev Event) {
+	if ev.Time.Before(open.StartedAt) {
+		open.StartedAt = ev.Time
+	}
+	if ev.Time.After(open.EndedAt) {
+		open.EndedAt = ev.Time
+	}
+	if ev.Branch != "" {
+		open.Branch = ev.Branch
+	}
+	if ev.Model != "" {
+		open.Model = ev.Model
+	}
+	open.Events++
+	open.TokensIn += ev.TokensIn
+	open.TokensOut += ev.TokensOut
+	open.CacheRead += ev.CacheRead
+	open.CacheWrite += ev.CacheWrite
+	open.CostInput += ev.CostInput
+	open.CostOutput += ev.CostOutput
+	open.CostTotal += ev.CostTotal
+}
+
 // fold merges chronologically sorted events into the open blocks, returning
 // every block that a gap larger than GapTimeout sealed along the way.
 func fold(state *ScanState, machine string, events []Event, now time.Time) []Block {
@@ -112,26 +138,7 @@ func fold(state *ScanState, machine string, events []Event, now time.Time) []Blo
 			}
 			open = state.Open[key]
 		}
-		if ev.Time.Before(open.StartedAt) {
-			open.StartedAt = ev.Time
-		}
-		if ev.Time.After(open.EndedAt) {
-			open.EndedAt = ev.Time
-		}
-		if ev.Branch != "" {
-			open.Branch = ev.Branch
-		}
-		if ev.Model != "" {
-			open.Model = ev.Model
-		}
-		open.Events++
-		open.TokensIn += ev.TokensIn
-		open.TokensOut += ev.TokensOut
-		open.CacheRead += ev.CacheRead
-		open.CacheWrite += ev.CacheWrite
-		open.CostInput += ev.CostInput
-		open.CostOutput += ev.CostOutput
-		open.CostTotal += ev.CostTotal
+		applyEvent(open, ev)
 	}
 
 	for key, open := range state.Open {
