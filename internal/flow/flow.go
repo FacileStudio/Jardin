@@ -57,12 +57,20 @@ const (
 // and Needs. Needs binds an environment variable to an earlier step's output,
 // written as "<step>.<field>".
 type Step struct {
-	Name         string            `yaml:"name"`
-	Run          string            `yaml:"run"`
-	Env          map[string]string `yaml:"env,omitempty"`
-	Needs        map[string]string `yaml:"needs,omitempty"`
-	Timeout      int               `yaml:"timeout,omitempty"`
-	AllowFailure bool              `yaml:"allow_failure,omitempty"`
+	Name      string            `yaml:"name"`
+	Run       string            `yaml:"run"`
+	Env       map[string]string `yaml:"env,omitempty"`
+	Needs     map[string]string `yaml:"needs,omitempty"`
+	DependsOn []string          `yaml:"depends_on,omitempty"`
+	// Ephemeral keeps this step's output out of the artifact. The value still
+	// reaches the steps that need it; it just never lands on disk.
+	Ephemeral bool `yaml:"ephemeral,omitempty"`
+	// Type names a model extension to run instead of a shell command, and With
+	// carries its arguments. A step is one or the other, never both.
+	Type         string         `yaml:"type,omitempty"`
+	With         map[string]any `yaml:"with,omitempty"`
+	Timeout      int            `yaml:"timeout,omitempty"`
+	AllowFailure bool           `yaml:"allow_failure,omitempty"`
 }
 
 // EffectiveTimeout returns the step's timeout in seconds, applying the default
@@ -99,20 +107,31 @@ type StepResult struct {
 	// exit code -1, which already means "the process could not start" and
 	// "killed by a signal" — three causes, one bucket.
 	NotStarted bool `json:"not_started,omitempty"`
+	// Skipped narrows NotStarted further: this step was fine, something it
+	// depends on was not. Distinguishing the two is what lets a reader tell a
+	// broken step from a downstream casualty.
+	Skipped bool `json:"skipped,omitempty"`
+	// Ephemeral records that output was withheld on purpose, so a reader can
+	// tell a step that printed nothing from one whose output was not kept.
+	Ephemeral bool      `json:"ephemeral,omitempty"`
+	StartedAt time.Time `json:"started_at,omitempty"`
 }
 
 // Run records one execution of a flow. FlowChecksum pins which version of the
 // flow produced the record, so history stays readable after a flow is edited.
 type Run struct {
-	Flow         string       `json:"flow"`
-	FlowChecksum string       `json:"flow_checksum"`
-	Machine      string       `json:"machine"`
-	WorkDir      string       `json:"work_dir"`
-	StartedAt    time.Time    `json:"started_at"`
-	FinishedAt   time.Time    `json:"finished_at"`
-	Status       string       `json:"status"`
-	Steps        []StepResult `json:"steps"`
-	ID           string       `json:"-"`
+	Flow         string    `json:"flow"`
+	FlowChecksum string    `json:"flow_checksum"`
+	Machine      string    `json:"machine"`
+	WorkDir      string    `json:"work_dir"`
+	StartedAt    time.Time `json:"started_at"`
+	FinishedAt   time.Time `json:"finished_at"`
+	Status       string    `json:"status"`
+	// Error explains a run that never got as far as its steps, which otherwise
+	// records as an empty list and no reason.
+	Error string       `json:"error,omitempty"`
+	Steps []StepResult `json:"steps"`
+	ID    string       `json:"-"`
 }
 
 // Duration returns how long the run took.
@@ -164,27 +183,44 @@ func (f *Flow) validate(stem string) error {
 }
 
 func (f *Flow) validateSteps() error {
-	seen := make(map[string]bool, len(f.Steps))
+	known := make(map[string]bool, len(f.Steps))
 	for i, s := range f.Steps {
 		if s.Name == "" {
 			return fmt.Errorf("step %d has no name", i+1)
 		}
-		if seen[s.Name] {
+		if known[s.Name] {
 			return fmt.Errorf("step %q is declared twice", s.Name)
 		}
-		if err := validateNeeds(s, seen); err != nil {
+		known[s.Name] = true
+	}
+	for _, s := range f.Steps {
+		if err := validateStep(s, known); err != nil {
 			return err
 		}
-		seen[s.Name] = true
-		if strings.TrimSpace(s.Run) == "" {
-			return fmt.Errorf("step %q has nothing to run", s.Name)
-		}
-		if s.Timeout < 0 {
-			return fmt.Errorf("step %q has a negative timeout", s.Name)
-		}
-		if s.Timeout > MaxTimeout {
-			return fmt.Errorf("step %q asks for %ds, over the %ds cap", s.Name, s.Timeout, MaxTimeout)
-		}
 	}
-	return nil
+	return validateGraph(f)
+}
+
+// validateStep checks one step against the set of every step in the flow.
+// Ordering is no longer part of it: which step runs first is a property of the
+// dependency graph, so a reference is checked for existing and the graph is
+// checked for cycles.
+func validateStep(s Step, known map[string]bool) error {
+	hasRun := strings.TrimSpace(s.Run) != ""
+	hasType := strings.TrimSpace(s.Type) != ""
+	switch {
+	case hasRun && hasType:
+		return fmt.Errorf("step %q sets both run and type; it is one or the other", s.Name)
+	case !hasRun && !hasType:
+		return fmt.Errorf("step %q has nothing to run", s.Name)
+	case hasRun && len(s.With) > 0:
+		return fmt.Errorf("step %q passes with: to a shell step, which has no arguments", s.Name)
+	}
+	if s.Timeout < 0 {
+		return fmt.Errorf("step %q has a negative timeout", s.Name)
+	}
+	if s.Timeout > MaxTimeout {
+		return fmt.Errorf("step %q asks for %ds, over the %ds cap", s.Name, s.Timeout, MaxTimeout)
+	}
+	return validateNeeds(s, known)
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/FacileStudio/Mycelium/internal/flow"
+	"github.com/FacileStudio/Mycelium/internal/sessions"
 	"github.com/FacileStudio/Mycelium/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -14,6 +15,9 @@ import (
 var flowJSON bool
 var flowRunsLimit int
 var flowTrustYes bool
+var flowQueryStatus string
+var flowQuerySince string
+var flowQueryFlow string
 
 var flowCmd = &cobra.Command{
 	Use:   "flow",
@@ -131,6 +135,58 @@ var flowRunsCmd = &cobra.Command{
 	},
 }
 
+var flowTrustModelCmd = &cobra.Command{
+	Use:   "trust-model <type>",
+	Short: "Pin a model extension so typed steps may run it on this machine",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		path, err := flow.ModelPath(args[0])
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		m := &flow.Model{Type: args[0], Path: path, Checksum: flow.Checksum(data)}
+		if err := confirmModel(m, data); err != nil {
+			return err
+		}
+		if err := flow.TrustModel(m); err != nil {
+			return err
+		}
+		ui.Success("Trusted model %q. Typed steps may now run it here.", args[0])
+		return nil
+	},
+}
+
+var flowQueryCmd = &cobra.Command{
+	Use:   "query",
+	Short: "Search every flow's history at once",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		since, err := sessions.ParseSince(flowQuerySince, time.Now().UTC())
+		if err != nil {
+			return err
+		}
+		runs, err := flow.Query(flow.QueryOptions{
+			Flow: flowQueryFlow, Status: flowQueryStatus, Since: since, Limit: flowRunsLimit,
+		})
+		if err != nil {
+			return err
+		}
+		if flowJSON {
+			return printJSON(flowQueryRows(runs))
+		}
+		if len(runs) == 0 {
+			ui.Hint("No runs matched.")
+			return nil
+		}
+		printQuery(runs)
+		return nil
+	},
+}
+
 var flowShowCmd = &cobra.Command{
 	Use:   "show <name> [run]",
 	Short: "Show one run in full, defaulting to the latest",
@@ -194,11 +250,17 @@ func init() {
 	flowCmd.AddCommand(flowRunCmd)
 	flowCmd.AddCommand(flowRunsCmd)
 	flowCmd.AddCommand(flowShowCmd)
+	flowCmd.AddCommand(flowQueryCmd)
+	flowCmd.AddCommand(flowTrustModelCmd)
 	flowCmd.AddCommand(flowTrustCmd)
 	flowCmd.AddCommand(flowUntrustCmd)
-	for _, c := range []*cobra.Command{flowListCmd, flowRunsCmd, flowShowCmd} {
+	flowQueryCmd.Flags().StringVar(&flowQueryStatus, "status", "", "Only runs with this status (ok, failed, timeout, unresolved)")
+	flowQueryCmd.Flags().StringVar(&flowQuerySince, "since", "", "Only runs started within this window: 7d, 24h, 30m")
+	flowQueryCmd.Flags().StringVar(&flowQueryFlow, "flow", "", "Only runs of this flow")
+	for _, c := range []*cobra.Command{flowListCmd, flowRunsCmd, flowShowCmd, flowQueryCmd} {
 		c.Flags().BoolVar(&flowJSON, "json", false, "Emit JSON")
 	}
+	flowTrustModelCmd.Flags().BoolVar(&flowTrustYes, "yes", false, "Pin without the interactive confirmation")
 	flowTrustCmd.Flags().BoolVar(&flowTrustYes, "yes", false, "Pin without the interactive confirmation")
 	flowRunsCmd.Flags().IntVar(&flowRunsLimit, "limit", 20, "How many runs to list")
 	rootCmd.AddCommand(flowCmd)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/FacileStudio/Mycelium/internal/config"
 )
@@ -75,7 +76,7 @@ func Prune() (int, error) {
 	}
 	removed := 0
 	for name := range pins {
-		if _, statErr := os.Stat(filepath.Join(config.FlowsDir(), name+Extension)); statErr == nil {
+		if pinStillHasAFile(name) {
 			continue
 		}
 		delete(pins, name)
@@ -85,6 +86,22 @@ func Prune() (int, error) {
 		return 0, nil
 	}
 	return removed, writeTrust(pins)
+}
+
+// pinStillHasAFile reports whether the thing a pin approved is still on disk.
+// Flows and models share one store, so the key's namespace decides where to
+// look — without this, pruning deleted flows would take every model pin with it.
+func pinStillHasAFile(pin string) bool {
+	path := filepath.Join(config.FlowsDir(), pin+Extension)
+	if name, isModel := strings.CutPrefix(pin, modelPin); isModel {
+		resolved, err := ModelPath(name)
+		if err != nil {
+			return false
+		}
+		path = resolved
+	}
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func readTrust() (map[string]string, error) {

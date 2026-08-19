@@ -56,11 +56,17 @@ func TestExecuteStopsOnFailure(t *testing.T) {
 	if run.Status != StatusFailed {
 		t.Fatalf("status = %q, want %q", run.Status, StatusFailed)
 	}
-	if len(run.Steps) != 1 {
-		t.Fatalf("ran %d steps, want 1", len(run.Steps))
+	if len(run.Steps) != 2 {
+		t.Fatalf("recorded %d steps, want 2 — the failure and the step it blocked", len(run.Steps))
 	}
 	if run.Steps[0].ExitCode != 3 {
 		t.Errorf("exit code = %d, want 3", run.Steps[0].ExitCode)
+	}
+	if !run.Steps[1].Skipped {
+		t.Error("the blocked step is not marked skipped, so the artifact hides why it did not run")
+	}
+	if run.Steps[1].Stdout != "" {
+		t.Error("the blocked step produced output, so it actually ran")
 	}
 }
 
@@ -94,8 +100,11 @@ func TestExecuteTimeout(t *testing.T) {
 	if !run.Steps[0].TimedOut {
 		t.Error("step not marked as timed out")
 	}
-	if len(run.Steps) != 1 {
-		t.Fatalf("ran %d steps, want 1", len(run.Steps))
+	if len(run.Steps) != 2 {
+		t.Fatalf("recorded %d steps, want 2 — the timeout and the step it blocked", len(run.Steps))
+	}
+	if !run.Steps[1].Skipped {
+		t.Error("the step after a timeout is not marked skipped")
 	}
 	if elapsed := time.Since(started); elapsed > 3*time.Second {
 		t.Errorf("timeout took %s, want about 1s", elapsed)

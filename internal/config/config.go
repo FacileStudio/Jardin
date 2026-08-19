@@ -101,6 +101,10 @@ func FlowsDir() string { return filepath.Join(DataDir(), "flows") }
 // RunsDir returns the directory holding flow run artifacts.
 func RunsDir() string { return filepath.Join(DataDir(), "runs") }
 
+// ModelsDir returns the directory holding typed model extensions. Unlike runs,
+// these sync: they are code, which is why running one needs a trust pin.
+func ModelsDir() string { return filepath.Join(DataDir(), "extensions", "models") }
+
 // SessionsDir returns the directory holding session data.
 func SessionsDir() string { return filepath.Join(DataDir(), "sessions") }
 

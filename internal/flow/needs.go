@@ -176,19 +176,19 @@ func sortedNames(m map[string]string) []string {
 	return names
 }
 
-// validateNeeds checks one step's references against the steps declared before
-// it. A forward reference is refused rather than deferred: steps run in order,
-// so a later step's output cannot exist by the time this one starts.
-func validateNeeds(step Step, earlier map[string]bool) error {
+// validateNeeds checks one step's references against every step in the flow.
+// Needing an output is a dependency, so the graph orders the two steps and the
+// cycle check refuses the case that cannot be ordered at all.
+func validateNeeds(step Step, known map[string]bool) error {
 	for _, name := range sortedNames(step.Needs) {
-		if err := validateNeed(step, name, earlier); err != nil {
+		if err := validateNeed(step, name, known); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateNeed(step Step, name string, earlier map[string]bool) error {
+func validateNeed(step Step, name string, known map[string]bool) error {
 	if err := validEnvName(name); err != nil {
 		return fmt.Errorf("step %q: %w", step.Name, err)
 	}
@@ -205,8 +205,8 @@ func validateNeed(step Step, name string, earlier map[string]bool) error {
 	if parsed.Step == step.Name {
 		return fmt.Errorf("step %q needs its own output", step.Name)
 	}
-	if !earlier[parsed.Step] {
-		return fmt.Errorf("step %q needs %q, which does not run before it", step.Name, parsed.Step)
+	if !known[parsed.Step] {
+		return fmt.Errorf("step %q needs %q, which is not a step in this flow", step.Name, parsed.Step)
 	}
 	return nil
 }
