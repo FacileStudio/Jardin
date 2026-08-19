@@ -176,6 +176,14 @@ description: ""
 
 # Steps run in order through "sh -c". Keep "run" to a single invocation and put
 # any logic in a script, so a bashism cannot break one machine and not another.
+#
+# A step can read an earlier step's output. "needs" binds an environment
+# variable to "<step>.<field>", where field is stdout, stderr or exit_code:
+#
+#   - name: second
+#     needs:
+#       VALUE: first.stdout
+#     run: echo "first said $VALUE"
 steps:
   - name: first
     run: echo "replace me"

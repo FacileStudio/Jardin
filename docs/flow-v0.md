@@ -49,7 +49,8 @@ Rules:
 - `run` is executed via `sh -c`, one step at a time, in order.
 - `timeout` is seconds, default 300, hard cap 3600.
 - `allow_failure` default false. A failing step ends the run unless set.
-- No interpolation syntax exists in v0. See "Designing v2 out of a hole".
+- No interpolation syntax exists in v0. v2 added `needs`, which binds an earlier
+  step's output to an environment variable — see [flow-v2.md](flow-v2.md).
 
 ## Run artifact
 
@@ -157,7 +158,7 @@ Anything with branching, JSON or error handling goes in a TypeScript file run
 by bun. That also makes the step runnable outside mycelium, which is what you
 want when it breaks at 2am.
 
-## Designing v2 out of a hole
+## Designing v2 out of a hole — and what v2 did
 
 v2 will want `${{ steps.build.stdout }}`. The unsafe version splices values into
 the command string and hands the result to `sh`, which is command injection
@@ -168,6 +169,11 @@ else. When templating lands, resolved values are passed as environment
 variables and referenced as `$VAR` inside `run`. The shell never sees an
 interpolated string. Deciding this now costs nothing; deciding it later costs a
 format migration.
+
+**This held.** v2 shipped as `needs: {VAR: step.field}` — a declarative mapping,
+no expression language, values delivered through the child's environment. The
+step struct gained one field and the format needed no migration. See
+[flow-v2.md](flow-v2.md).
 
 ## Implementation notes
 

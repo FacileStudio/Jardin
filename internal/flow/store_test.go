@@ -3,6 +3,7 @@ package flow
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -160,7 +161,7 @@ func assertRunEqual(t *testing.T, want, got *Run) {
 		t.Fatalf("got %d steps, want %d", len(got.Steps), len(want.Steps))
 	}
 	for i := range want.Steps {
-		if got.Steps[i] != want.Steps[i] {
+		if !reflect.DeepEqual(got.Steps[i], want.Steps[i]) {
 			t.Fatalf("step %d: got %+v, want %+v", i, got.Steps[i], want.Steps[i])
 		}
 	}
