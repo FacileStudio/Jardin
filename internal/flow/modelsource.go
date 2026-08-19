@@ -22,12 +22,17 @@ type ModelSource struct {
 	Data []byte
 }
 
-// importSpecifier matches the module string in an import or export statement,
-// including a dynamic import(). It is deliberately generous: a false positive
-// resolves to no file and is dropped, while a miss would leave running code out
-// of the checksum, which is the whole failure this exists to prevent.
+// importSpecifier matches the module string in an import or export statement, a
+// dynamic import(), and a require() — bun runs all three, so all three pull code
+// in and all three have to be hashed. Backticks count: a template literal with
+// no substitution is an ordinary static specifier.
+//
+// It is deliberately generous. A false positive resolves to no file and is
+// dropped, while a miss leaves running code out of the checksum, which is the
+// whole failure this exists to prevent.
 var importSpecifier = regexp.MustCompile(
-	`\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)|\b(?:import|export)\b[^'"();]*?['"]([^'"]+)['"]`)
+	"\\b(?:import|require)\\s*\\(\\s*[\"'`]([^\"'`]+)[\"'`]\\s*\\)" +
+		"|\\b(?:import|export)\\b[^\"'`();]*?[\"'`]([^\"'`]+)[\"'`]")
 
 func specifiers(src []byte) []string {
 	var out []string

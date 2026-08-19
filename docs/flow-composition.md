@@ -108,13 +108,17 @@ $ jardin flow trust-model @facile/http-check
 ```
 
 Relative (`./near`) and subpath (`#lib/*`, via the models root's
-`package.json`) specifiers are followed. A bare specifier like `bun` is the
-runtime's, not this tree's, and is not hashed. An import that resolves to a real
-file **outside** the models root is refused outright rather than pinned.
+`package.json`) specifiers are followed, in every form bun executes: `import`,
+`export … from`, dynamic `import()` and `require()`, quoted with `'`, `"` or a
+backtick. A bare specifier like `bun` is the runtime's, not this tree's, and is
+not hashed. An import that resolves to a real file **outside** the models root
+is refused outright rather than pinned.
 
 One limit worth knowing: a computed specifier — ``import(`./${name}`)`` — cannot
-be resolved statically and is not in the closure. It is plainly visible in the
-entry file you read before pinning, which is where that case is caught.
+be resolved statically and is not in the closure. It is not guessed at either,
+since pinning the wrong file would read as though the closure were complete. It
+is plainly visible in the entry file you read before pinning, which is where
+that case is caught.
 
 ## v3 — the dependency graph
 
