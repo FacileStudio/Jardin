@@ -1,6 +1,9 @@
 package flow
 
 import (
+	"bytes"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -126,5 +129,45 @@ func TestEphemeralOutputSurvivesARoundTripToDisk(t *testing.T) {
 	}
 	if got := runs[0].Steps[0].Stdout; got != "" {
 		t.Errorf("the secret reached disk after all: %q", got)
+	}
+}
+
+// Withholding an ephemeral value from its own step is not enough: it comes
+// straight back through whatever consumed it. The whole artifact is checked,
+// not one field, because that is how this was missed the first time.
+func TestEphemeralValueNeverReachesTheArtifactAtAll(t *testing.T) {
+	run := execFlow(t, []Step{
+		{Name: "mint", Run: "echo super-secret-token", Ephemeral: true},
+		{Name: "use", Needs: map[string]string{"VALUE": "mint.stdout"}, Run: `printf '%s' "$VALUE"`},
+	}, Options{})
+
+	if run.Status != StatusOK {
+		t.Fatalf("status = %q — the value did not reach the step that needed it", run.Status)
+	}
+	blob, err := json.Marshal(run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(blob), "super-secret-token") {
+		t.Errorf("the ephemeral value is in the artifact: %s", blob)
+	}
+	if got := run.Steps[1].Resolved["VALUE"]; got != "***" {
+		t.Errorf("the consuming step recorded %q, want it masked", got)
+	}
+	if got := run.Steps[1].Stdout; strings.Contains(got, "super-secret-token") {
+		t.Errorf("a step that echoed an ephemeral value recorded it verbatim: %q", got)
+	}
+}
+
+// The masking must not reach the live terminal either.
+func TestEphemeralValueIsMaskedInTheLiveStreamOfConsumers(t *testing.T) {
+	var live bytes.Buffer
+	execFlow(t, []Step{
+		{Name: "mint", Run: "echo super-secret-token", Ephemeral: true},
+		{Name: "use", Needs: map[string]string{"VALUE": "mint.stdout"}, Run: `printf '%s\n' "$VALUE"`},
+	}, Options{Stream: &live})
+
+	if strings.Contains(live.String(), "super-secret-token") {
+		t.Errorf("a consuming step printed the ephemeral value to the terminal: %q", live.String())
 	}
 }
