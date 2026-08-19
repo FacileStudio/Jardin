@@ -131,14 +131,20 @@ is redacted. Redaction is about the record, not the data flow — a step bound t
 same conclusion from the other direction: sensitive fields are "stored but
 redacted from CLI output and logs", so downstream access keeps working.
 
-**Known limit.** Redaction is triggered by the *variable name* (`TOKEN`,
-`SECRET`, `KEY`, `PASSWORD`, `CREDENTIAL`), which is all v0 had to work with. A
-step that prints a secret to stdout still records it in cleartext under that
-step's own `stdout`, and a secret bound to a neutrally-named variable is not
-masked. Chaining makes "a step that produces a secret" a much more likely
-pattern than it was in v0, so this is the natural thing for a later version to
-fix — by letting a step declare an output sensitive, the way swamp's output
-specs do, rather than by guessing harder from names.
+Guessing from the name is still the fallback, but a step no longer has to rely
+on it: `secret:` lets a step declare which of the values it consumes are
+sensitive, whatever they are called, and `ephemeral:` does the same for a
+value it produces. Declared names are checked in `Parse`, join the same
+redaction set as the ephemeral values, and outrank the length floor that
+guards the guesses — the way swamp's output specs mark a field sensitive
+instead of pattern-matching its name.
+
+```yaml
+steps:
+  - name: publish
+    secret: [GH_PAT]
+    run: ./publish.sh
+```
 
 ## The artifact
 
