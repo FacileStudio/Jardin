@@ -61,6 +61,7 @@ type Step struct {
 	Run          string            `yaml:"run"`
 	Env          map[string]string `yaml:"env,omitempty"`
 	Needs        map[string]string `yaml:"needs,omitempty"`
+	DependsOn    []string          `yaml:"depends_on,omitempty"`
 	Timeout      int               `yaml:"timeout,omitempty"`
 	AllowFailure bool              `yaml:"allow_failure,omitempty"`
 }
@@ -99,6 +100,11 @@ type StepResult struct {
 	// exit code -1, which already means "the process could not start" and
 	// "killed by a signal" — three causes, one bucket.
 	NotStarted bool `json:"not_started,omitempty"`
+	// Skipped narrows NotStarted further: this step was fine, something it
+	// depends on was not. Distinguishing the two is what lets a reader tell a
+	// broken step from a downstream casualty.
+	Skipped   bool      `json:"skipped,omitempty"`
+	StartedAt time.Time `json:"started_at,omitempty"`
 }
 
 // Run records one execution of a flow. FlowChecksum pins which version of the
@@ -164,27 +170,37 @@ func (f *Flow) validate(stem string) error {
 }
 
 func (f *Flow) validateSteps() error {
-	seen := make(map[string]bool, len(f.Steps))
+	known := make(map[string]bool, len(f.Steps))
 	for i, s := range f.Steps {
 		if s.Name == "" {
 			return fmt.Errorf("step %d has no name", i+1)
 		}
-		if seen[s.Name] {
+		if known[s.Name] {
 			return fmt.Errorf("step %q is declared twice", s.Name)
 		}
-		if err := validateNeeds(s, seen); err != nil {
+		known[s.Name] = true
+	}
+	for _, s := range f.Steps {
+		if err := validateStep(s, known); err != nil {
 			return err
 		}
-		seen[s.Name] = true
-		if strings.TrimSpace(s.Run) == "" {
-			return fmt.Errorf("step %q has nothing to run", s.Name)
-		}
-		if s.Timeout < 0 {
-			return fmt.Errorf("step %q has a negative timeout", s.Name)
-		}
-		if s.Timeout > MaxTimeout {
-			return fmt.Errorf("step %q asks for %ds, over the %ds cap", s.Name, s.Timeout, MaxTimeout)
-		}
 	}
-	return nil
+	return validateGraph(f)
+}
+
+// validateStep checks one step against the set of every step in the flow.
+// Ordering is no longer part of it: which step runs first is a property of the
+// dependency graph, so a reference is checked for existing and the graph is
+// checked for cycles.
+func validateStep(s Step, known map[string]bool) error {
+	if strings.TrimSpace(s.Run) == "" {
+		return fmt.Errorf("step %q has nothing to run", s.Name)
+	}
+	if s.Timeout < 0 {
+		return fmt.Errorf("step %q has a negative timeout", s.Name)
+	}
+	if s.Timeout > MaxTimeout {
+		return fmt.Errorf("step %q asks for %ds, over the %ds cap", s.Name, s.Timeout, MaxTimeout)
+	}
+	return validateNeeds(s, known)
 }

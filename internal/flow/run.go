@@ -25,6 +25,8 @@ type Options struct {
 	WorkDir string
 	Machine string
 	Stream  io.Writer
+	// Parallel caps how many steps run at once. Zero means DefaultParallel.
+	Parallel int
 }
 
 // Execute runs a flow's steps in order and returns the record of what
@@ -39,29 +41,12 @@ func Execute(ctx context.Context, f *Flow, opts Options) *Run {
 		Status:       StatusOK,
 		Steps:        make([]StepResult, 0, len(f.Steps)),
 	}
-	referenced := referencedSteps(f)
-	outputs := make(map[string]output, len(referenced))
-	for _, step := range f.Steps {
-		resolved, err := resolve(step, outputs)
-		if err != nil {
-			run.Steps = append(run.Steps, unresolved(step, err))
-			run.Status = StatusUnresolved
-			break
-		}
-		res, out := runStep(ctx, step, resolved, run.WorkDir, opts.Stream)
-		if referenced[step.Name] {
-			outputs[step.Name] = out
-		}
-		run.Steps = append(run.Steps, res)
-		if res.TimedOut {
-			run.Status = StatusTimeout
-			break
-		}
-		if res.ExitCode != 0 && !step.AllowFailure {
-			run.Status = StatusFailed
-			break
-		}
-	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	s := newScheduler(f, run, opts.Parallel, cancel)
+	s.drive(ctx, run.WorkDir, newSink(opts.Stream))
+	sortSteps(run.Steps)
 	run.FinishedAt = time.Now().UTC()
 	return run
 }
@@ -87,7 +72,7 @@ func resolveDir(dir string) string {
 	return abs
 }
 
-func runStep(ctx context.Context, step Step, resolved map[string]string, dir string, stream io.Writer) (StepResult, output) {
+func runStep(ctx context.Context, step Step, resolved map[string]string, dir string, live *sink) (StepResult, output) {
 	stepCtx, cancel := context.WithTimeout(ctx, time.Duration(step.EffectiveTimeout())*time.Second)
 	defer cancel()
 
@@ -98,7 +83,6 @@ func runStep(ctx context.Context, step Step, resolved map[string]string, dir str
 	cmd.Dir = dir
 	cmd.Env = env
 	isolate(cmd)
-	live := newSink(stream)
 	out := newCapture(live, "["+step.Name+"] ", redact)
 	errOut := newCapture(live, "["+step.Name+"! ", redact)
 	cmd.Stdout = out
@@ -113,6 +97,7 @@ func runStep(ctx context.Context, step Step, resolved map[string]string, dir str
 	code := exitCodeOf(err)
 	res := StepResult{
 		Name:       step.Name,
+		StartedAt:  started.UTC(),
 		ExitCode:   code,
 		DurationMS: time.Since(started).Milliseconds(),
 		Stdout:     redact(stdout),
