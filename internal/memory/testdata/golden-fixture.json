@@ -1,0 +1,290 @@
+[
+  {
+    "query": "every endpoint blocks waiting for a database connection",
+    "expect": [
+      "bugs/postgres-connection-pool-exhaustion.md"
+    ]
+  },
+  {
+    "query": "acquire wait time is high but the database is idle",
+    "expect": [
+      "bugs/postgres-connection-pool-exhaustion.md"
+    ]
+  },
+  {
+    "query": "SET search_path with a bind parameter fails",
+    "expect": [
+      "bugs/postgres-set-rejects-bind-parameter.md"
+    ]
+  },
+  {
+    "query": "syntax error at or near $1 utility statement",
+    "expect": [
+      "bugs/postgres-set-rejects-bind-parameter.md"
+    ]
+  },
+  {
+    "query": "keep the module cache between docker builds",
+    "expect": [
+      "tools/docker-buildkit-cache-mounts.md"
+    ]
+  },
+  {
+    "query": "RUN mount type cache buildkit",
+    "expect": [
+      "tools/docker-buildkit-cache-mounts.md"
+    ]
+  },
+  {
+    "query": "healthcheck reports unhealthy but the app answers requests",
+    "expect": [
+      "bugs/docker-distroless-has-no-shell.md"
+    ]
+  },
+  {
+    "query": "distroless image has no shell",
+    "expect": [
+      "bugs/docker-distroless-has-no-shell.md"
+    ]
+  },
+  {
+    "query": "users signed out at random when requests run in parallel",
+    "expect": [
+      "bugs/oauth-refresh-token-rotation-race.md"
+    ]
+  },
+  {
+    "query": "refresh token rotation replay revoked family",
+    "expect": [
+      "bugs/oauth-refresh-token-rotation-race.md"
+    ]
+  },
+  {
+    "query": "should I key the user table on the email address",
+    "expect": [
+      "conventions/oidc-email-is-not-a-stable-identity.md"
+    ]
+  },
+  {
+    "query": "iss and sub opaque stable identifier for an account",
+    "expect": [
+      "conventions/oidc-email-is-not-a-stable-identity.md"
+    ]
+  },
+  {
+    "query": "goroutine count keeps climbing while traffic is flat",
+    "expect": [
+      "bugs/go-context-cancellation-leak.md"
+    ]
+  },
+  {
+    "query": "cancelling a context does not interrupt the running function",
+    "expect": [
+      "bugs/go-context-cancellation-leak.md"
+    ]
+  },
+  {
+    "query": "closure captured the last element of the range",
+    "expect": [
+      "bugs/go-loop-variable-capture.md"
+    ]
+  },
+  {
+    "query": "loop variable is per iteration since go 1.22",
+    "expect": [
+      "bugs/go-loop-variable-capture.md"
+    ]
+  },
+  {
+    "query": "effect runs forever and pegs a cpu core",
+    "expect": [
+      "bugs/svelte-effect-writes-its-own-dependency.md"
+    ]
+  },
+  {
+    "query": "effect writes to the same state it reads",
+    "expect": [
+      "bugs/svelte-effect-writes-its-own-dependency.md"
+    ]
+  },
+  {
+    "query": "when should I use derived instead of effect",
+    "expect": [
+      "conventions/svelte-derived-over-effect.md"
+    ]
+  },
+  {
+    "query": "memoised lazy computed value from existing state",
+    "expect": [
+      "conventions/svelte-derived-over-effect.md"
+    ]
+  },
+  {
+    "query": "new hostname still not resolving long after the ttl",
+    "expect": [
+      "bugs/dns-negative-caching-holds-nxdomain.md"
+    ]
+  },
+  {
+    "query": "SOA minimum governs how long NXDOMAIN is held",
+    "expect": [
+      "bugs/dns-negative-caching-holds-nxdomain.md"
+    ]
+  },
+  {
+    "query": "certificate signed by unknown authority from a service but fine in a browser",
+    "expect": [
+      "tools/tls-chain-order-and-intermediates.md"
+    ]
+  },
+  {
+    "query": "missing intermediate and the order certificates are sent",
+    "expect": [
+      "tools/tls-chain-order-and-intermediates.md"
+    ]
+  },
+  {
+    "query": "recover commits after a bad interactive rebase",
+    "expect": [
+      "bugs/git-rebase-lost-commits-recovered-by-reflog.md"
+    ]
+  },
+  {
+    "query": "dangling objects fsck lost found ninety days",
+    "expect": [
+      "bugs/git-rebase-lost-commits-recovered-by-reflog.md"
+    ]
+  },
+  {
+    "query": "run a scheduled job that catches up after the machine was off",
+    "expect": [
+      "tools/systemd-timer-versus-cron.md"
+    ]
+  },
+  {
+    "query": "OnCalendar Persistent randomized delay unit",
+    "expect": [
+      "tools/systemd-timer-versus-cron.md"
+    ]
+  },
+  {
+    "query": "database is locked when two writers overlap",
+    "expect": [
+      "bugs/sqlite-database-is-locked-under-wal.md"
+    ]
+  },
+  {
+    "query": "busy timeout pragma and write ahead logging",
+    "expect": [
+      "bugs/sqlite-database-is-locked-under-wal.md"
+    ]
+  },
+  {
+    "query": "keys disappearing even though no expiry was ever set",
+    "expect": [
+      "bugs/redis-eviction-drops-keys-that-had-no-ttl.md"
+    ]
+  },
+  {
+    "query": "allkeys lru maxmemory policy evicting sessions",
+    "expect": [
+      "bugs/redis-eviction-drops-keys-that-had-no-ttl.md"
+    ]
+  },
+  {
+    "query": "customer charged twice after a timeout and a retry",
+    "expect": [
+      "conventions/http-retries-need-idempotency-keys.md"
+    ]
+  },
+  {
+    "query": "idempotency key header replayed response",
+    "expect": [
+      "conventions/http-retries-need-idempotency-keys.md"
+    ]
+  },
+  {
+    "query": "server sent events all arrive at once when the connection closes",
+    "expect": [
+      "bugs/nginx-buffers-a-streaming-response.md"
+    ]
+  },
+  {
+    "query": "proxy buffering off and accel buffering header",
+    "expect": [
+      "bugs/nginx-buffers-a-streaming-response.md"
+    ]
+  },
+  {
+    "query": "migration stuck waiting for a lock behind an idle transaction",
+    "expect": [
+      "bugs/postgres-statement-timeout-versus-lock-timeout.md"
+    ]
+  },
+  {
+    "query": "sequential scan even though I created the index",
+    "expect": [
+      "bugs/postgres-planner-ignores-index-after-bulk-load.md"
+    ]
+  },
+  {
+    "query": "every build reinstalls dependencies after editing a readme",
+    "expect": [
+      "bugs/docker-layer-cache-busted-by-copying-context.md"
+    ]
+  },
+  {
+    "query": "worker pool drained by a hung upstream that never responds",
+    "expect": [
+      "bugs/go-http-client-has-no-default-timeout.md"
+    ]
+  },
+  {
+    "query": "one visitor seeing another visitor's data after server rendering",
+    "expect": [
+      "bugs/svelte-module-state-is-shared-between-users.md"
+    ]
+  },
+  {
+    "query": "three addresses published but one backend takes all the traffic",
+    "expect": [
+      "bugs/dns-round-robin-is-not-load-balancing.md"
+    ]
+  },
+  {
+    "query": "alert before a certificate expires on the live endpoint",
+    "expect": [
+      "tools/tls-certificate-expiry-monitoring.md"
+    ]
+  },
+  {
+    "query": "many commands in one round trip versus an atomic block",
+    "expect": [
+      "tools/redis-pipelining-versus-transactions.md"
+    ]
+  },
+  {
+    "query": "file did not shrink after deleting millions of rows",
+    "expect": [
+      "bugs/sqlite-vacuum-does-not-shrink-until-checkpoint.md"
+    ]
+  },
+  {
+    "query": "service stopped being restarted after crash looping",
+    "expect": [
+      "tools/systemd-restart-backoff-and-start-limits.md"
+    ]
+  },
+  {
+    "query": "code verifier and challenge for a mobile app that cannot hold a secret",
+    "expect": [
+      "conventions/oauth-pkce-for-public-clients.md"
+    ]
+  },
+  {
+    "query": "request entity too large when uploading a file",
+    "expect": [
+      "bugs/nginx-rejects-large-uploads-with-413.md"
+    ]
+  }
+]
