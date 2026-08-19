@@ -20,6 +20,13 @@ const (
 	// 0.500, MRR 0.215), which is the state they exist to catch coming back.
 	crossLangRecallFloor     = 0.90
 	crossLangReciprocalFloor = 0.55
+
+	// Below this share of the golden pages, the wiki on this machine is not the
+	// corpus these sets were written against and the eval is skipped. The floor
+	// sits far under recallFloor on purpose: a handful of renamed pages must
+	// stay a loud failure that names them, and only a corpus that is essentially
+	// gone — a reset, a fresh machine — becomes a skip.
+	corpusFloor = 0.25
 )
 
 type goldenCase struct {
@@ -56,11 +63,36 @@ func realWiki(t *testing.T) string {
 	return dir
 }
 
+// requireCorpus skips when the wiki here no longer holds the pages the golden
+// set names. Recall measured against a corpus that does not contain the answers
+// is not a low score, it is not a measurement — and a test that is red forever
+// is a test nobody reads, which costs more than the coverage it pretends to add.
+func requireCorpus(t *testing.T, dir string, cases []goldenCase) {
+	t.Helper()
+	total, present := 0, 0
+	for _, c := range cases {
+		for _, want := range c.Expect {
+			total++
+			if _, err := os.Stat(filepath.Join(dir, want)); err == nil {
+				present++
+			}
+		}
+	}
+	if total == 0 {
+		t.Fatal("golden set names no pages")
+	}
+	if share := float64(present) / float64(total); share < corpusFloor {
+		t.Skipf("wiki holds %d of %d golden pages (%.0f%%, floor %.0f%%): this is not the corpus the set was written against, so the eval would measure nothing. Regenerate testdata against the current wiki to re-arm it.",
+			present, total, share*100, corpusFloor*100)
+	}
+}
+
 // TestGoldenSetPointsAtPagesThatExist separates a retrieval regression from a
 // corpus that moved. A renamed page must fail here, naming itself, rather than
 // showing up as a silent drop in recall.
 func TestGoldenSetPointsAtPagesThatExist(t *testing.T) {
 	dir := realWiki(t)
+	requireCorpus(t, dir, loadGolden(t))
 	for _, c := range loadGolden(t) {
 		for _, want := range c.Expect {
 			if _, err := os.Stat(filepath.Join(dir, want)); err != nil {
@@ -76,6 +108,7 @@ func TestGoldenSetPointsAtPagesThatExist(t *testing.T) {
 func TestRetrievalRecallAtK(t *testing.T) {
 	dir := realWiki(t)
 	cases := loadGolden(t)
+	requireCorpus(t, dir, cases)
 
 	hits, reciprocalSum := 0, 0.0
 	for _, c := range cases {
@@ -152,6 +185,7 @@ func TestCrossLanguageRetrieval(t *testing.T) {
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatalf("cross-language set is not valid JSON: %v", err)
 	}
+	requireCorpus(t, dir, cases)
 
 	hits, reciprocal := 0, 0.0
 	for _, c := range cases {
@@ -177,5 +211,36 @@ func TestCrossLanguageRetrieval(t *testing.T) {
 	if mrr < crossLangReciprocalFloor {
 		t.Errorf("cross-language MRR dropped to %.3f, floor is %.2f",
 			mrr, crossLangReciprocalFloor)
+	}
+}
+
+// The guard exists to skip a missing corpus, not to make the eval optional. A
+// wiki that still holds its golden pages must run the eval, or a real recall
+// regression would leave as quietly as a reset does.
+func TestRequireCorpusOnlySkipsWhenTheCorpusIsGone(t *testing.T) {
+	cases := []goldenCase{{Query: "q", Expect: []string{"a.md", "b.md", "c.md", "d.md"}}}
+
+	full := t.TempDir()
+	for _, name := range cases[0].Expect {
+		if err := os.WriteFile(filepath.Join(full, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ran := false
+	t.Run("corpus present", func(t *testing.T) {
+		requireCorpus(t, full, cases)
+		ran = true
+	})
+	if !ran {
+		t.Error("skipped a corpus holding every golden page")
+	}
+
+	ran = false
+	t.Run("corpus gone", func(t *testing.T) {
+		requireCorpus(t, t.TempDir(), cases)
+		ran = true
+	})
+	if ran {
+		t.Error("ran the eval against a corpus holding none of its golden pages")
 	}
 }
