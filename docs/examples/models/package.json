@@ -1,0 +1,7 @@
+{
+  "name": "jardin-models",
+  "private": true,
+  "imports": {
+    "#lib/*": "./_lib/*.ts"
+  }
+}
