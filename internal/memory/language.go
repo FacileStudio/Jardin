@@ -133,11 +133,31 @@ func isOpaqueToken(token string) bool {
 	return strings.ContainsAny(inner, "_.-")
 }
 
-// ScanPaths reports French prose in the given wiki-relative paths, which are
-// resolved under dataDir. Callers pass the files a sync actually touched rather
-// than the whole corpus, so the usual cost is a handful of files or none.
-// Anything that is not a wiki markdown page is skipped, as is an unreadable
-// file: this is a warning path and must never be the reason a sync fails.
+// scanFile reports French prose in one file. reportPath is what a finding
+// carries, which differs by caller: sync reports data-dir-relative paths so they
+// match its own output, doctor reports wiki-relative ones. The exemption is
+// decided on the base name so neither caller can lose it by passing a different
+// shape of path.
+func scanFile(absPath, reportPath string) []LanguageFinding {
+	if filepath.Base(absPath) == langExemptFile {
+		return nil
+	}
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		// A warning path must never be the reason a sync or a doctor run fails.
+		return nil
+	}
+	var findings []LanguageFinding
+	for _, line := range FrenchLines(string(data)) {
+		findings = append(findings, LanguageFinding{Path: reportPath, Line: line})
+	}
+	return findings
+}
+
+// ScanPaths reports French prose in the given data-dir-relative paths. Callers
+// pass the files a sync actually touched rather than the whole corpus, so the
+// usual cost is a handful of files or none. Anything that is not a wiki markdown
+// page is skipped.
 func ScanPaths(dataDir string, rels []string) []LanguageFinding {
 	var findings []LanguageFinding
 	for _, rel := range rels {
@@ -145,16 +165,8 @@ func ScanPaths(dataDir string, rels []string) []LanguageFinding {
 		if !strings.HasPrefix(rel, "memory/") || !strings.HasSuffix(rel, ".md") {
 			continue
 		}
-		if strings.HasSuffix(rel, "/"+langExemptFile) {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(dataDir, filepath.FromSlash(rel)))
-		if err != nil {
-			continue
-		}
-		for _, line := range FrenchLines(string(data)) {
-			findings = append(findings, LanguageFinding{Path: rel, Line: line})
-		}
+		findings = append(findings,
+			scanFile(filepath.Join(dataDir, filepath.FromSlash(rel)), rel)...)
 	}
 	return findings
 }
@@ -162,10 +174,15 @@ func ScanPaths(dataDir string, rels []string) []LanguageFinding {
 // ScanWiki reports French prose across every page under memoryDir. It is the
 // whole-corpus counterpart to ScanPaths, and exists so that one implementation
 // answers both questions — a second copy of this rule in another language would
-// drift, and did: an earlier TypeScript checker carried seven words this one
-// lacked, so the two disagreed on lines neither author had thought about.
+// drift, and did: an earlier TypeScript checker tokenised on whitespace, which
+// counted identifiers and URLs as prose words and hid four French index hooks
+// under the ratio threshold.
+//
+// It walks and reads directly rather than delegating to ScanPaths, because that
+// would make the result depend on memoryDir being named "memory" — and a check
+// that silently reports clean when it cannot see the corpus is worse than none.
 func ScanWiki(memoryDir string) ([]LanguageFinding, error) {
-	var rels []string
+	var findings []LanguageFinding
 	err := filepath.Walk(memoryDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
 			return nil
@@ -174,11 +191,11 @@ func ScanWiki(memoryDir string) ([]LanguageFinding, error) {
 		if relErr != nil {
 			return nil
 		}
-		rels = append(rels, "memory/"+filepath.ToSlash(rel))
+		findings = append(findings, scanFile(path, filepath.ToSlash(rel))...)
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return ScanPaths(filepath.Dir(memoryDir), rels), nil
+	return findings, nil
 }

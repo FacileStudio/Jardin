@@ -104,9 +104,31 @@ func TestScanWikiWalksTheCorpusAndHonoursTheSameExemptions(t *testing.T) {
 		t.Fatalf("ScanWiki returned %d finding(s), want 2: %+v", len(got), got)
 	}
 	for _, f := range got {
-		if f.Path == "memory/log.md" {
+		if f.Path == "log.md" {
 			t.Errorf("ScanWiki reported log.md, which is exempt")
 		}
+	}
+}
+
+// TestScanWikiDoesNotDependOnTheDirectoryName pins a fail-open bug found while
+// reviewing this change. An earlier version rebuilt paths as "memory/"+rel and
+// delegated to ScanPaths, so any directory not literally named "memory"
+// resolved to nothing and the check reported clean. A check that silently sees
+// no corpus is worse than no check.
+func TestScanWikiDoesNotDependOnTheDirectoryName(t *testing.T) {
+	dir := t.TempDir()
+	wiki := filepath.Join(dir, "not-called-memory")
+	writePage(t, dir, "not-called-memory/page.md", frenchPage)
+
+	got, err := ScanWiki(wiki)
+	if err != nil {
+		t.Fatalf("ScanWiki: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("ScanWiki returned %d finding(s), want 1 — it must not depend on the folder name", len(got))
+	}
+	if got[0].Path != "page.md" {
+		t.Errorf("ScanWiki reported path %q, want wiki-relative %q", got[0].Path, "page.md")
 	}
 }
 
