@@ -78,6 +78,56 @@ func flowRunRows(runs []*flow.Run) []flowRunRow {
 	return rows
 }
 
+type flowQueryRow struct {
+	Flow       string    `json:"flow"`
+	ID         string    `json:"id"`
+	Status     string    `json:"status"`
+	StartedAt  time.Time `json:"started_at"`
+	DurationMS int64     `json:"duration_ms"`
+	Failed     []string  `json:"failed_steps,omitempty"`
+}
+
+func flowQueryRows(runs []*flow.Run) []flowQueryRow {
+	rows := make([]flowQueryRow, 0, len(runs))
+	for _, r := range runs {
+		rows = append(rows, flowQueryRow{
+			Flow: r.Flow, ID: r.ID, Status: r.Status, StartedAt: r.StartedAt,
+			DurationMS: r.Duration().Milliseconds(), Failed: failedSteps(r),
+		})
+	}
+	return rows
+}
+
+// failedSteps names the steps that actually broke, skipping the ones that only
+// went down with them — a list of casualties buries the cause.
+func failedSteps(r *flow.Run) []string {
+	var names []string
+	for _, s := range r.Steps {
+		if s.Skipped || (s.ExitCode == 0 && !s.TimedOut) {
+			continue
+		}
+		names = append(names, s.Name)
+	}
+	return names
+}
+
+func printQuery(runs []*flow.Run) {
+	width := 0
+	for _, r := range runs {
+		if len(r.Flow) > width {
+			width = len(r.Flow)
+		}
+	}
+	for _, r := range runs {
+		line := fmt.Sprintf("  %-*s  %-10s %-26s %10s", width, r.Flow, r.Status,
+			r.StartedAt.Format(time.RFC3339), r.Duration().Round(time.Millisecond))
+		if failed := failedSteps(r); len(failed) > 0 {
+			line += "  " + ui.Dim("at "+strings.Join(failed, ", "))
+		}
+		fmt.Println(line)
+	}
+}
+
 func trustState(f *flow.Flow) string {
 	pinned, err := flow.TrustedChecksum(f.Name)
 	switch {

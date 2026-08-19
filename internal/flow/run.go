@@ -106,6 +106,9 @@ func runStep(ctx context.Context, step Step, resolved map[string]string, dir str
 		Truncated:  outCut || errCut,
 		TimedOut:   errors.Is(stepCtx.Err(), context.DeadlineExceeded),
 	}
+	if step.Ephemeral {
+		res.Stdout, res.Stderr, res.Ephemeral = "", "", true
+	}
 	raw := output{Stdout: stdout, Stderr: stderr, ExitCode: code, StdoutCut: outCut, StderrCut: errCut}
 	return res, raw
 }

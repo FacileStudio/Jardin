@@ -57,13 +57,16 @@ const (
 // and Needs. Needs binds an environment variable to an earlier step's output,
 // written as "<step>.<field>".
 type Step struct {
-	Name         string            `yaml:"name"`
-	Run          string            `yaml:"run"`
-	Env          map[string]string `yaml:"env,omitempty"`
-	Needs        map[string]string `yaml:"needs,omitempty"`
-	DependsOn    []string          `yaml:"depends_on,omitempty"`
-	Timeout      int               `yaml:"timeout,omitempty"`
-	AllowFailure bool              `yaml:"allow_failure,omitempty"`
+	Name      string            `yaml:"name"`
+	Run       string            `yaml:"run"`
+	Env       map[string]string `yaml:"env,omitempty"`
+	Needs     map[string]string `yaml:"needs,omitempty"`
+	DependsOn []string          `yaml:"depends_on,omitempty"`
+	// Ephemeral keeps this step's output out of the artifact. The value still
+	// reaches the steps that need it; it just never lands on disk.
+	Ephemeral    bool `yaml:"ephemeral,omitempty"`
+	Timeout      int  `yaml:"timeout,omitempty"`
+	AllowFailure bool `yaml:"allow_failure,omitempty"`
 }
 
 // EffectiveTimeout returns the step's timeout in seconds, applying the default
@@ -103,7 +106,10 @@ type StepResult struct {
 	// Skipped narrows NotStarted further: this step was fine, something it
 	// depends on was not. Distinguishing the two is what lets a reader tell a
 	// broken step from a downstream casualty.
-	Skipped   bool      `json:"skipped,omitempty"`
+	Skipped bool `json:"skipped,omitempty"`
+	// Ephemeral records that output was withheld on purpose, so a reader can
+	// tell a step that printed nothing from one whose output was not kept.
+	Ephemeral bool      `json:"ephemeral,omitempty"`
 	StartedAt time.Time `json:"started_at,omitempty"`
 }
 
