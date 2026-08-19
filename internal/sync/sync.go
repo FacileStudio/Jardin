@@ -18,6 +18,7 @@ const (
 	manifestName = ".sync-base.json"
 	conflictExt  = ".conflict"
 	tokensFile   = "tokens.json"
+	usagePrefix  = "usage/"
 )
 
 // Client talks to a Mycelium server over HTTP, scoped to one space when Space
@@ -127,6 +128,15 @@ func syncSkip(rel string) bool {
 		strings.HasPrefix(rel, "runs/") ||
 		strings.HasSuffix(rel, conflictExt) ||
 		strings.HasSuffix(rel, ".log")
+}
+
+// singleWriter reports whether a path sits in a directory that only one machine
+// ever writes to: usage/<machine>/ holds that machine's own telemetry, rewritten
+// by its status line every few seconds. Both sides differing there is one writer
+// outrunning its last sync, never two machines disagreeing.
+func singleWriter(rel string) bool {
+	rest, ok := strings.CutPrefix(rel, usagePrefix)
+	return ok && strings.Contains(rest, "/")
 }
 
 // LocalTree walks the data directory and returns every file in it as a
@@ -260,8 +270,9 @@ func (c *Client) Sync(dataDir string) (*Result, error) {
 }
 
 // resolveConflict handles a path where both sides changed since base. Content
-// always beats a deletion, so nothing is lost; between two edits it picks a
-// deterministic winner and keeps the loser as <path>.conflict.
+// always beats a deletion, so nothing is lost; a single-writer path takes the
+// fresher copy outright; between two genuine edits it picks a deterministic
+// winner and keeps the loser as <path>.conflict.
 func (c *Client) resolveConflict(dataDir, p string, local, remote FileEntry, next map[string]string, res *Result) error {
 	if local.Checksum == "" {
 		if err := c.downloadFile(dataDir, p); err != nil {
@@ -280,6 +291,10 @@ func (c *Client) resolveConflict(dataDir, p string, local, remote FileEntry, nex
 		next[p] = local.Checksum
 		res.Conflicts = append(res.Conflicts, p+" (deleted on server, edited locally — kept local copy)")
 		return nil
+	}
+
+	if singleWriter(p) {
+		return c.resolveSingleWriter(dataDir, p, local, remote, next, res)
 	}
 
 	if localWins(local, remote) {
@@ -310,6 +325,26 @@ func (c *Client) resolveConflict(dataDir, p string, local, remote FileEntry, nex
 		next[p] = remote.Checksum
 	}
 	res.Conflicts = append(res.Conflicts, p+" (edited on both — kept "+p+conflictExt+" backup)")
+	return nil
+}
+
+// resolveSingleWriter settles a both-sides difference on a path with one writer.
+// There is nothing to merge and no second author to preserve, so the fresher copy
+// simply wins: no backup is kept and the pair is not reported as a conflict.
+func (c *Client) resolveSingleWriter(dataDir, p string, local, remote FileEntry, next map[string]string, res *Result) error {
+	if localWins(local, remote) {
+		if err := c.uploadFile(dataDir, p); err != nil {
+			return err
+		}
+		res.Uploaded = append(res.Uploaded, p)
+		next[p] = local.Checksum
+		return nil
+	}
+	if err := c.downloadFile(dataDir, p); err != nil {
+		return err
+	}
+	res.Downloaded = append(res.Downloaded, p)
+	next[p] = remote.Checksum
 	return nil
 }
 
