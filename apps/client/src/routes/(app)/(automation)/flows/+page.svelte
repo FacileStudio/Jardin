@@ -1,28 +1,28 @@
 <script lang="ts">
-	import { EmptyState, icons, toast } from '@facile/muse';
+	import { Alert, EmptyState, icons } from '@facile/muse';
 	import { backend } from '$lib/backend';
 	import EntityCard from '$lib/components/EntityCard.svelte';
 
 	let flows: string[] = $state([]);
+	let error = $state('');
 
 	$effect(() => {
 		backend
 			.flowsList()
 			.then((f) => (flows = f))
-			.catch((e) => toast.danger(e instanceof Error ? e.message : 'Could not load flows.'));
+			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load flows.'));
 	});
 </script>
 
 <div class="flex flex-col gap-10">
-	<div class="flex flex-col gap-2">
-		<h1 class="text-fc-2xl font-semibold text-fc-fg">Flows</h1>
-		<p class="text-fc-sm text-fc-fg-muted">
-			Recorded shell procedures, synced across every machine. Trust and run history stay on the
-			machine that runs them.
-		</p>
-	</div>
+	<p class="text-fc-sm text-fc-fg-muted">
+		Recorded shell procedures, synced across every machine. Trust and run history stay on the
+		machine that runs them.
+	</p>
 
-	{#if flows.length === 0}
+	{#if error}
+		<Alert tone="danger" title="Could not load flows">{error}</Alert>
+	{:else if flows.length === 0}
 		<EmptyState
 			icon={icons.plug}
 			title="No flows yet"

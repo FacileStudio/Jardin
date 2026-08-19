@@ -20,7 +20,7 @@
 	let collapsed = $state(false);
 	let scroller: HTMLElement | null = $state(null);
 
-	const MOBILE_HIDDEN = ['/machines', '/spaces', '/flows', '/models'];
+	const MOBILE_HIDDEN = ['/machines', '/spaces'];
 
 	/*
 	 * The unscoped tree is the *common* tree — that is what the API and its tests call it
@@ -34,12 +34,16 @@
 	 * No Settings row: settings is reached from the user card at the bottom of the rail and
 	 * from the avatar in MobileNav. See CHARTE §14.
 	 */
+	/*
+	 * Flows and Models share one rail entry: a model only exists to be a flow's `type:`
+	 * step, so they are one destination with two tabs (see (automation)/+layout.svelte),
+	 * not two rail rows fighting for the same mobile budget.
+	 */
 	const links = [
 		{ label: 'Memory', href: '/memory', icon: icons.folder },
 		{ label: 'Rules', href: '/rules', icon: icons.shield },
 		{ label: 'Skills', href: '/skills', icon: icons.bolt },
-		{ label: 'Flows', href: '/flows', icon: icons.plug },
-		{ label: 'Models', href: '/models', icon: icons.code },
+		{ label: 'Automation', href: '/flows', icon: icons.plug, activeMatch: ['/flows', '/models'] },
 		{ label: 'Machines', href: '/machines', icon: icons.server },
 		{ label: 'Sessions', href: '/sessions', icon: icons.history },
 		{ label: 'Spaces', href: '/spaces', icon: icons.usersGroup }
@@ -79,7 +83,10 @@
 	});
 
 	const navPages = $derived(
-		links.map((l) => ({ ...l, active: page.url.pathname.startsWith(l.href) }))
+		links.map((l) => ({
+			...l,
+			active: (l.activeMatch ?? [l.href]).some((prefix) => page.url.pathname.startsWith(prefix))
+		}))
 	);
 	const onSettings = $derived(page.url.pathname.startsWith('/settings'));
 
@@ -97,9 +104,10 @@
 
 	/*
 	 * MobileNav is a fixed-width pill: six icons plus the avatar need 412px and the floor is
-	 * 360px, so the bar carries the four daily destinations. Spaces stays reachable through
-	 * the switcher's "Manage spaces" footer in the Topbar, and Machines from the Sessions page.
-	 * Flows and Models have no such shortcut yet — on mobile they are a URL away, not a tap.
+	 * 360px. Merging Flows+Models into one Automation entry keeps the rail at five daily
+	 * destinations plus the avatar, so the pill carries all of them. Spaces stays reachable
+	 * through the switcher's "Manage spaces" footer in the Topbar, and Machines from the
+	 * Sessions page — those two are a URL away on mobile, not a tap.
 	 */
 	const mobilePages = $derived(navPages.filter((p) => !MOBILE_HIDDEN.includes(p.href)));
 
