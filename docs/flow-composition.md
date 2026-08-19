@@ -24,14 +24,44 @@ A **model** is TypeScript run by `bun`, living at
 - `describe` — print the schema as JSON on stdout
 - `execute` — read `{"arguments": {...}, "env": {...}}` on stdin, print JSON on stdout
 
+Writing that contract by hand is ~25 lines of argv parsing, stdin reading and
+JSON plumbing before a model does anything — repeated verbatim in every model
+file. `defineModel()` in
+[`docs/examples/models/_lib/defineModel.ts`](examples/models/_lib/defineModel.ts)
+owns that plumbing, so a model shrinks to its schema and one function.
+
+A relative import (`../_lib/defineModel`) breaks the moment a type name nests
+deeper — `@acme/http-check` sits one level under `extensions/models/`, but
+`@acme/tools/http-check` sits two, so the `../` count would have to change per
+model. A `package.json` with an
+[`imports`](https://nodejs.org/api/packages.html#subpath-imports) map at the
+root of `extensions/models/` fixes the depth at one, regardless of nesting:
+
+```json
+{ "imports": { "#lib/*": "./_lib/*.ts" } }
+```
+
 ```ts
-const schema = {
+import { defineModel } from "#lib/defineModel";
+
+defineModel({
   type: "@acme/http-check",
   version: "1.0.0",
   arguments: { url: { type: "string", required: true } },
   outputs: ["status"],
-};
+  execute: async (args) => {
+    const res = await fetch(args.url);
+    return { status: res.status };
+  },
+});
 ```
+
+The full worked example, with an optional argument, an `enum`, and error
+handling that fails the step, is at
+[`docs/examples/models/acme/http-check.ts`](examples/models/acme/http-check.ts)
+— 23 lines against the ~50 the same model needs written against the raw
+contract by hand. It has no dependency beyond `defineModel.ts` itself, which has none
+beyond bun's own stdlib.
 
 mycelium never reads the TypeScript — only the schema. That is the whole point of
 the split, and swamp puts it best: *a type is a class, a definition is an object

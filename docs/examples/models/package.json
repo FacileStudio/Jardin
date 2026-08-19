@@ -1,0 +1,7 @@
+{
+  "name": "mycelium-models",
+  "private": true,
+  "imports": {
+    "#lib/*": "./_lib/*.ts"
+  }
+}
