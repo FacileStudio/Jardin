@@ -2,6 +2,7 @@ package flow
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -124,5 +125,125 @@ func TestComputedSpecifierIsNotGuessed(t *testing.T) {
 	}
 	if len(m.Sources) != 1 {
 		t.Fatalf("closure has %d files, want only the entry", len(m.Sources))
+	}
+}
+
+// helperMarker is printed by the fixture helper as its module body runs. Its
+// presence in bun's output is the only trustworthy evidence that bun really
+// loaded the helper, rather than eliding an import it decided was unused.
+const helperMarker = "HELPER-EXECUTED"
+
+// helperFixture exports a value and a type so a fixture can exercise either a
+// value import or a type-only one, and announces itself when it is executed.
+const helperFixture = "console.log(\"" + helperMarker + "\");\n" +
+	"export const n = 1;\nexport type N = number;\n"
+
+// bunRanHelper runs an entry under bun and reports whether the helper's
+// top-level code executed. A fixture bun cannot run at all proves nothing, so
+// that is a failure rather than a quiet "did not execute" — counting a broken
+// fixture as safe is how a gap hides.
+func bunRanHelper(t *testing.T, entry string) bool {
+	t.Helper()
+	out, err := exec.Command(modelRuntime, entry).CombinedOutput()
+	ran := strings.Contains(string(out), helperMarker)
+	if err != nil && !ran {
+		t.Fatalf("bun could not run %s: %v\n%s", entry, err, out)
+	}
+	return ran
+}
+
+// closureHasHelper reports whether the scanner put the helper in what the pin
+// would cover.
+func closureHasHelper(t *testing.T, entry string) bool {
+	t.Helper()
+	sources, err := ModelSources(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range sources {
+		if s.Rel == "test/helper.ts" {
+			return true
+		}
+	}
+	return false
+}
+
+// syntaxFixture installs the helper and an entry using one import syntax, and
+// returns the entry's path.
+func syntaxFixture(t *testing.T, entry string) string {
+	t.Helper()
+	writeModelFile(t, "test/helper.ts", helperFixture)
+	writeModel(t, "@test/entry", entry)
+	path, err := ModelPath("@test/entry")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestClosureCoversEverySyntaxBunExecutes measures bun instead of trusting the
+// regex. The pin is a security boundary, and it shipped incomplete twice
+// because the pattern was read and believed: v0.16.0 missed require() and a
+// backticked specifier, both of which bun runs. So each syntax is executed for
+// real, and anything bun loads has to be in the closure — if a future runtime
+// or a future edit to importSpecifier makes the two disagree, this fails.
+//
+// Over-inclusion is not a failure. The scanner hashing a file bun elides is
+// conservative; only running code the pin does not cover is a hole.
+func TestClosureCoversEverySyntaxBunExecutes(t *testing.T) {
+	needsBun(t)
+	forms := map[string]string{
+		"import from, double quotes": "import { n } from \"./helper\";\nconsole.log(n);\n",
+		"import from, single quotes": "import { n } from './helper';\nconsole.log(n);\n",
+		"import from, backticks":     "import { n } from `./helper`;\nconsole.log(n);\n",
+		"side-effect import":         "import \"./helper\";\n",
+		"namespace import":           "import * as h from \"./helper\";\nconsole.log(h.n);\n",
+		"export from":                "export { n } from \"./helper\";\n",
+		"export star":                "export * from \"./helper\";\n",
+		"dynamic import, literal":    "const h = await import(\"./helper\");\nconsole.log(h.n);\n",
+		"dynamic import, backticks":  "const h = await import(`./helper`);\nconsole.log(h.n);\n",
+		"require":                    "const h = require(\"./helper\");\nconsole.log(h.n);\n",
+		"type-only import":           "import type { N } from \"./helper\";\nconst x: N = 1;\nconsole.log(x);\n",
+	}
+
+	executed := 0
+	for name, body := range forms {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("DATA_DIR", t.TempDir())
+			entry := syntaxFixture(t, body)
+
+			ran := bunRanHelper(t, entry)
+			if ran {
+				executed++
+			}
+			if ran && !closureHasHelper(t, entry) {
+				t.Fatalf("bun executes the helper through this syntax and the closure omits it: "+
+					"a pin taken here would not cover running code\n%s", body)
+			}
+		})
+	}
+
+	if executed < len(forms)-1 {
+		t.Fatalf("only %d of %d fixtures actually loaded the helper; the rest proved nothing, "+
+			"so this test would pass whatever the scanner did", executed, len(forms))
+	}
+}
+
+// TestComputedSpecifierIsTheOneKnownDivergence pins the single case where bun
+// runs code the closure does not cover. It cannot be resolved statically and is
+// deliberately not guessed at, and both docs/flow-composition.md and the wiki
+// say so. If it ever starts resolving, this fails on purpose: the gap closing
+// is good news that those two documents would otherwise keep contradicting.
+func TestComputedSpecifierIsTheOneKnownDivergence(t *testing.T) {
+	needsBun(t)
+	t.Setenv("DATA_DIR", t.TempDir())
+	entry := syntaxFixture(t, "const which = \"helper\";\nconst h = await import(`./${which}`);\nconsole.log(h.n);\n")
+
+	if !bunRanHelper(t, entry) {
+		t.Fatal("the fixture no longer exercises a computed specifier: bun did not load the helper")
+	}
+	if closureHasHelper(t, entry) {
+		t.Fatal("a computed specifier now resolves into the closure — update docs/flow-composition.md " +
+			"and bugs/model-trust-is-not-transitive.md, which both call this a known gap, then this test")
 	}
 }
