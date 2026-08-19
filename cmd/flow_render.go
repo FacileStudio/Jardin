@@ -174,6 +174,9 @@ func printRun(r *flow.Run) {
 	ui.Hint("checksum %s", r.FlowChecksum)
 	for _, s := range r.Steps {
 		head := fmt.Sprintf("%s (exit %d, %dms)", s.Name, s.ExitCode, s.DurationMS)
+		if s.NotStarted {
+			head = s.Name + " (did not start)"
+		}
 		if s.ExitCode == 0 && !s.TimedOut {
 			ui.Success("%s", head)
 		} else {

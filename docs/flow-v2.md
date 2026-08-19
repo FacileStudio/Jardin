@@ -61,6 +61,11 @@ a value that is quietly wrong:
   silently, so the consuming step never starts.
 - **An oversized or binary value.** See below.
 
+A run stopped this way gets status `unresolved`, not `failed`, and the step that
+never ran is marked `not_started` in the artifact. A step that ran and returned
+non-zero and a step that never ran are different events; one bucket for both
+sends the reader to the wrong place.
+
 `allow_failure` does not cover either. A reference that cannot be satisfied is a
 defect in the flow, not a step that was allowed to fail.
 
@@ -104,16 +109,19 @@ A value containing a **NUL byte** is refused for the same reason: Go answers
 `exec: environment variable contains NUL`, which says nothing about which step
 produced it.
 
-The total environment is still bounded by `ARG_MAX` (~1 MB on macOS). Nothing
-enforces that, because reaching it needs a dozen maximum-size chained values,
-and the per-value cap is what makes that implausible rather than merely rare.
+One step's values are capped in total at `MaxTotalValueBytes` (256 KB), because
+the per-value limit is not enough on its own: `ARG_MAX` bounds the whole
+environment (~1 MB on macOS), so a handful of maximum-size values would fail at
+exec with that same shell-blaming message.
 
 ## Trailing newlines are trimmed
 
-`stdout` and `stderr` have trailing `\r` and `\n` stripped, matching what
-`$(...)` does in a shell. Nothing else about the value is touched — not leading
-whitespace, not internal newlines. `git describe` therefore yields `v0.12.0`,
-not `v0.12.0\n`.
+`stdout` and `stderr` have trailing line endings stripped, the way `$(...)` does
+in a shell. `git describe` therefore yields `v0.12.0`, not `v0.12.0\n`. Nothing
+else about the value is touched — not leading whitespace, not internal newlines.
+
+One deliberate difference from `$(...)`: trailing `\r` is stripped too, not only
+`\n`, so a value produced by a CRLF-emitting tool arrives clean.
 
 ## Secrets
 

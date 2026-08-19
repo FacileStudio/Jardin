@@ -28,6 +28,11 @@ const (
 	// names the shell rather than the flow. Half of that leaves room for
 	// several needs plus the inherited environment.
 	MaxValueBytes = 64 << 10
+	// MaxTotalValueBytes caps what one step may chain in total. The per-value
+	// limit is not enough on its own: ARG_MAX bounds the whole environment
+	// (~1MB on macOS), so a handful of maximum-size values would fail at exec
+	// with the same message that names the shell instead of the flow.
+	MaxTotalValueBytes = 256 << 10
 	// Extension is the file extension every flow file carries.
 	Extension = ".yml"
 )
@@ -39,6 +44,12 @@ const (
 	StatusFailed = "failed"
 	// StatusTimeout marks a run stopped by a step that exceeded its timeout.
 	StatusTimeout = "timeout"
+	// StatusUnresolved marks a run stopped before a step could start, because a
+	// value it needed could not be produced. It is deliberately not StatusFailed:
+	// a step that ran and returned non-zero and a step that never ran are
+	// different events, and one bucket for both sends the reader to the wrong
+	// place.
+	StatusUnresolved = "unresolved"
 )
 
 // Step is one shell command in a flow. Run is handed to "sh -c" unchanged; no
@@ -84,6 +95,10 @@ type StepResult struct {
 	Resolved   map[string]string `json:"resolved,omitempty"`
 	Truncated  bool              `json:"truncated"`
 	TimedOut   bool              `json:"timed_out"`
+	// NotStarted marks a step that never ran. Without it the artifact reports
+	// exit code -1, which already means "the process could not start" and
+	// "killed by a signal" — three causes, one bucket.
+	NotStarted bool `json:"not_started,omitempty"`
 }
 
 // Run records one execution of a flow. FlowChecksum pins which version of the

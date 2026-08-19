@@ -39,16 +39,19 @@ func Execute(ctx context.Context, f *Flow, opts Options) *Run {
 		Status:       StatusOK,
 		Steps:        make([]StepResult, 0, len(f.Steps)),
 	}
-	outputs := make(map[string]Output, len(f.Steps))
+	referenced := referencedSteps(f)
+	outputs := make(map[string]output, len(referenced))
 	for _, step := range f.Steps {
-		resolved, err := Resolve(step, outputs)
+		resolved, err := resolve(step, outputs)
 		if err != nil {
 			run.Steps = append(run.Steps, unresolved(step, err))
-			run.Status = StatusFailed
+			run.Status = StatusUnresolved
 			break
 		}
 		res, out := runStep(ctx, step, resolved, run.WorkDir, opts.Stream)
-		outputs[step.Name] = out
+		if referenced[step.Name] {
+			outputs[step.Name] = out
+		}
 		run.Steps = append(run.Steps, res)
 		if res.TimedOut {
 			run.Status = StatusTimeout
@@ -67,7 +70,7 @@ func Execute(ctx context.Context, f *Flow, opts Options) *Run {
 // not be produced. allow_failure does not cover it: a reference that cannot be
 // satisfied is a defect in the flow, not a step that was allowed to fail.
 func unresolved(step Step, err error) StepResult {
-	return StepResult{Name: step.Name, ExitCode: -1, Stderr: err.Error()}
+	return StepResult{Name: step.Name, ExitCode: -1, Stderr: err.Error(), NotStarted: true}
 }
 
 func resolveDir(dir string) string {
@@ -84,7 +87,7 @@ func resolveDir(dir string) string {
 	return abs
 }
 
-func runStep(ctx context.Context, step Step, resolved map[string]string, dir string, stream io.Writer) (StepResult, Output) {
+func runStep(ctx context.Context, step Step, resolved map[string]string, dir string, stream io.Writer) (StepResult, output) {
 	stepCtx, cancel := context.WithTimeout(ctx, time.Duration(step.EffectiveTimeout())*time.Second)
 	defer cancel()
 
@@ -108,18 +111,18 @@ func runStep(ctx context.Context, step Step, resolved map[string]string, dir str
 	stdout, outCut := out.result()
 	stderr, errCut := errOut.result()
 	code := exitCodeOf(err)
-	return StepResult{
-			Name:       step.Name,
-			ExitCode:   code,
-			DurationMS: time.Since(started).Milliseconds(),
-			Stdout:     redact(stdout),
-			Stderr:     redact(stderr),
-			Resolved:   redactMap(resolved, redact),
-			Truncated:  outCut || errCut,
-			TimedOut:   errors.Is(stepCtx.Err(), context.DeadlineExceeded),
-		}, Output{
-			Stdout: stdout, Stderr: stderr, ExitCode: code, StdoutCut: outCut, StderrCut: errCut,
-		}
+	res := StepResult{
+		Name:       step.Name,
+		ExitCode:   code,
+		DurationMS: time.Since(started).Milliseconds(),
+		Stdout:     redact(stdout),
+		Stderr:     redact(stderr),
+		Resolved:   redactMap(resolved, redact),
+		Truncated:  outCut || errCut,
+		TimedOut:   errors.Is(stepCtx.Err(), context.DeadlineExceeded),
+	}
+	raw := output{Stdout: stdout, Stderr: stderr, ExitCode: code, StdoutCut: outCut, StderrCut: errCut}
+	return res, raw
 }
 
 func isolate(cmd *exec.Cmd) {

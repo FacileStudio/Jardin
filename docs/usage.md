@@ -113,6 +113,81 @@ jardin rules edit 00-core
 jardin skills add changelog
 ```
 
+## Flows
+
+A flow is a recorded procedure: an ordered list of shell steps you replay instead of
+re-deriving. Flows sync between machines; their run artifacts never leave the machine that
+produced them. Full spec in [flow-v0.md](flow-v0.md) and [flow-v2.md](flow-v2.md).
+
+### `jardin flow list`
+
+Every flow this machine has, with its step count and trust state.
+
+```console
+$ jardin flow list
+  ci-status      2 steps  trusted     Recent CI runs for the repo in the current directory.
+  deploy-check   3 steps  not pinned  Build, then confirm the health endpoint answers.
+  suite-check    2 steps  CHANGED     The repo's own quality gate, then filet.
+```
+
+`not pinned` means this machine has never approved the flow; `CHANGED` means it was edited
+since it was approved here. Add `--json` for the machine-readable form.
+
+### `jardin flow add <name>`
+
+Scaffolds `~/.jardin/flows/<name>.yml` and nothing else — a scaffolded flow is not trusted,
+so it still has to be reviewed and pinned before it can run.
+
+### `jardin flow trust <name>` / `jardin flow untrust [name]`
+
+`trust` prints the flow and asks for confirmation, then pins its checksum on this machine.
+`--yes` skips the prompt, and is refused outside a terminal unless you pass it explicitly.
+
+`untrust <name>` removes one pin. With **no argument** it prunes every pin whose flow file
+has disappeared — the trust store is authoritative, not derived, so a deleted flow would
+otherwise leave its checksum behind forever.
+
+### `jardin flow run <name>`
+
+Runs the steps in order, streaming each one's output prefixed with its step name, and writes
+a run artifact. A flow that is not trusted on this machine is refused before any step runs.
+
+```console
+$ jardin flow run release
+▸ Running release (2 steps)
+[version] v0.12.0
+[notify] shipping v0.12.0
+✓ release: 2 steps in 412ms
+  /home/yann/.jardin/runs/release/2026-08-19T13-35-07.357725744Z.json
+```
+
+A step can read an earlier step's output. `needs` binds an environment variable to
+`<step>.<field>`, where the field is `stdout`, `stderr` or `exit_code`:
+
+```yaml
+steps:
+  - name: version
+    run: git describe --tags --always
+  - name: notify
+    needs:
+      VERSION: version.stdout
+    run: curl -fsS -d "shipping $VERSION" https://hooks.example/notify
+```
+
+Values travel in the child's environment and are never spliced into the command, so a value
+containing `; rm -rf /` arrives as those characters and nothing else. Only backward
+references work, a chained value is capped at 64 KB (write anything larger to a file and
+pass the path), and `needs` requires jardin v0.13.0+ on every machine that runs the flow.
+
+### `jardin flow runs <name>` / `jardin flow show <name> [id]`
+
+`runs` lists a flow's recent runs — id, status, when, how long. `--limit` defaults to 20;
+the last 50 are kept on disk per flow.
+
+`show` prints one run in full: per-step exit codes, durations, output, and the values each
+step received from earlier steps. With no id it shows the most recent run. Read this rather
+than re-running to find out what happened.
+
 ## Generating agent config
 
 ### `jardin install [agent] | --all`
