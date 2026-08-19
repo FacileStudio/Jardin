@@ -37,6 +37,7 @@ type scheduler struct {
 	results  chan outcome
 	cancel   context.CancelFunc
 	stopped  bool
+	models   map[string]*Model
 }
 
 func newScheduler(f *Flow, run *Run, limit int, cancel context.CancelFunc) *scheduler {
@@ -125,7 +126,7 @@ func (s *scheduler) launch(ctx context.Context, step Step, dir string, stream *s
 	s.started[step.Name] = true
 	s.inflight++
 	go func() {
-		res, raw := runStep(ctx, step, resolved, dir, stream)
+		res, raw := runStep(ctx, step, resolved, dir, stream, s.models[step.Type])
 		s.results <- outcome{name: step.Name, result: res, raw: raw}
 	}()
 }

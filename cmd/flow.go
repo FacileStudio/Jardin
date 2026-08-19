@@ -135,6 +135,31 @@ var flowRunsCmd = &cobra.Command{
 	},
 }
 
+var flowTrustModelCmd = &cobra.Command{
+	Use:   "trust-model <type>",
+	Short: "Pin a model extension so typed steps may run it on this machine",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		path, err := flow.ModelPath(args[0])
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		m := &flow.Model{Type: args[0], Path: path, Checksum: flow.Checksum(data)}
+		if err := confirmModel(m, data); err != nil {
+			return err
+		}
+		if err := flow.TrustModel(m); err != nil {
+			return err
+		}
+		ui.Success("Trusted model %q. Typed steps may now run it here.", args[0])
+		return nil
+	},
+}
+
 var flowQueryCmd = &cobra.Command{
 	Use:   "query",
 	Short: "Search every flow's history at once",
@@ -226,6 +251,7 @@ func init() {
 	flowCmd.AddCommand(flowRunsCmd)
 	flowCmd.AddCommand(flowShowCmd)
 	flowCmd.AddCommand(flowQueryCmd)
+	flowCmd.AddCommand(flowTrustModelCmd)
 	flowCmd.AddCommand(flowTrustCmd)
 	flowCmd.AddCommand(flowUntrustCmd)
 	flowQueryCmd.Flags().StringVar(&flowQueryStatus, "status", "", "Only runs with this status (ok, failed, timeout, unresolved)")
@@ -234,6 +260,7 @@ func init() {
 	for _, c := range []*cobra.Command{flowListCmd, flowRunsCmd, flowShowCmd, flowQueryCmd} {
 		c.Flags().BoolVar(&flowJSON, "json", false, "Emit JSON")
 	}
+	flowTrustModelCmd.Flags().BoolVar(&flowTrustYes, "yes", false, "Pin without the interactive confirmation")
 	flowTrustCmd.Flags().BoolVar(&flowTrustYes, "yes", false, "Pin without the interactive confirmation")
 	flowRunsCmd.Flags().IntVar(&flowRunsLimit, "limit", 20, "How many runs to list")
 	rootCmd.AddCommand(flowCmd)

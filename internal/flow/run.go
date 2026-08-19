@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -44,7 +45,16 @@ func Execute(ctx context.Context, f *Flow, opts Options) *Run {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	models, err := preflight(ctx, f)
+	if err != nil {
+		run.Status = StatusUnresolved
+		run.Error = err.Error()
+		run.FinishedAt = time.Now().UTC()
+		return run
+	}
+
 	s := newScheduler(f, run, opts.Parallel, cancel)
+	s.models = models
 	s.drive(ctx, run.WorkDir, newSink(opts.Stream))
 	sortSteps(run.Steps)
 	run.FinishedAt = time.Now().UTC()
@@ -72,14 +82,30 @@ func resolveDir(dir string) string {
 	return abs
 }
 
-func runStep(ctx context.Context, step Step, resolved map[string]string, dir string, live *sink) (StepResult, output) {
+// stepCommand builds the process a step runs: a shell command, or a model
+// extension executed by its runtime.
+func stepCommand(ctx context.Context, step Step, model *Model, env map[string]string) (*exec.Cmd, error) {
+	if step.Type == "" {
+		return exec.CommandContext(ctx, "sh", "-c", step.Run), nil
+	}
+	if model == nil {
+		return nil, fmt.Errorf("step %q has no resolved model for %q", step.Name, step.Type)
+	}
+	return modelCommand(ctx, model, step, env)
+}
+
+func runStep(ctx context.Context, step Step, resolved map[string]string, dir string, live *sink, model *Model) (StepResult, output) {
 	stepCtx, cancel := context.WithTimeout(ctx, time.Duration(step.EffectiveTimeout())*time.Second)
 	defer cancel()
 
-	env := childEnv(stepEnvOf(step, resolved))
+	stepEnv := stepEnvOf(step, resolved)
+	env := childEnv(stepEnv)
 	redact := newRedactor(env)
 
-	cmd := exec.CommandContext(stepCtx, "sh", "-c", step.Run)
+	cmd, cmdErr := stepCommand(stepCtx, step, model, stepEnv)
+	if cmdErr != nil {
+		return unresolved(step, cmdErr), output{}
+	}
 	cmd.Dir = dir
 	cmd.Env = env
 	isolate(cmd)

@@ -64,9 +64,13 @@ type Step struct {
 	DependsOn []string          `yaml:"depends_on,omitempty"`
 	// Ephemeral keeps this step's output out of the artifact. The value still
 	// reaches the steps that need it; it just never lands on disk.
-	Ephemeral    bool `yaml:"ephemeral,omitempty"`
-	Timeout      int  `yaml:"timeout,omitempty"`
-	AllowFailure bool `yaml:"allow_failure,omitempty"`
+	Ephemeral bool `yaml:"ephemeral,omitempty"`
+	// Type names a model extension to run instead of a shell command, and With
+	// carries its arguments. A step is one or the other, never both.
+	Type         string         `yaml:"type,omitempty"`
+	With         map[string]any `yaml:"with,omitempty"`
+	Timeout      int            `yaml:"timeout,omitempty"`
+	AllowFailure bool           `yaml:"allow_failure,omitempty"`
 }
 
 // EffectiveTimeout returns the step's timeout in seconds, applying the default
@@ -116,15 +120,18 @@ type StepResult struct {
 // Run records one execution of a flow. FlowChecksum pins which version of the
 // flow produced the record, so history stays readable after a flow is edited.
 type Run struct {
-	Flow         string       `json:"flow"`
-	FlowChecksum string       `json:"flow_checksum"`
-	Machine      string       `json:"machine"`
-	WorkDir      string       `json:"work_dir"`
-	StartedAt    time.Time    `json:"started_at"`
-	FinishedAt   time.Time    `json:"finished_at"`
-	Status       string       `json:"status"`
-	Steps        []StepResult `json:"steps"`
-	ID           string       `json:"-"`
+	Flow         string    `json:"flow"`
+	FlowChecksum string    `json:"flow_checksum"`
+	Machine      string    `json:"machine"`
+	WorkDir      string    `json:"work_dir"`
+	StartedAt    time.Time `json:"started_at"`
+	FinishedAt   time.Time `json:"finished_at"`
+	Status       string    `json:"status"`
+	// Error explains a run that never got as far as its steps, which otherwise
+	// records as an empty list and no reason.
+	Error string       `json:"error,omitempty"`
+	Steps []StepResult `json:"steps"`
+	ID    string       `json:"-"`
 }
 
 // Duration returns how long the run took.
@@ -199,8 +206,15 @@ func (f *Flow) validateSteps() error {
 // dependency graph, so a reference is checked for existing and the graph is
 // checked for cycles.
 func validateStep(s Step, known map[string]bool) error {
-	if strings.TrimSpace(s.Run) == "" {
+	hasRun := strings.TrimSpace(s.Run) != ""
+	hasType := strings.TrimSpace(s.Type) != ""
+	switch {
+	case hasRun && hasType:
+		return fmt.Errorf("step %q sets both run and type; it is one or the other", s.Name)
+	case !hasRun && !hasType:
 		return fmt.Errorf("step %q has nothing to run", s.Name)
+	case hasRun && len(s.With) > 0:
+		return fmt.Errorf("step %q passes with: to a shell step, which has no arguments", s.Name)
 	}
 	if s.Timeout < 0 {
 		return fmt.Errorf("step %q has a negative timeout", s.Name)

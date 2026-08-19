@@ -185,6 +185,29 @@ func confirmTrust(f *flow.Flow) error {
 	return nil
 }
 
+// confirmModel shows the code before it is approved. A model is executed, not
+// read, so the same rule as a flow applies: nothing runs on this machine until
+// a person has looked at it here.
+func confirmModel(m *flow.Model, data []byte) error {
+	fmt.Printf("\n%s\n%s\n\n", ui.Dim("--- "+m.Path), strings.TrimRight(string(data), "\n"))
+	ui.Hint("current  %s", m.Checksum)
+	if flowTrustYes {
+		return nil
+	}
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return fmt.Errorf("refusing to pin %q unreviewed: rerun with --yes once you have read it", m.Type)
+	}
+	fmt.Printf("Pin %s so typed steps may run it here? [y/N] ", m.Type)
+	answer, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && answer == "" {
+		return err
+	}
+	if strings.ToLower(strings.TrimSpace(answer)) != "y" {
+		return fmt.Errorf("model %q was not pinned", m.Type)
+	}
+	return nil
+}
+
 func resolveRun(args []string) (*flow.Run, error) {
 	if len(args) == 2 {
 		return flow.LoadRun(args[0], args[1])

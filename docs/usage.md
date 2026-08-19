@@ -175,9 +175,51 @@ steps:
 ```
 
 Values travel in the child's environment and are never spliced into the command, so a value
-containing `; rm -rf /` arrives as those characters and nothing else. Only backward
-references work, a chained value is capped at 64 KB (write anything larger to a file and
-pass the path), and `needs` requires jardin v0.13.0+ on every machine that runs the flow.
+containing `; rm -rf /` arrives as those characters and nothing else. A chained value is capped
+at 64 KB — write anything larger to a file and pass the path.
+
+Steps that declare no `depends_on` run one at a time in file order, exactly as they always have.
+Declaring it — even as an empty list — opts into the graph, and steps with no edge between them
+run together:
+
+```yaml
+steps:
+  - name: lint
+    depends_on: []
+    run: mise run lint
+  - name: test
+    depends_on: []
+    run: mise run test
+  - name: deploy
+    depends_on: [lint, test]
+    run: ./deploy.sh
+```
+
+A failed step blocks the steps that depend on it; independent branches finish. A step can also
+declare `ephemeral: true` to keep its output out of the artifact, or `type:` to run a model
+extension instead of a shell command. Full details in
+[flow-composition.md](flow-composition.md); these fields need jardin v0.14.0+ on every machine
+that runs the flow.
+
+### `jardin flow query`
+
+Searches every flow's history at once — the cross-flow question that `runs`
+cannot answer:
+
+```console
+$ jardin flow query --status failed --since 7d
+  deploy-check  failed     2026-08-19T09:14:02Z      1.2s  at smoke
+```
+
+`--status`, `--since` (`7d`, `24h`, `all`), `--flow`, `--limit`, `--json`. It reads history, so a
+flow you deleted still answers for what it did while it existed.
+
+### `jardin flow trust-model <type>`
+
+Pins a model extension so typed steps may run it here. A model is TypeScript run by `bun` under
+`~/.jardin/extensions/models/`, and it syncs — so, like a flow, it prints itself for review and
+runs nowhere until a person approves it on that machine. See
+[flow-composition.md](flow-composition.md).
 
 ### `jardin flow runs <name>` / `jardin flow show <name> [id]`
 
