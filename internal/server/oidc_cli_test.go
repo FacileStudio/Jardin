@@ -16,7 +16,7 @@ func codeFor(t *testing.T, srv *Server, port, nonce string) (string, *url.URL) {
 	t.Helper()
 	recorder := httptest.NewRecorder()
 	srv.issueLoginCode(recorder, httptest.NewRequest(http.MethodGet, "/api/auth/oidc/callback", nil),
-		"yann@facile.studio", scopeUser, port, nonce)
+		loginCodeGrant{Email: "yann@facile.studio", Scope: scopeUser, Port: port, Nonce: nonce})
 	if recorder.Code != http.StatusFound {
 		t.Fatalf("callback answered %d, want a redirect", recorder.Code)
 	}
@@ -177,7 +177,7 @@ func TestALoginCodeIsExchangedOnceAndOnlyOnce(t *testing.T) {
 
 	code, _ := codeFor(t, srv, "51234", "deadbeef")
 
-	status, body := doJSON(t, ts, "POST", "/api/auth/oidc/exchange", "", map[string]string{"code": code})
+	status, body := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/oidc/exchange", Token: "", Payload: map[string]string{"code": code}})
 	if status != http.StatusOK {
 		t.Fatalf("exchange: %d %v", status, body)
 	}
@@ -185,11 +185,11 @@ func TestALoginCodeIsExchangedOnceAndOnlyOnce(t *testing.T) {
 		t.Fatal("the exchange returned no token")
 	}
 
-	if status, _ := doJSON(t, ts, "GET", "/api/auth/me", body["token"], nil); status != http.StatusOK {
+	if status, _ := doJSON(t, ts, jsonCall{Method: "GET", Path: "/api/auth/me", Token: body["token"], Payload: nil}); status != http.StatusOK {
 		t.Fatalf("the exchanged token does not authenticate: %d", status)
 	}
 
-	replay, _ := doJSON(t, ts, "POST", "/api/auth/oidc/exchange", "", map[string]string{"code": code})
+	replay, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/oidc/exchange", Token: "", Payload: map[string]string{"code": code}})
 	if replay != http.StatusUnauthorized {
 		t.Fatalf("replay answered %d, want 401", replay)
 	}
@@ -205,7 +205,7 @@ func TestAnExchangeWithoutAValidCodeIsRefused(t *testing.T) {
 		"empty":   {"code": ""},
 		"unknown": {"code": "0123456789abcdef"},
 	} {
-		status, _ := doJSON(t, ts, "POST", "/api/auth/oidc/exchange", "", payload)
+		status, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/oidc/exchange", Token: "", Payload: payload})
 		if status == http.StatusOK {
 			t.Errorf("%s: the exchange succeeded", name)
 		}

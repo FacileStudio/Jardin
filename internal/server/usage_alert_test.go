@@ -30,17 +30,30 @@ func alertSettings(threshold float64) *AntenneSettings {
 	}
 }
 
-func TestPendingUsageAlerts(t *testing.T) {
+// usageAlertCase is one row of the eligibility table: what the settings say,
+// what the machines reported, what has already been sent, and which windows
+// should therefore go out.
+type usageAlertCase struct {
+	name      string
+	antenne   *AntenneSettings
+	snapshots []usage.Snapshot
+	ledger    map[string]string
+	want      []string
+}
+
+// usageAlertCases is the table itself, kept out of the test so the assertion
+// it drives stays readable next to it.
+func usageAlertCases() []usageAlertCase {
+	return append(usageAlertEligibilityCases(), usageAlertNoOpCases()...)
+}
+
+// usageAlertEligibilityCases are the rows that decide whether one window has
+// crossed: thresholds, expiry, the emit watermark.
+func usageAlertEligibilityCases() []usageAlertCase {
 	future := at(u0.Add(3 * time.Hour))
 	past := at(u0.Add(-time.Minute))
 
-	cases := []struct {
-		name      string
-		antenne   *AntenneSettings
-		snapshots []usage.Snapshot
-		ledger    map[string]string
-		want      []string
-	}{
+	return []usageAlertCase{
 		{
 			name:      "crossing emits",
 			antenne:   alertSettings(80),
@@ -105,6 +118,15 @@ func TestPendingUsageAlerts(t *testing.T) {
 			snapshots: []usage.Snapshot{mkSnapshot("lucy", u0, mkWindow("five_hour", 81, future))},
 			want:      []string{"five_hour"},
 		},
+	}
+}
+
+// usageAlertNoOpCases are the rows that must produce nothing at all: no email
+// to send to, nothing reported, or nothing to report on.
+func usageAlertNoOpCases() []usageAlertCase {
+	future := at(u0.Add(3 * time.Hour))
+
+	return []usageAlertCase{
 		{
 			name: "machine without a resolvable email never emits",
 			antenne: &AntenneSettings{
@@ -125,8 +147,10 @@ func TestPendingUsageAlerts(t *testing.T) {
 			snapshots: []usage.Snapshot{mkSnapshot("lucy", u0)},
 		},
 	}
+}
 
-	for _, tc := range cases {
+func TestPendingUsageAlerts(t *testing.T) {
+	for _, tc := range usageAlertCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			ledger := tc.ledger
 			if ledger == nil {

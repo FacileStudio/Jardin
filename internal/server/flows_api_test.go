@@ -30,7 +30,7 @@ func TestAdminSessionListsFlows(t *testing.T) {
 	writeUnder(t, srv.DataDir, "flows/deploy.yml", oneStepFlow)
 	token := sessionFor(t, srv, "owner@example.test", true)
 
-	rec := spReq(t, srv.Handler(), "GET", "/api/flows", token, "")
+	rec := spReq(t, srv.Handler(), apiCall{Method: "GET", Path: "/api/flows", Token: token, Body: ""})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -52,7 +52,7 @@ func TestNonAdminUserIsDeniedRatherThanShownAnEmptyList(t *testing.T) {
 	token := sessionFor(t, srv, "guest@example.test", false)
 
 	for _, path := range []string{"/api/flows", "/api/models", "/api/rules", "/api/skills"} {
-		rec := spReq(t, srv.Handler(), "GET", path, token, "")
+		rec := spReq(t, srv.Handler(), apiCall{Method: "GET", Path: path, Token: token, Body: ""})
 		if rec.Code != http.StatusForbidden {
 			t.Errorf("%s = %d, want 403 — an empty 200 reads as an empty tree", path, rec.Code)
 		}
@@ -65,7 +65,7 @@ func TestFlowDetailCarriesRawAndParsedSteps(t *testing.T) {
 		"name: deploy\nsteps:\n  - name: build\n    run: 'true'\n  - name: check\n    type: \"@acme/probe\"\n")
 	token := sessionFor(t, srv, "owner@example.test", true)
 
-	rec := spReq(t, srv.Handler(), "GET", "/api/flows/deploy", token, "")
+	rec := spReq(t, srv.Handler(), apiCall{Method: "GET", Path: "/api/flows/deploy", Token: token, Body: ""})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -97,7 +97,7 @@ func TestUnparseableFlowStillRenders(t *testing.T) {
 	writeUnder(t, srv.DataDir, "flows/broken.yml", "name: broken\nsteps: [::nonsense\n")
 	token := sessionFor(t, srv, "owner@example.test", true)
 
-	rec := spReq(t, srv.Handler(), "GET", "/api/flows/broken", token, "")
+	rec := spReq(t, srv.Handler(), apiCall{Method: "GET", Path: "/api/flows/broken", Token: token, Body: ""})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 with the reason", rec.Code)
 	}
@@ -122,7 +122,7 @@ func TestModelsListSkipsTheSharedLibrary(t *testing.T) {
 	writeUnder(t, srv.DataDir, "extensions/models/package.json", "{}\n")
 	token := sessionFor(t, srv, "owner@example.test", true)
 
-	rec := spReq(t, srv.Handler(), "GET", "/api/models", token, "")
+	rec := spReq(t, srv.Handler(), apiCall{Method: "GET", Path: "/api/models", Token: token, Body: ""})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -144,7 +144,7 @@ func TestModelReadRefusesToLeaveTheModelsRoot(t *testing.T) {
 	token := sessionFor(t, srv, "owner@example.test", true)
 
 	for _, escape := range []string{"../../tokens.json", "..%2f..%2ftokens.json", "/etc/passwd"} {
-		rec := spReq(t, srv.Handler(), "GET", "/api/models/"+escape, token, "")
+		rec := spReq(t, srv.Handler(), apiCall{Method: "GET", Path: "/api/models/" + escape, Token: token, Body: ""})
 		if rec.Code == http.StatusOK {
 			t.Errorf("%q was served: %s", escape, rec.Body.String())
 		}

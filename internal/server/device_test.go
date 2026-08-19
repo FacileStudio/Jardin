@@ -20,28 +20,38 @@ func deviceTestServer(t *testing.T) (*httptest.Server, string) {
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
-	status, body := doJSON(t, ts, "POST", "/api/auth/login", "", map[string]string{"password": "secret"})
+	status, body := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/login", Token: "", Payload: map[string]string{"password": "secret"}})
 	if status != http.StatusOK {
 		t.Fatalf("login failed: %d", status)
 	}
 	return ts, body["token"]
 }
 
-func doJSON(t *testing.T, ts *httptest.Server, method, path, token string, payload any) (int, map[string]string) {
+// jsonCall is one request whose body is marshalled from a value. A nil payload
+// sends an empty body rather than "null", which is what the handlers expect of
+// a GET, so the distinction is kept.
+type jsonCall struct {
+	Method  string
+	Path    string
+	Token   string
+	Payload any
+}
+
+func doJSON(t *testing.T, ts *httptest.Server, c jsonCall) (int, map[string]string) {
 	t.Helper()
 	var reader *bytes.Reader
-	if payload != nil {
-		b, _ := json.Marshal(payload)
+	if c.Payload != nil {
+		b, _ := json.Marshal(c.Payload)
 		reader = bytes.NewReader(b)
 	} else {
 		reader = bytes.NewReader(nil)
 	}
-	req, err := http.NewRequest(method, ts.URL+path, reader)
+	req, err := http.NewRequest(c.Method, ts.URL+c.Path, reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -59,7 +69,7 @@ func doJSON(t *testing.T, ts *httptest.Server, method, path, token string, paylo
 func TestDeviceFlowApprove(t *testing.T) {
 	ts, admin := deviceTestServer(t)
 
-	status, start := doJSON(t, ts, "POST", "/api/auth/device/start", "", map[string]string{"machine": "laptop"})
+	status, start := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/start", Token: "", Payload: map[string]string{"machine": "laptop"}})
 	if status != http.StatusOK {
 		t.Fatalf("start: %d", status)
 	}
@@ -68,28 +78,28 @@ func TestDeviceFlowApprove(t *testing.T) {
 		t.Fatalf("missing codes: %+v", start)
 	}
 
-	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/poll", "", map[string]string{"device_code": deviceCode}); code != http.StatusAccepted {
+	if code, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/poll", Token: "", Payload: map[string]string{"device_code": deviceCode}}); code != http.StatusAccepted {
 		t.Fatalf("expected pending (202), got %d", code)
 	}
 
-	code, info := doJSON(t, ts, "GET", "/api/auth/device/info?code="+userCode, admin, nil)
+	code, info := doJSON(t, ts, jsonCall{Method: "GET", Path: "/api/auth/device/info?code=" + userCode, Token: admin, Payload: nil})
 	if code != http.StatusOK || info["machine"] != "laptop" || info["status"] != "pending" {
 		t.Fatalf("info wrong: %d %+v", code, info)
 	}
 
-	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/approve", admin, map[string]string{"user_code": userCode}); code != http.StatusOK {
+	if code, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/approve", Token: admin, Payload: map[string]string{"user_code": userCode}}); code != http.StatusOK {
 		t.Fatalf("approve: %d", code)
 	}
 
-	code, res := doJSON(t, ts, "POST", "/api/auth/device/poll", "", map[string]string{"device_code": deviceCode})
+	code, res := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/poll", Token: "", Payload: map[string]string{"device_code": deviceCode}})
 	if code != http.StatusOK || res["token"] == "" {
 		t.Fatalf("expected token, got %d %+v", code, res)
 	}
-	if s, _ := doJSON(t, ts, "GET", "/api/status", res["token"], nil); s != http.StatusOK {
+	if s, _ := doJSON(t, ts, jsonCall{Method: "GET", Path: "/api/status", Token: res["token"], Payload: nil}); s != http.StatusOK {
 		t.Fatalf("issued token rejected: %d", s)
 	}
 
-	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/poll", "", map[string]string{"device_code": deviceCode}); code != http.StatusBadRequest {
+	if code, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/poll", Token: "", Payload: map[string]string{"device_code": deviceCode}}); code != http.StatusBadRequest {
 		t.Fatalf("expected consumed (400), got %d", code)
 	}
 }
@@ -99,13 +109,13 @@ func TestDeviceFlowApprove(t *testing.T) {
 func TestDeviceApproveRequiresAdmin(t *testing.T) {
 	ts, admin := deviceTestServer(t)
 
-	_, syncTok := doJSON(t, ts, "POST", "/api/auth/login", "", map[string]string{"password": "secret", "machine": "box"})
-	_, start := doJSON(t, ts, "POST", "/api/auth/device/start", "", map[string]string{"machine": "laptop"})
+	_, syncTok := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/login", Token: "", Payload: map[string]string{"password": "secret", "machine": "box"}})
+	_, start := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/start", Token: "", Payload: map[string]string{"machine": "laptop"}})
 
-	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/approve", syncTok["token"], map[string]string{"user_code": start["user_code"]}); code != http.StatusForbidden {
+	if code, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/approve", Token: syncTok["token"], Payload: map[string]string{"user_code": start["user_code"]}}); code != http.StatusForbidden {
 		t.Fatalf("sync token should be forbidden, got %d", code)
 	}
-	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/approve", "", map[string]string{"user_code": start["user_code"]}); code != http.StatusUnauthorized {
+	if code, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/approve", Token: "", Payload: map[string]string{"user_code": start["user_code"]}}); code != http.StatusUnauthorized {
 		t.Fatalf("anonymous approve should be 401, got %d", code)
 	}
 	_ = admin
@@ -137,12 +147,12 @@ func TestDeviceStoreCapAndNormalization(t *testing.T) {
 
 func TestDeviceDeny(t *testing.T) {
 	ts, admin := deviceTestServer(t)
-	_, start := doJSON(t, ts, "POST", "/api/auth/device/start", "", map[string]string{"machine": "laptop"})
+	_, start := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/start", Token: "", Payload: map[string]string{"machine": "laptop"}})
 
-	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/deny", admin, map[string]string{"user_code": start["user_code"]}); code != http.StatusNoContent {
+	if code, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/deny", Token: admin, Payload: map[string]string{"user_code": start["user_code"]}}); code != http.StatusNoContent {
 		t.Fatalf("deny: %d", code)
 	}
-	if code, _ := doJSON(t, ts, "POST", "/api/auth/device/poll", "", map[string]string{"device_code": start["device_code"]}); code != http.StatusForbidden {
+	if code, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/device/poll", Token: "", Payload: map[string]string{"device_code": start["device_code"]}}); code != http.StatusForbidden {
 		t.Fatalf("denied poll should be 403, got %d", code)
 	}
 }

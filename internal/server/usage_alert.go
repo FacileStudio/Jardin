@@ -126,41 +126,55 @@ func pendingUsageAlerts(snapshots []usage.Snapshot, ledger map[string]string, an
 			continue
 		}
 		for _, w := range s.View(now).Windows {
-			if w.ResetsAt == nil || w.Expired {
+			alert, eligible := windowAlert(s, w, email, threshold)
+			if !eligible {
 				continue
 			}
-			if w.UsedPercentage < threshold {
-				continue
-			}
-			label := w.Label
-			if label == "" {
-				label = usage.Label(w.Key)
-			}
-			alert := usageAlert{
-				Machine:        s.Machine,
-				Email:          email,
-				Window:         w.Key,
-				WindowLabel:    label,
-				UsedPercentage: w.UsedPercentage,
-				Threshold:      threshold,
-				ResetsAt:       *w.ResetsAt,
-				Source:         s.Source,
-			}
-			key := alert.LedgerKey()
-			if _, done := ledger[key]; done {
-				continue
-			}
-			if i, ok := group[key]; ok {
-				if alert.supersedes(&out[i]) {
-					out[i] = alert
-				}
-				continue
-			}
-			group[key] = len(out)
-			out = append(out, alert)
+			out = collectAlert(out, group, ledger, alert)
 		}
 	}
 	return out
+}
+
+// windowAlert builds the alert one window would raise, and reports whether it
+// raises one at all: a window with no reset time, an expired one, or one still
+// under the threshold is not eligible.
+func windowAlert(s usage.Snapshot, w usage.WindowView, email string, threshold float64) (usageAlert, bool) {
+	if w.ResetsAt == nil || w.Expired || w.UsedPercentage < threshold {
+		return usageAlert{}, false
+	}
+	label := w.Label
+	if label == "" {
+		label = usage.Label(w.Key)
+	}
+	return usageAlert{
+		Machine:        s.Machine,
+		Email:          email,
+		Window:         w.Key,
+		WindowLabel:    label,
+		UsedPercentage: w.UsedPercentage,
+		Threshold:      threshold,
+		ResetsAt:       *w.ResetsAt,
+		Source:         s.Source,
+	}, true
+}
+
+// collectAlert adds one alert to the pass, dropping it when the ledger has
+// already sent that key and keeping only the highest reading when a key is
+// raised twice within the same pass.
+func collectAlert(out []usageAlert, group map[string]int, ledger map[string]string, alert usageAlert) []usageAlert {
+	key := alert.LedgerKey()
+	if _, done := ledger[key]; done {
+		return out
+	}
+	if i, ok := group[key]; ok {
+		if alert.supersedes(&out[i]) {
+			out[i] = alert
+		}
+		return out
+	}
+	group[key] = len(out)
+	return append(out, alert)
 }
 
 // usageEnvelopeFor takes the email off the alert rather than resolving it again:
