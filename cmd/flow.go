@@ -140,16 +140,11 @@ var flowTrustModelCmd = &cobra.Command{
 	Short: "Pin a model extension so typed steps may run it on this machine",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		path, err := flow.ModelPath(args[0])
+		m, err := flow.InspectModel(args[0])
 		if err != nil {
 			return err
 		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		m := &flow.Model{Type: args[0], Path: path, Checksum: flow.Checksum(data)}
-		if err := confirmModel(m, data); err != nil {
+		if err := confirmModel(m); err != nil {
 			return err
 		}
 		if err := flow.TrustModel(m); err != nil {

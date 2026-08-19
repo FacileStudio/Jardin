@@ -29,11 +29,14 @@ const (
 	describeTimeout = 30 * time.Second
 )
 
-// Model is a typed step implementation resolved on this machine.
+// Model is a typed step implementation resolved on this machine. Sources is
+// everything it runs, not just the entry file: the checksum covers the whole
+// import closure, so a helper cannot change under a pin that still reads clean.
 type Model struct {
 	Type     string
 	Path     string
 	Checksum string
+	Sources  []ModelSource
 }
 
 // Schema is what a model says about itself. mycelium never reads the TypeScript;
@@ -69,23 +72,35 @@ func ModelPath(typeName string) (string, error) {
 	return full, nil
 }
 
-// LoadModel resolves a type and refuses one this machine has not approved. A
-// model is code that arrives over sync, so it is pinned exactly like a flow —
-// distributing prose an agent reads and distributing code a machine runs are
-// not the same risk.
-func LoadModel(typeName string) (*Model, error) {
+// InspectModel resolves a model and everything it imports without consulting
+// the trust store. The trust command needs this: it has to show what it is
+// about to approve, and it approves the closure rather than one file.
+func InspectModel(typeName string) (*Model, error) {
 	path, err := ModelPath(typeName)
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	sources, err := ModelSources(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("no model %q on this machine (looked in %s)", typeName, config.ModelsDir())
 		}
 		return nil, err
 	}
-	m := &Model{Type: typeName, Path: path, Checksum: Checksum(data)}
+	return &Model{Type: typeName, Path: path, Checksum: checksumSources(sources), Sources: sources}, nil
+}
+
+// LoadModel resolves a type and refuses one this machine has not approved. A
+// model is code that arrives over sync, so it is pinned exactly like a flow —
+// distributing prose an agent reads and distributing code a machine runs are
+// not the same risk. The pin covers every file the model imports, so a helper
+// changing is the same refusal as the entry file changing.
+func LoadModel(typeName string) (*Model, error) {
+	m, err := InspectModel(typeName)
+	if err != nil {
+		return nil, err
+	}
+	path := m.Path
 	pinned, err := TrustedChecksum(modelPin + typeName)
 	if err != nil {
 		return nil, err

@@ -187,9 +187,16 @@ func confirmTrust(f *flow.Flow) error {
 
 // confirmModel shows the code before it is approved. A model is executed, not
 // read, so the same rule as a flow applies: nothing runs on this machine until
-// a person has looked at it here.
-func confirmModel(m *flow.Model, data []byte) error {
-	fmt.Printf("\n%s\n%s\n\n", ui.Dim("--- "+m.Path), strings.TrimRight(string(data), "\n"))
+// a person has looked at it here — and that means every file it imports, not
+// just the entry, since a helper runs exactly as much as the entry does.
+func confirmModel(m *flow.Model) error {
+	for _, src := range m.Sources {
+		fmt.Printf("\n%s\n%s\n", ui.Dim("--- "+src.Path), strings.TrimRight(string(src.Data), "\n"))
+	}
+	fmt.Println()
+	if len(m.Sources) > 1 {
+		ui.Hint("%d files: the entry and everything it imports", len(m.Sources))
+	}
 	ui.Hint("current  %s", m.Checksum)
 	if flowTrustYes {
 		return nil
