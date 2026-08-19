@@ -1,10 +1,5 @@
 package sync
 
-import (
-	"os"
-	"path/filepath"
-)
-
 const (
 	manifestName = ".sync-base.json"
 	conflictExt  = ".conflict"
@@ -23,6 +18,18 @@ type Result struct {
 
 func (r *Result) Total() int {
 	return len(r.Uploaded) + len(r.Downloaded) + len(r.DeletedLocal) + len(r.DeletedRemote) + len(r.Conflicts)
+}
+
+// reconcile carries everything settling one path needs: where the tree lives,
+// which path is being decided, what each side holds, the base being rebuilt and
+// the result being reported.
+type reconcile struct {
+	dataDir string
+	path    string
+	local   FileEntry
+	remote  FileEntry
+	next    map[string]string
+	res     *Result
 }
 
 // Sync reconciles local and remote against the last-synced base manifest.
@@ -56,55 +63,9 @@ func (c *Client) Sync(dataDir string) (*Result, error) {
 
 	res := &Result{}
 	for _, p := range unionPaths(local, remote, base) {
-		lc := local[p].Checksum
-		rc := remote[p].Checksum
-		bc := base[p]
-
-		localMod := lc != bc
-		remoteMod := rc != bc
-
-		switch {
-		case !localMod && !remoteMod:
-			setBase(next, p, lc)
-
-		case localMod && !remoteMod:
-			if lc == "" {
-				if err := c.Delete(p); err != nil {
-					return nil, err
-				}
-				res.DeletedRemote = append(res.DeletedRemote, p)
-				delete(next, p)
-			} else {
-				if err := c.uploadFile(dataDir, p); err != nil {
-					return nil, err
-				}
-				res.Uploaded = append(res.Uploaded, p)
-				next[p] = lc
-			}
-
-		case !localMod && remoteMod:
-			if rc == "" {
-				if err := removeLocal(dataDir, p); err != nil {
-					return nil, err
-				}
-				res.DeletedLocal = append(res.DeletedLocal, p)
-				delete(next, p)
-			} else {
-				if err := c.downloadFile(dataDir, p); err != nil {
-					return nil, err
-				}
-				res.Downloaded = append(res.Downloaded, p)
-				next[p] = rc
-			}
-
-		default:
-			if lc == rc {
-				setBase(next, p, lc)
-				continue
-			}
-			if err := c.resolveConflict(dataDir, p, local[p], remote[p], next, res); err != nil {
-				return nil, err
-			}
+		r := reconcile{dataDir: dataDir, path: p, local: local[p], remote: remote[p], next: next, res: res}
+		if err := c.reconcilePath(r, base[p]); err != nil {
+			return nil, err
 		}
 	}
 
@@ -117,73 +78,65 @@ func (c *Client) Sync(dataDir string) (*Result, error) {
 	return res, nil
 }
 
-// resolveConflict handles a path where both sides changed since base. Content
-// always beats a deletion, so nothing is lost; a single-writer path takes the
-// fresher copy outright; between two genuine edits it picks a deterministic
-// winner and keeps the loser as <path>.conflict.
-func (c *Client) resolveConflict(dataDir, p string, local, remote FileEntry, next map[string]string, res *Result) error {
-	if local.Checksum == "" {
-		if err := c.downloadFile(dataDir, p); err != nil {
-			return err
-		}
-		res.Downloaded = append(res.Downloaded, p)
-		next[p] = remote.Checksum
-		res.Conflicts = append(res.Conflicts, p+" (deleted locally, edited on server — kept server copy)")
+// reconcilePath settles one path against the checksum it had at the last sync.
+// A side matching base did not change; when only one side moved, its change is
+// applied outright, and when both moved the pair has either converged on the
+// same content or is a genuine conflict.
+func (c *Client) reconcilePath(r reconcile, baseChecksum string) error {
+	localMod := r.local.Checksum != baseChecksum
+	remoteMod := r.remote.Checksum != baseChecksum
+
+	switch {
+	case !localMod && !remoteMod:
+		setBase(r.next, r.path, r.local.Checksum)
 		return nil
-	}
-	if remote.Checksum == "" {
-		if err := c.uploadFile(dataDir, p); err != nil {
-			return err
-		}
-		res.Uploaded = append(res.Uploaded, p)
-		next[p] = local.Checksum
-		res.Conflicts = append(res.Conflicts, p+" (deleted on server, edited locally — kept local copy)")
-		return nil
+	case localMod && !remoteMod:
+		return c.applyLocalChange(r)
+	case !localMod && remoteMod:
+		return c.applyRemoteChange(r)
 	}
 
-	if singleWriter(p) {
-		return c.resolveSingleWriter(dataDir, p, local, remote, next, res)
+	if r.local.Checksum == r.remote.Checksum {
+		setBase(r.next, r.path, r.local.Checksum)
+		return nil
 	}
+	return c.resolveConflict(r)
+}
 
-	if localWins(local, remote) {
-		remoteData, err := c.Download(p)
-		if err != nil {
+// applyLocalChange pushes a change only this machine made: an upload, or a
+// deletion propagated to the server.
+func (c *Client) applyLocalChange(r reconcile) error {
+	if r.local.Checksum == "" {
+		if err := c.Delete(r.path); err != nil {
 			return err
 		}
-		if err := writeConflictCopy(dataDir, p, remoteData); err != nil {
-			return err
-		}
-		if err := c.uploadFile(dataDir, p); err != nil {
-			return err
-		}
-		res.Uploaded = append(res.Uploaded, p)
-		next[p] = local.Checksum
-	} else {
-		localData, err := os.ReadFile(filepath.Join(dataDir, filepath.FromSlash(p)))
-		if err != nil {
-			return err
-		}
-		if err := writeConflictCopy(dataDir, p, localData); err != nil {
-			return err
-		}
-		if err := c.downloadFile(dataDir, p); err != nil {
-			return err
-		}
-		res.Downloaded = append(res.Downloaded, p)
-		next[p] = remote.Checksum
+		r.res.DeletedRemote = append(r.res.DeletedRemote, r.path)
+		delete(r.next, r.path)
+		return nil
 	}
-	res.Conflicts = append(res.Conflicts, p+" (edited on both — kept "+p+conflictExt+" backup)")
+	if err := c.uploadFile(r.dataDir, r.path); err != nil {
+		return err
+	}
+	r.res.Uploaded = append(r.res.Uploaded, r.path)
+	r.next[r.path] = r.local.Checksum
 	return nil
 }
 
-// localWins picks the conflict winner: newer modification time, falling back to
-// the larger checksum so the choice is identical on every machine (convergent,
-// never ping-pongs).
-func localWins(local, remote FileEntry) bool {
-	lt, lok := parseTime(local.ModTime)
-	rt, rok := parseTime(remote.ModTime)
-	if lok && rok && !lt.Equal(rt) {
-		return lt.After(rt)
+// applyRemoteChange pulls a change only the server has: a download, or a
+// deletion propagated to this machine.
+func (c *Client) applyRemoteChange(r reconcile) error {
+	if r.remote.Checksum == "" {
+		if err := removeLocal(r.dataDir, r.path); err != nil {
+			return err
+		}
+		r.res.DeletedLocal = append(r.res.DeletedLocal, r.path)
+		delete(r.next, r.path)
+		return nil
 	}
-	return local.Checksum >= remote.Checksum
+	if err := c.downloadFile(r.dataDir, r.path); err != nil {
+		return err
+	}
+	r.res.Downloaded = append(r.res.Downloaded, r.path)
+	r.next[r.path] = r.remote.Checksum
+	return nil
 }

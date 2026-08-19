@@ -20,20 +20,20 @@ func singleWriter(rel string) bool {
 // resolveSingleWriter settles a both-sides difference on a path with one writer.
 // There is nothing to merge and no second author to preserve, so the fresher copy
 // simply wins: no backup is kept, and the pair is not reported as a conflict.
-func (c *Client) resolveSingleWriter(dataDir, p string, local, remote FileEntry, next map[string]string, res *Result) error {
-	if localWins(local, remote) {
-		if err := c.uploadFile(dataDir, p); err != nil {
+func (c *Client) resolveSingleWriter(r reconcile) error {
+	if localWins(r.local, r.remote) {
+		if err := c.uploadFile(r.dataDir, r.path); err != nil {
 			return err
 		}
-		res.Uploaded = append(res.Uploaded, p)
-		next[p] = local.Checksum
+		r.res.Uploaded = append(r.res.Uploaded, r.path)
+		r.next[r.path] = r.local.Checksum
 		return nil
 	}
-	if err := c.downloadFile(dataDir, p); err != nil {
+	if err := c.downloadFile(r.dataDir, r.path); err != nil {
 		return err
 	}
-	res.Downloaded = append(res.Downloaded, p)
-	next[p] = remote.Checksum
+	r.res.Downloaded = append(r.res.Downloaded, r.path)
+	r.next[r.path] = r.remote.Checksum
 	return nil
 }
 
