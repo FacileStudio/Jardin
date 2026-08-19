@@ -60,11 +60,14 @@ async function runModel<Args extends Record<string, ArgumentSpec>>(
   if (verb === "execute") {
     const raw = await Bun.stdin.text();
     const input = JSON.parse(raw) as {
-      arguments: ArgsOf<Args>;
-      env: Record<string, string>;
+      arguments: ArgsOf<Args> | null;
+      env: Record<string, string> | null;
     };
     try {
-      const result = await def.execute(input.arguments, input.env ?? {});
+      // A step with no `with:` sent "arguments": null until mycelium v0.15.4, and a
+      // model syncs to machines that have not upgraded yet.
+      const args = input.arguments ?? ({} as ArgsOf<Args>);
+      const result = await def.execute(args, input.env ?? {});
       console.log(JSON.stringify(result));
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));

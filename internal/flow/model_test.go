@@ -2,6 +2,7 @@ package flow
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -224,5 +225,23 @@ func TestModelPinSurvivesPruningDeletedFlows(t *testing.T) {
 	}
 	if pinned == "" {
 		t.Fatal("pruning flow pins removed the model pin")
+	}
+}
+
+// A step with no `with:` must still send an arguments object. step.With is a
+// nil map there, which marshals to null, and every model reads fields straight
+// off what it is handed — so null crashes it before its own code runs.
+func TestStepWithoutArgumentsSendsAnEmptyObject(t *testing.T) {
+	cmd, err := modelCommand(context.Background(), &Model{Path: "probe.ts"},
+		Step{Name: "check", Type: "@test/probe"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := io.ReadAll(cmd.Stdin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(payload), `"arguments":{}`) {
+		t.Fatalf("a step with no arguments sent %s, want an empty object", payload)
 	}
 }

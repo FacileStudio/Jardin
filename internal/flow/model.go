@@ -253,8 +253,17 @@ type modelInput struct {
 // modelCommand builds the process for a typed step. Arguments travel as JSON on
 // stdin rather than as flags, so a value containing a quote, a newline or a
 // leading dash is data the whole way down.
+//
+// A step with no arguments still sends an empty object. A nil map marshals to
+// null, and a model that reads a field off it crashes before it runs a line of
+// its own logic — the payload has to match the shape every model is written
+// against, not the shape the Go value happens to have.
 func modelCommand(ctx context.Context, m *Model, step Step, env map[string]string) (*exec.Cmd, error) {
-	payload, err := json.Marshal(modelInput{Arguments: step.With, Env: env})
+	args := step.With
+	if args == nil {
+		args = map[string]any{}
+	}
+	payload, err := json.Marshal(modelInput{Arguments: args, Env: env})
 	if err != nil {
 		return nil, err
 	}
