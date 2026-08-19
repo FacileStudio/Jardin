@@ -72,7 +72,7 @@ func truncate(s string, n int) string {
 }
 
 func init() {
-	statsCmd.Flags().StringVar(&statsSince, "since", "7d", "window: 7d, 30d, 12h, or all")
-	statsCmd.Flags().StringVar(&statsBy, "by", "project", "group by: project, machine, agent, branch, model")
+	statsCmd.Flags().StringVar(&statsSince, "since", "7d", "Window: 7d, 30d, 12h, or all")
+	statsCmd.Flags().StringVar(&statsBy, "by", "project", "Group by: project, machine, agent, branch, model")
 	rootCmd.AddCommand(statsCmd)
 }

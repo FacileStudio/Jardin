@@ -155,7 +155,7 @@ var spacesUseCmd = &cobra.Command{
 }
 
 func init() {
-	spacesUseCmd.Flags().BoolVar(&spacesUseNone, "none", false, "clear the space and sync the common tree")
+	spacesUseCmd.Flags().BoolVar(&spacesUseNone, "none", false, "Clear the space and sync the common tree")
 	spacesCmd.AddCommand(spacesListCmd)
 	spacesCmd.AddCommand(spacesUseCmd)
 	rootCmd.AddCommand(spacesCmd)

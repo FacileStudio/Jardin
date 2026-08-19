@@ -130,7 +130,7 @@ var serveCmd = &cobra.Command{
 }
 
 func init() {
-	serveCmd.Flags().IntVar(&servePort, "port", env.DefaultPort, "port to listen on (default: $PORT)")
-	serveCmd.Flags().String("data", "", "data directory (default: $DATA_DIR, else ~/.jardin/)")
+	serveCmd.Flags().IntVar(&servePort, "port", env.DefaultPort, "Port to listen on (default: $PORT)")
+	serveCmd.Flags().String("data", "", "Data directory (default: $DATA_DIR, else ~/.jardin/)")
 	rootCmd.AddCommand(serveCmd)
 }
