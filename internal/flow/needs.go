@@ -32,6 +32,10 @@ type output struct {
 	// Ephemeral marks output its step asked to keep off disk. It travels with
 	// the value so a later step cannot undo that by consuming it.
 	Ephemeral bool
+	// Secrets holds what the producing step declared sensitive. A consumer
+	// receives raw output, so a credential echoed into it would land in the
+	// consumer's artifact unmasked without this.
+	Secrets []string
 }
 
 // parseReference splits "<step>.<field>", cutting at the last dot so a step
@@ -75,22 +79,26 @@ func resolve(step Step, outputs map[string]output) (map[string]string, []string,
 				step.Name, total, MaxTotalValueBytes)
 		}
 		values[name] = value
-		if fromEphemeral(step.Needs[name], outputs) {
-			secret = append(secret, value)
-		}
+		secret = append(secret, inheritedSecrets(step.Needs[name], outputs, value)...)
 	}
 	return values, secret, nil
 }
 
-// fromEphemeral reports whether a reference reads a step that asked to keep its
-// output off disk. Suppressing it only at the source is not enough: the value
-// would come straight back through whatever consumed it.
-func fromEphemeral(ref string, outputs map[string]output) bool {
+// inheritedSecrets reports what must stay masked in the step consuming this
+// reference: the value itself when its source kept output off disk, and
+// whatever that source declared sensitive. Suppressing only at the source is
+// not enough — the value would come straight back through whatever consumed it.
+func inheritedSecrets(ref string, outputs map[string]output, value string) []string {
 	parsed, err := parseReference(ref)
 	if err != nil {
-		return false
+		return nil
 	}
-	return outputs[parsed.Step].Ephemeral
+	src := outputs[parsed.Step]
+	out := append([]string{}, src.Secrets...)
+	if src.Ephemeral {
+		out = append(out, value)
+	}
+	return out
 }
 
 func resolveOne(step Step, ref string, outputs map[string]output) (string, error) {
