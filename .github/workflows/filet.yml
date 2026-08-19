@@ -8,6 +8,14 @@ on:
 permissions:
   contents: read
 
+# filet needs Go >= 1.26.5, and GOTOOLCHAIN=auto resolves that to the newest
+# toolchain module it can see. On 2026-08-19 that became go1.26.7, which is
+# listed as a module but 404s on go.dev — the newest published release is
+# go1.26.6 — so installing filet failed and every check was skipped. Pinning to
+# a version that exists is the fix; raise it when 1.26.7 is actually downloadable.
+env:
+  GOTOOLCHAIN: go1.26.6
+
 jobs:
   filet:
     runs-on: ubuntu-latest
