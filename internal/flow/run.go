@@ -97,9 +97,12 @@ func stepCommand(ctx context.Context, step Step, model *Model, env map[string]st
 // typed step.
 type execution struct {
 	resolved map[string]string
-	dir      string
-	live     *sink
-	model    *Model
+	// secret holds values that came from ephemeral steps. They are masked
+	// everywhere they can surface, not merely left out of one field.
+	secret []string
+	dir    string
+	live   *sink
+	model  *Model
 }
 
 func runStep(ctx context.Context, step Step, ex execution) (StepResult, output) {
@@ -108,7 +111,7 @@ func runStep(ctx context.Context, step Step, ex execution) (StepResult, output) 
 
 	stepEnv := stepEnvOf(step, ex.resolved)
 	env := childEnv(stepEnv)
-	redact := newRedactor(env)
+	redact := newRedactor(env, ex.secret...)
 
 	cmd, cmdErr := stepCommand(stepCtx, step, ex.model, stepEnv)
 	if cmdErr != nil {
@@ -147,7 +150,8 @@ func runStep(ctx context.Context, step Step, ex execution) (StepResult, output) 
 	if step.Ephemeral {
 		res.Stdout, res.Stderr, res.Ephemeral = "", "", true
 	}
-	raw := output{Stdout: stdout, Stderr: stderr, ExitCode: code, StdoutCut: outCut, StderrCut: errCut}
+	raw := output{Stdout: stdout, Stderr: stderr, ExitCode: code,
+		StdoutCut: outCut, StderrCut: errCut, Ephemeral: step.Ephemeral}
 	return res, raw
 }
 
@@ -206,8 +210,8 @@ func isSecretName(name string) bool {
 	return false
 }
 
-func newRedactor(env []string) func(string) string {
-	var values []string
+func newRedactor(env []string, extra ...string) func(string) string {
+	values := append([]string{}, extra...)
 	for _, entry := range env {
 		name, value, ok := strings.Cut(entry, "=")
 		if !ok || len(value) < minSecretLength || !isSecretName(name) {

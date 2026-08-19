@@ -25,10 +25,18 @@ func embedWorkerFor(t *testing.T, backend *fakeBackend, store *fakeStore) (*Serv
 	return s, w
 }
 
-// TestSyncPutDoesNotWaitOnTheModel is the reason the worker exists. The backend
-// takes half a second per call; the request must be long gone by then.
+// TestSyncPutDoesNotWaitOnTheModel is the reason the worker exists: the request
+// path must not block on the model.
+//
+// The bound is derived from the backend's own delay rather than picked. A
+// handler that waited even once could not come back in less than one call, so
+// anything well under that proves it did not. The previous bound was 100ms
+// against a 500ms backend — five times tighter than the property needs — and it
+// failed a pull request at 474ms, which measured how busy the runner was and
+// nothing about this code.
 func TestSyncPutDoesNotWaitOnTheModel(t *testing.T) {
-	backend := &fakeBackend{delay: 500 * time.Millisecond}
+	const backendDelay = 2 * time.Second
+	backend := &fakeBackend{delay: backendDelay}
 	s, w := embedWorkerFor(t, backend, &fakeStore{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -47,8 +55,9 @@ func TestSyncPutDoesNotWaitOnTheModel(t *testing.T) {
 	}
 	elapsed := time.Since(start)
 
-	if elapsed > 100*time.Millisecond {
-		t.Fatalf("six syncs took %v: the request path is waiting on the model", elapsed)
+	if elapsed >= backendDelay/2 {
+		t.Fatalf("six syncs took %v against a %v backend: the request path is waiting on the model",
+			elapsed, backendDelay)
 	}
 	if got := len(backend.embedded()); got != 0 {
 		t.Fatalf("model called %d times before the debounce elapsed", got)

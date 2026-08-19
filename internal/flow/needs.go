@@ -29,6 +29,9 @@ type output struct {
 	ExitCode  int
 	StdoutCut bool
 	StderrCut bool
+	// Ephemeral marks output its step asked to keep off disk. It travels with
+	// the value so a later step cannot undo that by consuming it.
+	Ephemeral bool
 }
 
 // parseReference splits "<step>.<field>", cutting at the last dot so a step
@@ -53,26 +56,41 @@ func parseReference(ref string) (reference, error) {
 //
 // Names are visited in sorted order so a step with two bad references always
 // reports the same one first.
-func resolve(step Step, outputs map[string]output) (map[string]string, error) {
+func resolve(step Step, outputs map[string]output) (map[string]string, []string, error) {
 	if len(step.Needs) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	values := make(map[string]string, len(step.Needs))
+	var secret []string
 	total := 0
 	for _, name := range sortedNames(step.Needs) {
 		value, err := resolveOne(step, step.Needs[name], outputs)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		total += len(name) + len(value)
 		if total > MaxTotalValueBytes {
-			return nil, fmt.Errorf(
+			return nil, nil, fmt.Errorf(
 				"step %q needs %d bytes of values, over the %d-byte total; the environment it builds would not survive exec",
 				step.Name, total, MaxTotalValueBytes)
 		}
 		values[name] = value
+		if fromEphemeral(step.Needs[name], outputs) {
+			secret = append(secret, value)
+		}
 	}
-	return values, nil
+	return values, secret, nil
+}
+
+// fromEphemeral reports whether a reference reads a step that asked to keep its
+// output off disk. Suppressing it only at the source is not enough: the value
+// would come straight back through whatever consumed it.
+func fromEphemeral(ref string, outputs map[string]output) bool {
+	parsed, err := parseReference(ref)
+	if err != nil {
+		return false
+	}
+	return outputs[parsed.Step].Ephemeral
 }
 
 func resolveOne(step Step, ref string, outputs map[string]output) (string, error) {

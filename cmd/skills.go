@@ -10,7 +10,6 @@ import (
 	"github.com/FacileStudio/Mycelium/internal/cell"
 	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/FacileStudio/Mycelium/internal/ui"
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -57,7 +56,7 @@ var skillsAddCmd = &cobra.Command{
 			return err
 		}
 
-		color.Green("Skill %q created at %s", name, path)
+		ui.Success("Skill %q created at %s", name, path)
 		return nil
 	},
 }
@@ -101,28 +100,28 @@ var skillsValidateCmd = &cobra.Command{
 			path := filepath.Join(config.SkillsDir(), name+".md")
 			data, err := os.ReadFile(path)
 			if err != nil {
-				fmt.Printf("  %s %-20s %s\n", color.RedString("✗"), name, err)
+				ui.Result(ui.Failed, "%-20s %s", name, err)
 				ok = false
 				continue
 			}
 
 			errors, warnings := validateSkill(name, data)
 			if len(errors) == 0 && len(warnings) == 0 {
-				fmt.Printf("  %s %s\n", color.GreenString("✓"), name)
+				ui.Result(ui.OK, "%s", name)
 				continue
 			}
 
 			if len(errors) > 0 {
 				ok = false
-				fmt.Printf("  %s %s\n", color.RedString("✗"), name)
+				ui.Result(ui.Failed, "%s", name)
 			} else {
-				fmt.Printf("  %s %s\n", color.YellowString("!"), name)
+				ui.Result(ui.Warned, "%s", name)
 			}
 			for _, e := range errors {
-				fmt.Printf("    %s %s\n", color.RedString("error"), e)
+				ui.Detail(ui.Failed, "%s", e)
 			}
 			for _, w := range warnings {
-				fmt.Printf("    %s %s\n", color.YellowString("warn"), w)
+				ui.Detail(ui.Warned, "%s", w)
 			}
 		}
 
