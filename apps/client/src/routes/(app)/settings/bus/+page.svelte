@@ -14,6 +14,8 @@
 		toast
 	} from '@facile/muse';
 	import { ApiError, backend, type AntenneSettings, type EmitterStatus } from '$lib/backend';
+	import BusMachineOverrides from '$lib/components/BusMachineOverrides.svelte';
+	import BusUsageAlerts from '$lib/components/BusUsageAlerts.svelte';
 
 	let loaded = $state(false);
 	let denied = $state(false);
@@ -184,42 +186,13 @@
 			{/if}
 		</SettingsSection>
 
-		<SettingsSection
-			title="Usage alerts"
-			description="When a subscription window crosses your threshold, Jardin publishes one event to the Antenne. It fires once per window, not once per sync tick — the next alert waits for the window to reset. The Antenne owns what happens after that; Jardin sends nothing itself. The alert shows up in the Antenne's activity feed — anything that should act on it needs to subscribe to usage_alert.created on its side."
-		>
-			{#if !enabled}
-				<Alert tone="info" title="Emitting is off">
-					Alerts ride the same socket as sessions. Turn emitting on above and they start flowing.
-				</Alert>
-			{/if}
-
-			<SettingsRow
-				label="Alert on usage"
-				description="Off by default. Lowering the threshold later re-arms the current window."
-			>
-				<Switch bind:checked={usageAlerts} disabled={!enabled || saving} aria-label="Alert on usage" />
-			</SettingsRow>
-
-			<SettingsRow
-				label="Threshold"
-				description="Percent of a window's limit. 80 unless you change it; anything outside 1–100 falls back to it."
-				for="bus-usage-threshold"
-			>
-				<Input
-					bind:value={usageThreshold}
-					id="bus-usage-threshold"
-					type="number"
-					inputmode="numeric"
-					min="1"
-					max="100"
-					step="1"
-					onblur={settleThreshold}
-					disabled={!enabled || !usageAlerts || saving}
-					class="w-24 tabular-nums"
-				/>
-			</SettingsRow>
-		</SettingsSection>
+		<BusUsageAlerts
+			bind:usageAlerts
+			bind:usageThreshold
+			{enabled}
+			{saving}
+			onSettle={settleThreshold}
+		/>
 
 		<SettingsSection
 			title="Connection"
@@ -284,45 +257,6 @@
 			</div>
 		</SettingsSection>
 
-		<SettingsSection
-			title="Machine overrides"
-			description="Sessions from a machine listed here are attributed to its own email instead of yours."
-		>
-			{#each machineEmails as row, i (i)}
-				<SettingsRow label="Override {i + 1}" stacked>
-					<div class="flex w-full flex-col gap-2 sm:flex-row">
-						<Input bind:value={row.machine} placeholder="machine" aria-label="Machine name" />
-						<Input
-							bind:value={row.email}
-							type="email"
-							placeholder="email"
-							aria-label="Email for this machine"
-							class="flex-1"
-						/>
-						<Button
-							variant="ghost-danger"
-							icon={icons.remove}
-							aria-label="Remove override {i + 1}"
-							onclick={() => (machineEmails = machineEmails.filter((_, j) => j !== i))}
-						>
-							Remove
-						</Button>
-					</div>
-				</SettingsRow>
-			{/each}
-
-			<SettingsRow
-				label="Add an override"
-				description="One machine per row. Leave the name empty to drop a row on save."
-			>
-				<Button
-					variant="outline"
-					icon={icons.plus}
-					onclick={() => (machineEmails = [...machineEmails, { machine: '', email: '' }])}
-				>
-					Add override
-				</Button>
-			</SettingsRow>
-		</SettingsSection>
+		<BusMachineOverrides bind:machineEmails />
 	</div>
 {/if}

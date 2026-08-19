@@ -1,47 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import {
-		Button,
-		Card,
-		DonutChart,
-		EmptyState,
-		Field,
-		Input,
-		LineChart,
-		Modal,
-		Select,
-		Sparkline,
-		StatCard,
-		icons,
-		toast
-	} from '@facile/muse';
-	import { backend, type FileEntry, type MemorySearchHit } from '$lib/backend';
+	import { Button, EmptyState, Field, Input, Modal, Select, icons, toast } from '@facile/muse';
+	import { backend, type FileEntry } from '$lib/backend';
 	import EntityCard from '$lib/components/EntityCard.svelte';
-	import IndexStatus from '$lib/components/IndexStatus.svelte';
-	import {
-		bucketByDay,
-		bucketLabel,
-		dayKey,
-		dayWindow,
-		formatAge,
-		formatBytes,
-		periodDelta,
-		sum
-	} from '$lib/metrics';
+	import MemorySearch from '$lib/components/MemorySearch.svelte';
+	import MemoryStats from '$lib/components/MemoryStats.svelte';
 
 	const FOLDERS = ['bugs', 'tools', 'projects', 'conventions', 'syntheses'];
 
-	/*
-	 * Thirty days of history: long enough that a habit shows up, short enough that a wiki
-	 * touched twice last year does not squash the recent weeks into one flat pixel.
-	 */
-	const WINDOW_DAYS = 30;
-
-	let query = $state('');
-	let results: MemorySearchHit[] = $state([]);
-	let searched = $state(false);
-	let searchDegraded = $state(false);
-	let searching = $state(false);
 	let files: FileEntry[] = $state([]);
 
 	let createOpen = $state(false);
@@ -76,59 +42,6 @@
 		);
 	});
 
-	/*
-	 * Every number below comes out of the tree the page already loaded — `size` and `mod_time`
-	 * ride along with each entry, so there is nothing to ask the server for.
-	 */
-	const dayLabels = $derived.by(() => dayWindow(WINDOW_DAYS));
-	const dailyPages = $derived(
-		bucketByDay(
-			files.map((f) => ({ iso: f.mod_time })),
-			dayLabels
-		)
-	);
-	const dailyBytes = $derived(
-		bucketByDay(
-			files.map((f) => ({ iso: f.mod_time, weight: f.size })),
-			dayLabels
-		)
-	);
-	const dailyFolders = $derived.by(() => {
-		const seen = dayLabels.map(() => new Set<string>());
-		const index = new Map(dayLabels.map((l, i) => [l, i]));
-		for (const f of files) {
-			const d = new Date(f.mod_time);
-			if (isNaN(d.getTime())) continue;
-			const i = index.get(dayKey(d));
-			if (i === undefined) continue;
-			const parts = f.path.split('/');
-			seen[i].add(parts.length > 2 ? parts[1] : '/');
-		}
-		return seen.map((s) => s.size);
-	});
-
-	const totalSize = $derived(sum(files.map((f) => f.size)));
-	const newest = $derived.by(() =>
-		files.reduce<FileEntry | null>(
-			(best, f) =>
-				!best || new Date(f.mod_time).getTime() > new Date(best.mod_time).getTime() ? f : best,
-			null
-		)
-	);
-
-	const folderSlices = $derived(
-		grouped.map(([folder, entries]) => ({
-			label: folder === '/' ? 'root' : folder,
-			value: entries.length
-		}))
-	);
-	const folderCounts = $derived(folderSlices.map((s) => s.value));
-
-	const pagesDelta = $derived(periodDelta(dailyPages, 'day'));
-	const sizeDelta = $derived(periodDelta(dailyBytes, 'day'));
-
-	const activitySeries = $derived([{ name: 'Pages touched', data: dailyPages }]);
-
 	function label(path: string) {
 		return path.split('/').pop()!.replace(/\.md$/, '');
 	}
@@ -159,23 +72,6 @@
 			creating = false;
 		}
 	}
-
-	async function search(event: Event) {
-		event.preventDefault();
-		if (!query.trim()) return;
-		searching = true;
-		try {
-			const answer = await backend.memorySearch(query);
-			results = answer.results;
-			searchDegraded = answer.degraded;
-		} catch (e) {
-			results = [];
-			toast.danger(e instanceof Error ? e.message : 'Search failed.');
-		} finally {
-			searching = false;
-			searched = true;
-		}
-	}
 </script>
 
 <div class="flex flex-col gap-10">
@@ -190,105 +86,10 @@
 	</div>
 
 	{#if files.length > 0}
-		<section class="flex flex-col gap-4">
-			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
-				<StatCard label="Pages" value={files.length} delta={pagesDelta}>
-					<Sparkline data={dailyPages} class="mt-3" showLast />
-				</StatCard>
-				<StatCard label="Folders" value={folderSlices.length}>
-					<Sparkline
-						data={dailyFolders}
-						class="mt-3"
-						color="var(--color-fc-chart-3)"
-						valueFormat={(n) => `${n}`}
-					/>
-				</StatCard>
-				<StatCard label="Size" value={formatBytes(totalSize)} delta={sizeDelta}>
-					<Sparkline data={dailyBytes} class="mt-3" color="var(--color-fc-chart-2)" />
-				</StatCard>
-				<StatCard
-					label="Last written"
-					value={newest ? formatAge(newest.mod_time) : '—'}
-					delta={newest ? label(newest.path) : undefined}
-				>
-					<Sparkline data={folderCounts} class="mt-3" color="var(--color-fc-chart-5)" />
-				</StatCard>
-			</div>
-
-			<div class="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
-				<Card class="flex flex-col gap-4 lg:col-span-2">
-					<p class="text-fc-sm font-medium text-fc-fg">
-						Pages written per day · last {WINDOW_DAYS} days
-					</p>
-					<LineChart
-						series={activitySeries}
-						labels={dayLabels}
-						area
-						height={240}
-						class="flex-1"
-						yFormat={(n) => `${n}`}
-						xFormat={(l) => bucketLabel(l)}
-					/>
-				</Card>
-				<Card class="flex flex-col gap-4">
-					<p class="text-fc-sm font-medium text-fc-fg">Pages per folder</p>
-					<DonutChart
-						data={folderSlices}
-						centerLabel="Pages"
-						centerValue={files.length}
-						class="flex-1"
-					/>
-				</Card>
-			</div>
-		</section>
+		<MemoryStats {files} {grouped} />
 	{/if}
 
-	<section class="flex flex-col gap-4">
-		<IndexStatus />
-
-		<form class="flex flex-col gap-3 sm:flex-row" onsubmit={search}>
-			<div class="min-w-0 flex-1">
-				<Input bind:value={query} placeholder="Search memory…" aria-label="Search memory" />
-			</div>
-			<Button
-				type="submit"
-				variant="outline"
-				icon={icons.search}
-				disabled={searching || query.trim().length === 0}
-			>
-				{searching ? 'Searching…' : 'Search'}
-			</Button>
-		</form>
-
-		{#if searchDegraded && searched}
-			<p class="text-fc-xs text-fc-fg-muted">
-				Matched words only — the semantic half is unavailable.
-			</p>
-		{/if}
-
-		{#if results.length > 0}
-			<div class="flex flex-col gap-2">
-				{#each results as result (result.path + ':' + result.line)}
-					{@const rel = result.path.startsWith('memory/')
-						? result.path.slice('memory/'.length)
-						: result.path}
-					<!-- A result row is a card that navigates, just a denser one than the file
-					     grid: px-4/py-3 overrides Card's p-5 rather than restating the surface. -->
-					<Card href="/memory/{rel}" class="flex flex-col gap-1 px-4 py-3">
-						<span class="font-fc-mono text-fc-xs text-fc-fg-muted">
-							{result.path}:{result.line}
-						</span>
-						{#if result.heading}
-							<span class="text-fc-sm font-medium text-fc-fg">{result.heading}</span>
-						{/if}
-						<span class="truncate text-fc-sm text-fc-fg-muted">{result.excerpt}</span>
-					</Card>
-				{/each}
-			</div>
-		{:else if searched && !searching}
-			<Card class="text-fc-sm text-fc-fg-muted">Nothing matched “{query}”.</Card>
-		{/if}
-	</section>
+	<MemorySearch />
 
 	{#if files.length === 0}
 		<EmptyState

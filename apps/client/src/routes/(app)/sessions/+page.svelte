@@ -1,23 +1,7 @@
 <script lang="ts">
-	import {
-		BarChart,
-		Button,
-		Card,
-		DonutChart,
-		EmptyState,
-		LineChart,
-		Sparkline,
-		StatCard,
-		StatusDot,
-		Table,
-		Tabs,
-		icons,
-		type ChartSeries
-	} from '@facile/muse';
+	import { EmptyState, Tabs, icons } from '@facile/muse';
 	import {
 		backend,
-		type Claim,
-		type LiveSession,
 		type SessionBlock,
 		type SessionStats,
 		type SessionTimeline,
@@ -25,15 +9,10 @@
 		type UsageSnapshot
 	} from '$lib/backend';
 	import UsageMeter from '$lib/components/UsageMeter.svelte';
-	import {
-		bucketLabel,
-		columnTotals,
-		formatCost,
-		formatDuration,
-		formatTokens,
-		hours,
-		periodDelta
-	} from '$lib/metrics';
+	import SessionsClaims from '$lib/components/SessionsClaims.svelte';
+	import SessionsHistoryTab from '$lib/components/SessionsHistoryTab.svelte';
+	import SessionsLive from '$lib/components/SessionsLive.svelte';
+	import SessionsOverviewTab from '$lib/components/SessionsOverviewTab.svelte';
 
 	const RANGES = [
 		{ id: '7d', label: '7 days' },
@@ -52,18 +31,11 @@
 		{ id: 'usage', label: 'Usage' }
 	];
 
-	/* Eight bars is where a horizontal chart stops being readable in a card; the table below
-	   still lists every row, so nothing is hidden. */
-	const CHART_ROWS = 8;
-
 	let tab = $state('overview');
 	let since = $state('7d');
 	let by = $state('project');
 	let stats: SessionStats | null = $state(null);
 	let recent: SessionBlock[] = $state([]);
-	let live: LiveSession[] = $state([]);
-	let claims: Claim[] = $state([]);
-	let releasing: string | null = $state(null);
 	let timeline: SessionTimeline | null = $state(null);
 	let usage: UsageSnapshot[] = $state([]);
 	let usageLog: UsageHistory | null = $state(null);
@@ -71,46 +43,6 @@
 	/* All time over daily buckets is a thousand pixels of noise; months keep the axis honest. */
 	const bucket = $derived(since === 'all' ? 'month' : 'day');
 	const bucketUnit = $derived(bucket === 'month' ? 'month' : 'day');
-
-	$effect(() => {
-		const load = () =>
-			backend
-				.sessionsLive()
-				.then((l) => (live = l ?? []))
-				.catch(() => {});
-		load();
-		const timer = setInterval(load, 30_000);
-		return () => clearInterval(timer);
-	});
-
-	function loadClaims() {
-		return backend
-			.claimsList()
-			.then((c) => (claims = c ?? []))
-			.catch(() => {});
-	}
-
-	$effect(() => {
-		loadClaims();
-		const timer = setInterval(loadClaims, 30_000);
-		return () => clearInterval(timer);
-	});
-
-	function claimKey(c: Claim): string {
-		return `${c.project}/${c.machine}/${c.agent}`;
-	}
-
-	async function releaseClaim(c: Claim) {
-		const key = claimKey(c);
-		releasing = key;
-		try {
-			await backend.claimRelease(c.project, c.machine, c.agent);
-			await loadClaims();
-		} catch {
-		} finally {
-			releasing = null;
-		}
-	}
 
 	$effect(() => {
 		backend
@@ -152,99 +84,6 @@
 	/* $derived.by so `stats` reads as its declared type rather than the null it was
 	   initialised with — see the same note in (app)/+layout.svelte. */
 	const rows = $derived.by(() => stats?.rows ?? []);
-	const totalSeconds = $derived(rows.reduce((sum, r) => sum + r.seconds, 0));
-	const totalSessions = $derived(rows.reduce((sum, r) => sum + r.sessions, 0));
-	const totalTokensOut = $derived(rows.reduce((sum, r) => sum + r.tokens_out, 0));
-
-	const totalCacheRead = $derived(rows.reduce((sum, r) => sum + r.cache_read, 0));
-	const totalTokensIn = $derived(rows.reduce((sum, r) => sum + r.tokens_in, 0));
-	const totalCost = $derived(rows.reduce((sum, r) => sum + r.cost_total, 0));
-
-	const ranked = $derived([...rows].sort((a, b) => b.seconds - a.seconds).slice(0, CHART_ROWS));
-	const chartSeries = $derived([{ name: 'Active time', data: ranked.map((r) => hours(r.seconds)) }]);
-	const chartLabels = $derived(ranked.map((r) => r.key));
-
-	/* The donut keeps to muse's six-slot ceiling; the table below still lists every row. */
-	const shareSlices = $derived(
-		[...rows]
-			.sort((a, b) => b.seconds - a.seconds)
-			.slice(0, 6)
-			.map((r) => ({ label: r.key, value: hours(r.seconds) }))
-	);
-
-	const labels = $derived.by(() => timeline?.labels ?? []);
-	const tSeries = $derived.by(() => timeline?.series ?? []);
-	const trendSeries: ChartSeries[] = $derived(
-		tSeries.map((s) => ({ name: s.key, data: s.seconds.map(hours) }))
-	);
-	const secondsPerBucket = $derived(columnTotals(tSeries.map((s) => s.seconds)));
-	const sessionsPerBucket = $derived(columnTotals(tSeries.map((s) => s.sessions)));
-	const tokensPerBucket = $derived(columnTotals(tSeries.map((s) => s.tokens_out)));
-	const cachePerBucket = $derived(columnTotals(tSeries.map((s) => s.cache_read)));
-	const tokensInPerBucket = $derived(columnTotals(tSeries.map((s) => s.tokens_in)));
-	const costPerBucket = $derived(columnTotals(tSeries.map((s) => s.cost_total)));
-	const hasTimeline = $derived(labels.length > 0 && tSeries.length > 0);
-
-	const timeDelta = $derived(periodDelta(secondsPerBucket, bucketUnit));
-	const sessionsDelta = $derived(periodDelta(sessionsPerBucket, bucketUnit));
-	const tokensDelta = $derived(periodDelta(tokensPerBucket, bucketUnit));
-	const cacheDelta = $derived(periodDelta(cachePerBucket, bucketUnit));
-	const tokensInDelta = $derived(periodDelta(tokensInPerBucket, bucketUnit));
-	const costDelta = $derived(periodDelta(costPerBucket, bucketUnit));
-
-	function formatEnded(iso: string): string {
-		const d = new Date(iso);
-		const month = d.toLocaleString('en-US', { month: 'short' });
-		const day = String(d.getDate()).padStart(2, '0');
-		const hh = String(d.getHours()).padStart(2, '0');
-		const mm = String(d.getMinutes()).padStart(2, '0');
-		return `${month} ${day} ${hh}:${mm}`;
-	}
-
-	function elapsed(iso: string): string {
-		return formatDuration(Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000));
-	}
-
-	/* Three states, not a boolean: a machine that went offline, an agent thinking, and an
-	   agent that has been idle for twenty minutes all need different reactions. */
-	function liveState(s: LiveSession): 'active' | 'idle' | 'offline' {
-		if (!s.machine_online) return 'offline';
-		return s.live ? 'active' : 'idle';
-	}
-
-	const liveTones = { active: 'success', idle: 'warning', offline: 'neutral' } as const;
-
-	function liveLabel(s: LiveSession): string {
-		const state = liveState(s);
-		if (state === 'offline') return 'machine offline';
-		if (state === 'active') return 'active';
-		return `idle ${Math.max(1, Math.round(s.idle_seconds / 60))}m`;
-	}
-
-	function claimState(c: Claim): 'active' | 'idle' | 'offline' {
-		if (!c.machine_online) return 'offline';
-		return c.live ? 'active' : 'idle';
-	}
-
-	function claimLabel(c: Claim): string {
-		const state = claimState(c);
-		if (state === 'offline') return 'machine offline';
-		if (state === 'active') return 'active';
-		return 'idle';
-	}
-
-	function claimBodyPreview(body?: string): string {
-		if (!body) return '';
-		return body.split('\n').slice(0, 3).join('\n');
-	}
-
-	function blockDuration(b: SessionBlock): string {
-		const seconds = Math.max(
-			0,
-			(new Date(b.ended_at).getTime() - new Date(b.started_at).getTime()) / 1000
-		);
-		return formatDuration(seconds);
-	}
 </script>
 
 <div class="flex flex-col gap-10">
@@ -255,120 +94,9 @@
 		</p>
 	</div>
 
-	<section class="flex flex-col gap-4">
-		<div class="flex flex-wrap items-start justify-between gap-3">
-			<div class="flex min-w-0 flex-col gap-1">
-				<h2 class="text-fc-lg font-semibold text-fc-fg">Running now</h2>
-				<p class="text-fc-sm text-fc-fg-muted">Refreshed every thirty seconds.</p>
-			</div>
-			<!-- The phone's nav bar only holds four destinations, so this is how Machines is
-			     reached from a phone. -->
-			<a
-				href="/machines"
-				class="inline-flex shrink-0 items-center gap-1 text-fc-sm text-fc-fg-muted transition-colors hover:text-fc-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
-			>
-				<iconify-icon icon={icons.server} width="16" height="16" class="block"></iconify-icon>
-				Machines
-			</a>
-		</div>
+	<SessionsLive />
 
-		{#if live.length === 0}
-			<Card class="text-fc-sm text-fc-fg-muted">No session is running.</Card>
-		{:else}
-			<div class="flex flex-col gap-2">
-				{#each live as session (session.machine + session.project + session.started_at)}
-					<Card
-						class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 {session.machine_online
-							? ''
-							: 'opacity-60'}"
-					>
-						<StatusDot
-							tone={liveTones[liveState(session)]}
-							label={liveLabel(session)}
-							pulse={liveState(session) === 'active'}
-						/>
-						<span class="text-fc-sm font-medium text-fc-fg">{session.project}</span>
-						<span class="font-fc-mono text-fc-xs text-fc-fg-muted">
-							{session.machine}/{session.agent}
-						</span>
-						{#if session.branch}
-							<span
-								class="rounded-fc-xs bg-fc-surface px-1.5 py-0.5 font-fc-mono text-fc-xs text-fc-fg-muted"
-							>
-								{session.branch}
-							</span>
-						{/if}
-						<span class="ml-auto text-fc-xs tabular-nums text-fc-fg-muted">
-							{elapsed(session.started_at)} · {formatTokens(session.tokens_out)} out
-						</span>
-					</Card>
-				{/each}
-			</div>
-		{/if}
-	</section>
-
-	<section class="flex flex-col gap-4">
-		<div class="flex flex-col gap-1">
-			<h2 class="text-fc-lg font-semibold text-fc-fg">Active claims</h2>
-			<p class="text-fc-sm text-fc-fg-muted">
-				In-flight task leases across every machine — release one to let another agent take over.
-			</p>
-		</div>
-
-		{#if claims.length === 0}
-			<Card class="text-fc-sm text-fc-fg-muted">No active claim.</Card>
-		{:else}
-			<div class="flex flex-col gap-2">
-				{#each claims as claim (claimKey(claim))}
-					<Card
-						class="flex flex-col gap-2 py-3 {claim.machine_online ? '' : 'opacity-60'}"
-					>
-						<div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-							<StatusDot
-								tone={liveTones[claimState(claim)]}
-								label={claimLabel(claim)}
-								pulse={claimState(claim) === 'active'}
-							/>
-							<span class="text-fc-sm font-medium text-fc-fg">{claim.project}</span>
-							<span class="font-fc-mono text-fc-xs text-fc-fg-muted">
-								{claim.machine}/{claim.agent}
-							</span>
-							{#if claim.branch}
-								<span
-									class="rounded-fc-xs bg-fc-surface px-1.5 py-0.5 font-fc-mono text-fc-xs text-fc-fg-muted"
-								>
-									{claim.branch}
-								</span>
-							{/if}
-							<span class="text-fc-xs tabular-nums text-fc-fg-muted">
-								since {elapsed(claim.started_at)}
-							</span>
-							<Button
-								class="ml-auto"
-								variant="ghost-danger"
-								size="sm"
-								icon={icons.close}
-								aria-label="Release claim on {claim.project} by {claim.machine}/{claim.agent}"
-								disabled={releasing === claimKey(claim)}
-								onclick={() => releaseClaim(claim)}
-							>
-								{releasing === claimKey(claim) ? 'Releasing…' : 'Release'}
-							</Button>
-						</div>
-						{#if claim.task}
-							<p class="text-fc-sm text-fc-fg">{claim.task}</p>
-						{/if}
-						{#if claim.body}
-							<pre
-								class="whitespace-pre-wrap rounded-fc-xs bg-fc-surface px-2 py-1.5 font-fc-mono text-fc-xs text-fc-fg-muted">{claimBodyPreview(
-									claim.body
-								)}</pre>
-						{/if}
-					</Card>
-				{/each}
-			</div>
-		{/if}
-	</section>
+	<SessionsClaims />
 
 	<section class="flex flex-col gap-4">
 		<div class="flex flex-col gap-1">
@@ -392,141 +120,14 @@
 				<Tabs items={GROUPS} bind:value={by} label="Group sessions by" />
 			</div>
 
-			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 [&>*]:min-w-0">
-				<StatCard label="Active time" value={formatDuration(totalSeconds)} delta={timeDelta}>
-					<Sparkline data={secondsPerBucket.map(hours)} class="mt-3" showLast />
-				</StatCard>
-				<StatCard label="Sessions" value={totalSessions} delta={sessionsDelta}>
-					<Sparkline
-						data={sessionsPerBucket}
-						class="mt-3"
-						color="var(--color-fc-chart-3)"
-						valueFormat={(n) => `${n}`}
-					/>
-				</StatCard>
-				<StatCard label="Cache read" value={formatTokens(totalCacheRead)} delta={cacheDelta}>
-					<Sparkline data={cachePerBucket} class="mt-3" color="var(--color-fc-chart-5)" />
-				</StatCard>
-				<StatCard label="Tokens out" value={formatTokens(totalTokensOut)} delta={tokensDelta}>
-					<Sparkline data={tokensPerBucket} class="mt-3" color="var(--color-fc-chart-2)" />
-				</StatCard>
-				<StatCard label="Tokens in" value={formatTokens(totalTokensIn)} delta={tokensInDelta}>
-					<Sparkline data={tokensInPerBucket} class="mt-3" color="var(--color-fc-chart-4)" />
-				</StatCard>
-				<StatCard label="Est. cost" value={formatCost(totalCost)} delta={costDelta}>
-					<Sparkline
-						data={costPerBucket}
-						class="mt-3"
-						color="var(--color-fc-chart-1)"
-						valueFormat={(n) => formatCost(n)}
-					/>
-				</StatCard>
-			</div>
-
-			{#if hasTimeline}
-				<div class="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
-					<Card class="flex flex-col gap-4 lg:col-span-2">
-						<p class="text-fc-sm font-medium text-fc-fg">
-							Active time per {bucketUnit}, by {by}
-						</p>
-						<LineChart
-							series={trendSeries}
-							{labels}
-							area
-							height={240}
-							class="flex-1"
-							yFormat={(n) => `${n} h`}
-							xFormat={(l) => bucketLabel(l)}
-						/>
-					</Card>
-					<Card class="flex flex-col gap-4">
-						<p class="text-fc-sm font-medium text-fc-fg">Share by {by}</p>
-						<DonutChart
-							data={shareSlices}
-							centerLabel="Active"
-							centerValue={formatDuration(totalSeconds)}
-							valueFormat={(n) => `${n} h`}
-							class="flex-1"
-						/>
-					</Card>
-				</div>
-			{/if}
-
-			<Card class="flex flex-col gap-4">
-				<p class="text-fc-sm font-medium text-fc-fg">
-					Active time by {by}
-				</p>
-				<BarChart
-					series={chartSeries}
-					labels={chartLabels}
-					horizontal
-					height={240}
-					yFormat={(n) => `${n} h`}
-				/>
-			</Card>
+			<SessionsOverviewTab {rows} {timeline} {by} {bucketUnit} />
 		{:else if tab === 'history'}
 			<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
 				<Tabs items={RANGES} bind:value={since} label="Time range" />
 				<Tabs items={GROUPS} bind:value={by} label="Group sessions by" />
 			</div>
 
-			<Table>
-				<thead>
-					<tr>
-						<th scope="col">{GROUPS.find((g) => g.id === by)?.label ?? by}</th>
-						<th scope="col" class="text-right">Sessions</th>
-						<th scope="col" class="text-right">Active</th>
-						<th scope="col" class="text-right">Tokens in</th>
-						<th scope="col" class="text-right">Tokens out</th>
-						<th scope="col" class="text-right">Est. cost</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each rows as row (row.key)}
-						<tr>
-							<td class="font-medium text-fc-fg">{row.key}</td>
-							<td class="text-right tabular-nums">{row.sessions}</td>
-							<td class="text-right tabular-nums">{formatDuration(row.seconds)}</td>
-							<td class="text-right tabular-nums">{formatTokens(row.tokens_in)}</td>
-							<td class="text-right tabular-nums">{formatTokens(row.tokens_out)}</td>
-							<td class="text-right tabular-nums">{formatCost(row.cost_total)}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</Table>
-
-			{#if recent.length > 0}
-				<Table>
-					<thead>
-						<tr>
-							<th scope="col">Ended</th>
-							<th scope="col">Project</th>
-							<th scope="col">Machine / agent</th>
-							<th scope="col">Model</th>
-							<th scope="col" class="text-right">Duration</th>
-							<th scope="col" class="text-right">Tokens out</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each recent as block (block.id)}
-							<tr>
-								<td class="whitespace-nowrap tabular-nums text-fc-fg-muted">
-									{formatEnded(block.ended_at)}
-								</td>
-								<td class="font-medium text-fc-fg">{block.project}</td>
-								<td class="whitespace-nowrap font-fc-mono text-fc-xs text-fc-fg-muted">
-									{block.machine}/{block.agent}{block.branch ? ` · ${block.branch}` : ''}
-								</td>
-								<td class="whitespace-nowrap font-fc-mono text-fc-xs text-fc-fg-muted">
-									{block.model ?? '—'}
-								</td>
-								<td class="text-right tabular-nums">{blockDuration(block)}</td>
-								<td class="text-right tabular-nums">{formatTokens(block.tokens_out)}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</Table>
-			{/if}
+			<SessionsHistoryTab {rows} {recent} {by} groups={GROUPS} />
 		{:else if tab === 'usage'}
 			<h2 class="text-fc-lg font-semibold text-fc-fg">Subscription windows</h2>
 			<p class="text-fc-sm text-fc-fg-muted">
