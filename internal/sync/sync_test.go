@@ -180,6 +180,62 @@ func TestSyncConflictKeepsBothVersions(t *testing.T) {
 	}
 }
 
+// usage/<machine>/ has one writer, so a both-sides difference is a race with its
+// own status line: the fresher copy wins outright, with no backup and no conflict.
+func TestSyncSingleWriterUsagePathTakesFresherCopy(t *testing.T) {
+	c, clientDir, serverDir := setup(t)
+	establishBase(t, c, clientDir, serverDir, "usage/ruche/current.json", `{"used":1}`)
+
+	write(t, serverDir, "usage/ruche/current.json", `{"used":2}`)
+	write(t, clientDir, "usage/ruche/current.json", `{"used":3}`)
+
+	res, err := c.Sync(clientDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Conflicts) != 0 {
+		t.Fatalf("single-writer path was reported as a conflict: %+v", res)
+	}
+	if exists(clientDir, "usage/ruche/current.json.conflict") {
+		t.Fatal("single-writer path kept a .conflict backup")
+	}
+	if got := read(t, clientDir, "usage/ruche/current.json"); got != `{"used":3}` {
+		t.Fatalf("fresher local copy did not win, got %q", got)
+	}
+	if got := read(t, serverDir, "usage/ruche/current.json"); got != `{"used":3}` {
+		t.Fatalf("winner was not pushed, got %q", got)
+	}
+
+	res2, err := c.Sync(clientDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.Total() != 0 {
+		t.Fatalf("sync did not converge, second pass did %+v", res2)
+	}
+}
+
+// The exemption is scoped to a machine directory: usage/<file> has no single
+// owner, so it still conflicts like anything else.
+func TestSyncUsageRootStillConflicts(t *testing.T) {
+	c, clientDir, serverDir := setup(t)
+	establishBase(t, c, clientDir, serverDir, "usage/shared.json", "v1")
+
+	write(t, clientDir, "usage/shared.json", "local-edit")
+	write(t, serverDir, "usage/shared.json", "server-edit")
+
+	res, err := c.Sync(clientDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Conflicts) != 1 {
+		t.Fatalf("expected one conflict, got %+v", res)
+	}
+	if !exists(clientDir, "usage/shared.json.conflict") {
+		t.Fatal("conflict backup was not written")
+	}
+}
+
 // A brand-new machine (empty local, no manifest) pulls everything.
 func TestSyncFreshMachinePullsAll(t *testing.T) {
 	c, clientDir, serverDir := setup(t)
