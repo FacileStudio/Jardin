@@ -24,7 +24,7 @@ func (s *Server) baseURL(r *http.Request) string {
 }
 
 func (s *Server) deviceStart(w http.ResponseWriter, r *http.Request) {
-	if !s.devStarts.allow(clientIP(r), time.Now()) {
+	if !s.limits.devStarts.allow(clientIP(r), time.Now()) {
 		httpjson.WriteError(w, apierrors.RateLimited("too many requests"))
 		return
 	}
@@ -62,7 +62,7 @@ func (s *Server) deviceStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) devicePoll(w http.ResponseWriter, r *http.Request) {
-	if !s.devPolls.allow(clientIP(r), time.Now()) {
+	if !s.limits.devPolls.allow(clientIP(r), time.Now()) {
 		httpjson.WriteError(w, apierrors.RateLimited("too many requests"))
 		return
 	}

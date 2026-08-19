@@ -6,14 +6,11 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
-
-	"github.com/FacileStudio/Mycelium/internal/env"
 )
 
 // stubIdP is the smallest thing go-oidc will accept as a provider: discovery,
@@ -92,31 +89,12 @@ func signJWT(t *testing.T, key *rsa.PrivateKey, claims map[string]any) string {
 	return signing + "." + base64.RawURLEncoding.EncodeToString(signature)
 }
 
-// TestTheCLIFlowEndToEnd walks the path a `mycelium login` takes: start with the
-// CLI parameters, come back from the provider, land on the loopback redirect,
-// and trade the code for a token that authenticates — once.
-func TestTheCLIFlowEndToEnd(t *testing.T) {
-	const clientID = "mycelium"
-	const email = "yann@facile.studio"
-	idp := stubIdP(t, clientID, email)
-
-	srv := New(t.TempDir(), "secret")
-	srv.Log = slog.Default()
-	ts := httptest.NewServer(srv.Handler())
-	t.Cleanup(ts.Close)
-	srv.OIDC = &env.OIDC{
-		Issuer:       idp.URL,
-		ClientID:     clientID,
-		ClientSecret: "secret",
-		RedirectURL:  ts.URL + "/api/auth/oidc/callback",
-		SuccessURL:   ts.URL + "/auth/callback",
-	}
-
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	}}
-
-	start, err := client.Get(ts.URL + "/api/auth/oidc?flow=cli&port=51234&cli_state=deadbeef")
+// startOIDC drives the browser as far as the provider and hands back the
+// response carrying the state cookie, along with the state the provider was
+// sent. Both are needed to replay the hop back.
+func startOIDC(t *testing.T, ts *httptest.Server, client *http.Client, query string) (*http.Response, string) {
+	t.Helper()
+	start, err := client.Get(ts.URL + "/api/auth/oidc" + query)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,11 +106,13 @@ func TestTheCLIFlowEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state := authorize.Query().Get("state")
-	if state == "" {
-		t.Fatal("the provider was sent no state")
-	}
+	return start, authorize.Query().Get("state")
+}
 
+// completeOIDC replays the provider's redirect into the callback, carrying the
+// state cookie the start hop set, and returns where the browser is sent next.
+func completeOIDC(t *testing.T, ts *httptest.Server, client *http.Client, start *http.Response, state string) *url.URL {
+	t.Helper()
 	callback, err := http.NewRequest("GET", ts.URL+"/api/auth/oidc/callback?code=provider-code&state="+state, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -148,11 +128,25 @@ func TestTheCLIFlowEndToEnd(t *testing.T) {
 	if done.StatusCode != http.StatusFound {
 		t.Fatalf("the callback answered %d, want the loopback redirect", done.StatusCode)
 	}
-
-	loopback, err := url.Parse(done.Header.Get("Location"))
+	target, err := url.Parse(done.Header.Get("Location"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	return target
+}
+
+// TestTheCLIFlowEndToEnd walks the path a `mycelium login` takes: start with the
+// CLI parameters, come back from the provider, land on the loopback redirect,
+// and trade the code for a token that authenticates — once.
+func TestTheCLIFlowEndToEnd(t *testing.T) {
+	_, ts, client := oidcTestServer(t)
+
+	start, state := startOIDC(t, ts, client, "?flow=cli&port=51234&cli_state=deadbeef")
+	if state == "" {
+		t.Fatal("the provider was sent no state")
+	}
+
+	loopback := completeOIDC(t, ts, client, start, state)
 	if loopback.Scheme != "http" || loopback.Host != "127.0.0.1:51234" {
 		t.Fatalf("the browser was sent to %s, want the loopback listener", loopback)
 	}
@@ -164,14 +158,14 @@ func TestTheCLIFlowEndToEnd(t *testing.T) {
 		t.Fatal("the loopback redirect carries no code")
 	}
 
-	status, body := doJSON(t, ts, "POST", "/api/auth/oidc/exchange", "", map[string]string{"code": code})
+	status, body := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/oidc/exchange", Token: "", Payload: map[string]string{"code": code}})
 	if status != http.StatusOK || body["token"] == "" {
 		t.Fatalf("exchange: %d %v", status, body)
 	}
-	if status, _ := doJSON(t, ts, "GET", "/api/auth/me", body["token"], nil); status != http.StatusOK {
+	if status, _ := doJSON(t, ts, jsonCall{Method: "GET", Path: "/api/auth/me", Token: body["token"], Payload: nil}); status != http.StatusOK {
 		t.Fatalf("the exchanged token does not authenticate: %d", status)
 	}
-	if replay, _ := doJSON(t, ts, "POST", "/api/auth/oidc/exchange", "", map[string]string{"code": code}); replay != http.StatusUnauthorized {
+	if replay, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/oidc/exchange", Token: "", Payload: map[string]string{"code": code}}); replay != http.StatusUnauthorized {
 		t.Fatalf("replaying the code answered %d, want 401", replay)
 	}
 }
@@ -179,47 +173,11 @@ func TestTheCLIFlowEndToEnd(t *testing.T) {
 // The same walk without a nonce, which is what a mycelium binary installed before
 // this flow existed does. It must still reach a loopback redirect with a code.
 func TestTheCLIFlowEndToEndWithoutANonce(t *testing.T) {
-	const clientID = "mycelium"
-	idp := stubIdP(t, clientID, "yann@facile.studio")
+	_, ts, client := oidcTestServer(t)
 
-	srv := New(t.TempDir(), "secret")
-	ts := httptest.NewServer(srv.Handler())
-	t.Cleanup(ts.Close)
-	srv.OIDC = &env.OIDC{
-		Issuer: idp.URL, ClientID: clientID, ClientSecret: "secret",
-		RedirectURL: ts.URL + "/api/auth/oidc/callback", SuccessURL: ts.URL + "/auth/callback",
-	}
+	start, state := startOIDC(t, ts, client, "?flow=cli&port=51234")
+	loopback := completeOIDC(t, ts, client, start, state)
 
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	}}
-	start, err := client.Get(ts.URL + "/api/auth/oidc?flow=cli&port=51234")
-	if err != nil {
-		t.Fatal(err)
-	}
-	start.Body.Close()
-	authorize, err := url.Parse(start.Header.Get("Location"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	callback, err := http.NewRequest("GET", ts.URL+"/api/auth/oidc/callback?code=provider-code&state="+authorize.Query().Get("state"), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, cookie := range start.Cookies() {
-		callback.AddCookie(cookie)
-	}
-	done, err := client.Do(callback)
-	if err != nil {
-		t.Fatal(err)
-	}
-	done.Body.Close()
-
-	loopback, err := url.Parse(done.Header.Get("Location"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	if loopback.Host != "127.0.0.1:51234" || loopback.Query().Get("code") == "" {
 		t.Fatalf("an old binary's login ended at %s", loopback)
 	}

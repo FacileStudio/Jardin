@@ -58,42 +58,12 @@ func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		hash := hashToken(strings.TrimPrefix(header, "Bearer "))
-
-		s.mu.Lock()
-		info, ok := s.tokens[hash]
-		if ok && info.ExpiresAt != "" {
-			if exp, err := time.Parse(time.RFC3339, info.ExpiresAt); err == nil && time.Now().UTC().After(exp) {
-				delete(s.tokens, hash)
-				s.saveTokens()
-				ok = false
-			}
-		}
-		if ok {
-			now := time.Now().UTC()
-			prev, _ := time.Parse(time.RFC3339, info.LastSeen)
-			info.LastSeen = now.Format(time.RFC3339)
-			s.tokens[hash] = info
-			if now.Sub(prev) > time.Minute {
-				s.saveTokens()
-			}
-		}
-		s.mu.Unlock()
-
+		info, ok := s.touchToken(hash)
 		if !ok {
 			httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
 			return
 		}
-		scope := info.Scope
-		if info.UserEmail != "" {
-			s.mu.RLock()
-			user, known := s.loadUsers()[info.UserEmail]
-			s.mu.RUnlock()
-			if known && user.Admin {
-				scope = scopeAdmin
-			} else if scope == scopeAdmin {
-				scope = scopeUser
-			}
-		}
+		scope := s.effectiveScope(info)
 		if adminOnly && scope != scopeAdmin {
 			httpjson.WriteError(w, apierrors.Forbidden("forbidden"))
 			return
@@ -103,6 +73,54 @@ func (s *Server) auth(adminOnly bool, next http.HandlerFunc) http.HandlerFunc {
 		})
 		next(w, r.WithContext(ctx))
 	}
+}
+
+// touchToken resolves a token hash, evicting it first if it has expired, and
+// records that it was just seen. The last-seen write is throttled to a minute
+// so a busy client does not rewrite the token file on every request.
+func (s *Server) touchToken(hash string) (TokenInfo, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	info, ok := s.tokens[hash]
+	if !ok {
+		return TokenInfo{}, false
+	}
+	if info.ExpiresAt != "" {
+		if exp, err := time.Parse(time.RFC3339, info.ExpiresAt); err == nil && time.Now().UTC().After(exp) {
+			delete(s.tokens, hash)
+			s.saveTokens()
+			return TokenInfo{}, false
+		}
+	}
+	now := time.Now().UTC()
+	prev, _ := time.Parse(time.RFC3339, info.LastSeen)
+	info.LastSeen = now.Format(time.RFC3339)
+	s.tokens[hash] = info
+	if now.Sub(prev) > time.Minute {
+		s.saveTokens()
+	}
+	return info, true
+}
+
+// effectiveScope re-derives a token's scope from the live user record. A
+// session's scope is frozen at mint time while admin status is not, so a
+// promotion or demotion takes effect on the next request rather than at the
+// next login, and a token minted as admin drops to user once its account is
+// no longer one.
+func (s *Server) effectiveScope(info TokenInfo) string {
+	if info.UserEmail == "" {
+		return info.Scope
+	}
+	s.mu.RLock()
+	user, known := s.loadUsers()[info.UserEmail]
+	s.mu.RUnlock()
+	if known && user.Admin {
+		return scopeAdmin
+	}
+	if info.Scope == scopeAdmin {
+		return scopeUser
+	}
+	return info.Scope
 }
 
 // commonAllowed reports whether an identity may touch the common tree. The
@@ -159,7 +177,7 @@ func (s *Server) authConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
-	if !s.logins.allow(clientIP(r), time.Now()) {
+	if !s.limits.logins.allow(clientIP(r), time.Now()) {
 		httpjson.WriteError(w, apierrors.RateLimited("too many attempts"))
 		return
 	}

@@ -10,16 +10,25 @@ import (
 	"testing"
 )
 
-func doReq(t *testing.T, h http.Handler, method, target, token string, body []byte) *httptest.ResponseRecorder {
+// rawCall is one request with a byte body, kept apart from apiCall because a
+// nil body and an empty one are different requests here.
+type rawCall struct {
+	Method string
+	Target string
+	Token  string
+	Body   []byte
+}
+
+func doReq(t *testing.T, h http.Handler, c rawCall) *httptest.ResponseRecorder {
 	t.Helper()
 	var r *http.Request
-	if body != nil {
-		r = httptest.NewRequest(method, target, bytes.NewReader(body))
+	if c.Body != nil {
+		r = httptest.NewRequest(c.Method, c.Target, bytes.NewReader(c.Body))
 	} else {
-		r = httptest.NewRequest(method, target, nil)
+		r = httptest.NewRequest(c.Method, c.Target, nil)
 	}
-	if token != "" {
-		r.Header.Set("Authorization", "Bearer "+token)
+	if c.Token != "" {
+		r.Header.Set("Authorization", "Bearer "+c.Token)
 	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -73,7 +82,7 @@ func TestScopeEnforcement(t *testing.T) {
 			{"DELETE", "/api/tokens/lucy", nil},
 		}
 		for _, c := range cases {
-			w := doReq(t, h, c.method, c.target, syncToken, c.body)
+			w := doReq(t, h, rawCall{Method: c.method, Target: c.target, Token: syncToken, Body: c.body})
 			if w.Code != http.StatusForbidden {
 				t.Errorf("%s %s with sync token: got %d, want 403", c.method, c.target, w.Code)
 			}
@@ -91,7 +100,7 @@ func TestScopeEnforcement(t *testing.T) {
 			{"DELETE", "/api/tokens/lucy", nil, http.StatusNoContent},
 		}
 		for _, c := range cases {
-			w := doReq(t, h, c.method, c.target, adminToken, c.body)
+			w := doReq(t, h, rawCall{Method: c.method, Target: c.target, Token: adminToken, Body: c.body})
 			if w.Code == http.StatusForbidden {
 				t.Errorf("%s %s with admin token: got 403, want %d", c.method, c.target, c.want)
 			}
@@ -109,7 +118,7 @@ func TestTokensListNeverLeaksSecrets(t *testing.T) {
 	loginAs(t, h, "secret", "lucy")
 	adminToken := loginAs(t, h, "secret", "")
 
-	w := doReq(t, h, "GET", "/api/tokens", adminToken, nil)
+	w := doReq(t, h, rawCall{Method: "GET", Target: "/api/tokens", Token: adminToken, Body: nil})
 	if w.Code != http.StatusOK {
 		t.Fatalf("GET /api/tokens: got %d", w.Code)
 	}
@@ -144,7 +153,7 @@ func TestLoginRateLimiting(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"password": "wrong", "machine": "lucy"})
 	saw429 := false
 	for i := 0; i < 12; i++ {
-		w := doReq(t, h, "POST", "/api/auth/login", "", body)
+		w := doReq(t, h, rawCall{Method: "POST", Target: "/api/auth/login", Token: "", Body: body})
 		if w.Code == http.StatusTooManyRequests {
 			saw429 = true
 			break
@@ -160,7 +169,7 @@ func TestConstantTimePasswordCompare(t *testing.T) {
 	h := s.Handler()
 
 	body, _ := json.Marshal(map[string]string{"password": "wrong", "machine": "lucy"})
-	w := doReq(t, h, "POST", "/api/auth/login", "", body)
+	w := doReq(t, h, rawCall{Method: "POST", Target: "/api/auth/login", Token: "", Body: body})
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("wrong password: got %d, want 401", w.Code)
 	}
@@ -177,14 +186,14 @@ func TestSyncPathTraversal(t *testing.T) {
 	token := loginAs(t, h, "secret", "")
 
 	t.Run("tokens.json rejected", func(t *testing.T) {
-		w := doReq(t, h, "GET", "/api/sync/files/tokens.json", token, nil)
+		w := doReq(t, h, rawCall{Method: "GET", Target: "/api/sync/files/tokens.json", Token: token, Body: nil})
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("GET tokens.json: got %d, want 400", w.Code)
 		}
 	})
 
 	t.Run("traversal does not escape data dir", func(t *testing.T) {
-		w := doReq(t, h, "GET", "/api/sync/files/..%2f..%2fetc%2fhosts", token, nil)
+		w := doReq(t, h, rawCall{Method: "GET", Target: "/api/sync/files/..%2f..%2fetc%2fhosts", Token: token, Body: nil})
 		if w.Code == http.StatusOK {
 			t.Fatalf("traversal returned 200, must not serve out-of-tree file")
 		}
@@ -194,7 +203,7 @@ func TestSyncPathTraversal(t *testing.T) {
 	})
 
 	t.Run("dotfile rejected", func(t *testing.T) {
-		w := doReq(t, h, "GET", "/api/sync/files/.secret", token, nil)
+		w := doReq(t, h, rawCall{Method: "GET", Target: "/api/sync/files/.secret", Token: token, Body: nil})
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("GET dotfile: got %d, want 400", w.Code)
 		}
@@ -208,11 +217,11 @@ func TestSafeNameOnRules(t *testing.T) {
 
 	t.Run("traversal name rejected", func(t *testing.T) {
 		for _, name := range []string{"..%2f..%2fpasswd", "foo%2Fbar", "a..b"} {
-			get := doReq(t, h, "GET", "/api/rules/"+name, token, nil)
+			get := doReq(t, h, rawCall{Method: "GET", Target: "/api/rules/" + name, Token: token, Body: nil})
 			if get.Code != http.StatusBadRequest {
 				t.Errorf("GET /api/rules/%s: got %d, want 400", name, get.Code)
 			}
-			put := doReq(t, h, "PUT", "/api/rules/"+name, token, []byte("x"))
+			put := doReq(t, h, rawCall{Method: "PUT", Target: "/api/rules/" + name, Token: token, Body: []byte("x")})
 			if put.Code != http.StatusBadRequest {
 				t.Errorf("PUT /api/rules/%s: got %d, want 400", name, put.Code)
 			}
@@ -221,11 +230,11 @@ func TestSafeNameOnRules(t *testing.T) {
 
 	t.Run("normal name round-trips", func(t *testing.T) {
 		want := "# my rule\n"
-		put := doReq(t, h, "PUT", "/api/rules/myrule", token, []byte(want))
+		put := doReq(t, h, rawCall{Method: "PUT", Target: "/api/rules/myrule", Token: token, Body: []byte(want)})
 		if put.Code != http.StatusNoContent {
 			t.Fatalf("PUT: got %d, want 204", put.Code)
 		}
-		get := doReq(t, h, "GET", "/api/rules/myrule", token, nil)
+		get := doReq(t, h, rawCall{Method: "GET", Target: "/api/rules/myrule", Token: token, Body: nil})
 		if get.Code != http.StatusOK {
 			t.Fatalf("GET: got %d, want 200", get.Code)
 		}
