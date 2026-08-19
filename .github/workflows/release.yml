@@ -8,6 +8,14 @@ on:
 permissions:
   contents: write
 
+# Install the newest published Go and use exactly that. GOTOOLCHAIN=auto resolves
+# a module's "go >= X" to the newest toolchain module it can see, and on
+# 2026-08-19 that was go1.26.7: listed as a module, absent from go.dev, so the
+# download 404s and the job dies with nothing useful in the log. setup-go tracks
+# what is actually downloadable; local stops the resolver reaching past it.
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -16,7 +24,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: stable
 

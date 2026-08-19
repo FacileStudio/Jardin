@@ -118,7 +118,7 @@ func (s *scheduler) blockedBy(step Step) string {
 }
 
 func (s *scheduler) launch(ctx context.Context, step Step, dir string, stream *sink) {
-	resolved, err := resolve(step, s.outputs)
+	resolved, secret, err := resolve(step, s.outputs)
 	if err != nil {
 		s.record(outcome{name: step.Name, result: unresolved(step, err)})
 		return
@@ -126,7 +126,7 @@ func (s *scheduler) launch(ctx context.Context, step Step, dir string, stream *s
 	s.started[step.Name] = true
 	s.inflight++
 	go func() {
-		res, raw := runStep(ctx, step, execution{resolved: resolved, dir: dir, live: stream, model: s.models[step.Type]})
+		res, raw := runStep(ctx, step, execution{resolved: resolved, secret: secret, dir: dir, live: stream, model: s.models[step.Type]})
 		s.results <- outcome{name: step.Name, result: res, raw: raw}
 	}()
 }
