@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode"
 )
 
 // The wiki is English-only, by decision rather than by default: retrieval is
@@ -20,16 +19,23 @@ import (
 // English ("plus", "sur", "fait"), which is safe because density decides, never
 // a single word: a line must clear both an absolute and a proportional
 // threshold before it counts.
-var frenchFunctionWords = map[string]bool{}
-
-func init() {
-	for _, w := range strings.Fields(
-		`le la les des une est qui pour dans sont avec cette donc mais pas ne
-		 leur ces aux par sur ses elle nous vous ils ainsi quand alors entre
-		 sans plus tout fait deux chaque dont puis encore faut peut doit
-		 était avait cet ceux quoi parce lorsque afin`) {
-		frenchFunctionWords[w] = true
-	}
+//
+// A composite literal rather than an init(): a package-level var written in its
+// own file reads as shared mutable state to filet, and an init() is magic that
+// runs before main. Written once here, it is a lookup table and nothing flags it.
+var frenchFunctionWords = map[string]bool{
+	"afin": true, "ainsi": true, "alors": true, "aux": true, "avait": true,
+	"avec": true, "cela": true, "celui": true, "ces": true, "cet": true,
+	"cette": true, "ceux": true, "chaque": true, "dans": true, "des": true,
+	"deux": true, "doit": true, "donc": true, "dont": true, "déjà": true,
+	"elle": true, "encore": true, "entre": true, "est": true, "fait": true,
+	"faut": true, "ils": true, "jamais": true, "la": true, "le": true,
+	"les": true, "leur": true, "lorsque": true, "mais": true, "même": true,
+	"ne": true, "nous": true, "par": true, "parce": true, "pas": true,
+	"peut": true, "plus": true, "pour": true, "puis": true, "quand": true,
+	"qui": true, "quoi": true, "sans": true, "ses": true, "sont": true,
+	"sur": true, "tout": true, "toute": true, "une": true, "vous": true,
+	"était": true, "être": true,
 }
 
 const (
@@ -61,22 +67,70 @@ type LanguageFinding struct {
 func FrenchLines(content string) []int {
 	var lines []int
 	for i, line := range strings.Split(content, "\n") {
-		if strings.Contains(line, langExemptMarker) {
-			continue
-		}
-		words, hits := 0, 0
-		for _, w := range strings.FieldsFunc(line, func(r rune) bool { return !unicode.IsLetter(r) }) {
-			words++
-			if frenchFunctionWords[strings.ToLower(w)] {
-				hits++
-			}
-		}
-		if words >= langMinWords && hits >= langMinFrench &&
-			float64(hits)/float64(words) >= langMinRatio {
+		if lineIsFrench(line) {
 			lines = append(lines, i+1)
 		}
 	}
 	return lines
+}
+
+// lineIsFrench reports whether one line reads as French prose. Split out of
+// FrenchLines so neither function carries the tokenising and the thresholds at
+// once, and so the decision can be read on its own.
+func lineIsFrench(line string) bool {
+	if strings.Contains(line, langExemptMarker) {
+		return false
+	}
+	words, hits := countFrench(line)
+	return words >= langMinWords && hits >= langMinFrench &&
+		float64(hits)/float64(words) >= langMinRatio
+}
+
+// countFrench returns the prose words on a line and how many of them are French.
+func countFrench(line string) (words, hits int) {
+	for _, token := range strings.Fields(line) {
+		if isOpaqueToken(token) {
+			continue
+		}
+		word := strings.ToLower(strings.Trim(token, punctuation))
+		if word == "" {
+			continue
+		}
+		words++
+		if frenchFunctionWords[word] {
+			hits++
+		}
+	}
+	return words, hits
+}
+
+// punctuation is trimmed from a token's edges before lookup, so "prose," and
+// "(prose)" match. Inner characters are left alone: a token is either prose or
+// opaque, never half-tokenised into fragments.
+const punctuation = `.,;:!?()[]{}<>"'` + "`" + `*_~«»…—–-`
+
+// isOpaqueToken reports whether a whitespace-separated token is something other
+// than a prose word — a URL, a path, an identifier, an inline code span.
+//
+// This is the whole reason tokenising splits on whitespace rather than on
+// non-letters. A CNIL citation such as
+// https://www.cnil.fr/fr/la-prospection-commerciale-par-courrier-electronique
+// contains "la", "par" and "courrier" as slug fragments; splitting on every
+// non-letter turns one URL into a line of French and reports a page whose prose
+// is entirely English. Wiki pages cite French sources routinely, so this is the
+// false positive that would get the rule switched off.
+//
+// A token still carrying an inner separator once edge punctuation is stripped is
+// an identifier or a slug rather than a word: snake_case, kebab-slug, file.ext.
+func isOpaqueToken(token string) bool {
+	for _, r := range token {
+		switch r {
+		case '/', '\\', ':', '@', '=', '#', '$', '%', '+', '|':
+			return true
+		}
+	}
+	inner := strings.Trim(token, punctuation)
+	return strings.ContainsAny(inner, "_.-")
 }
 
 // ScanPaths reports French prose in the given wiki-relative paths, which are
@@ -103,4 +157,28 @@ func ScanPaths(dataDir string, rels []string) []LanguageFinding {
 		}
 	}
 	return findings
+}
+
+// ScanWiki reports French prose across every page under memoryDir. It is the
+// whole-corpus counterpart to ScanPaths, and exists so that one implementation
+// answers both questions — a second copy of this rule in another language would
+// drift, and did: an earlier TypeScript checker carried seven words this one
+// lacked, so the two disagreed on lines neither author had thought about.
+func ScanWiki(memoryDir string) ([]LanguageFinding, error) {
+	var rels []string
+	err := filepath.Walk(memoryDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(memoryDir, path)
+		if relErr != nil {
+			return nil
+		}
+		rels = append(rels, "memory/"+filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ScanPaths(filepath.Dir(memoryDir), rels), nil
 }
