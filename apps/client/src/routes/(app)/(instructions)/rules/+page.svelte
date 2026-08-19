@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { Button, EmptyState, Field, Input, Modal, icons, toast } from '@facile/muse';
+	import { Alert, Button, EmptyState, Field, Input, Modal, icons, toast } from '@facile/muse';
 	import { backend } from '$lib/backend';
 	import EntityCard from '$lib/components/EntityCard.svelte';
 
@@ -8,13 +8,16 @@
 	let createOpen = $state(false);
 	let draftName = $state('');
 	let creating = $state(false);
+	/* Separate from loadError: this one belongs to the create form, and showing a failed
+	   list fetch inside a modal nobody opened is how a 403 came to look like an empty tree. */
 	let error = $state('');
+	let loadError = $state('');
 
 	$effect(() => {
 		backend
 			.rulesList()
 			.then((r) => (rules = r))
-			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load rules'));
+			.catch((e) => (loadError = e instanceof Error ? e.message : 'Could not load rules'));
 	});
 
 	function openCreate() {
@@ -44,16 +47,15 @@
 
 <div class="flex flex-col gap-10">
 	<div class="flex flex-wrap items-start justify-between gap-4">
-		<div class="flex min-w-0 flex-col gap-2">
-			<h1 class="text-fc-2xl font-semibold text-fc-fg">Rules</h1>
-			<p class="text-fc-sm text-fc-fg-muted">
-				Modular instructions, concatenated into every agent config in filename order.
-			</p>
-		</div>
+		<p class="min-w-0 text-fc-sm text-fc-fg-muted">
+			Modular instructions, concatenated into every agent config in filename order.
+		</p>
 		<Button icon={icons.plus} onclick={openCreate}>New rule</Button>
 	</div>
 
-	{#if rules.length === 0}
+	{#if loadError}
+		<Alert tone="danger" title="Could not load rules">{loadError}</Alert>
+	{:else if rules.length === 0}
 		<EmptyState
 			icon={icons.shield}
 			title="No rules yet"

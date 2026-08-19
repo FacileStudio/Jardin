@@ -35,14 +35,19 @@
 	 * from the avatar in MobileNav. See CHARTE §14.
 	 */
 	/*
-	 * Flows and Models share one rail entry: a model only exists to be a flow's `type:`
-	 * step, so they are one destination with two tabs (see (automation)/+layout.svelte),
-	 * not two rail rows fighting for the same mobile budget.
+	 * Two rail entries each cover a pair that is really one feature: rules and skills are
+	 * both installed into every agent config, and a model only exists to be a flow's
+	 * `type:` step. Each pair is one destination with two tabs — see the (instructions)
+	 * and (automation) layouts — rather than two rows competing for the mobile budget.
 	 */
 	const links = [
 		{ label: 'Memory', href: '/memory', icon: icons.folder },
-		{ label: 'Rules', href: '/rules', icon: icons.shield },
-		{ label: 'Skills', href: '/skills', icon: icons.bolt },
+		{
+			label: 'Instructions',
+			href: '/rules',
+			icon: icons.shield,
+			activeMatch: ['/rules', '/skills']
+		},
 		{ label: 'Automation', href: '/flows', icon: icons.plug, activeMatch: ['/flows', '/models'] },
 		{ label: 'Machines', href: '/machines', icon: icons.server },
 		{ label: 'Sessions', href: '/sessions', icon: icons.history },
@@ -104,10 +109,10 @@
 
 	/*
 	 * MobileNav is a fixed-width pill: six icons plus the avatar need 412px and the floor is
-	 * 360px. Merging Flows+Models into one Automation entry keeps the rail at five daily
-	 * destinations plus the avatar, so the pill carries all of them. Spaces stays reachable
-	 * through the switcher's "Manage spaces" footer in the Topbar, and Machines from the
-	 * Sessions page — those two are a URL away on mobile, not a tap.
+	 * 360px. The two merges above keep the rail at four daily destinations plus the avatar,
+	 * which fits with room to spare. Spaces stays reachable through the switcher's "Manage
+	 * spaces" footer in the Topbar, and Machines from the Sessions page — those two are a
+	 * URL away on mobile, not a tap.
 	 */
 	const mobilePages = $derived(navPages.filter((p) => !MOBILE_HIDDEN.includes(p.href)));
 
