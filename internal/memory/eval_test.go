@@ -12,6 +12,14 @@ const (
 	goldenSetFile   = "testdata/golden.json"
 	recallFloor     = 0.60
 	reciprocalFloor = 0.50
+
+	// The cross-language set is 12 cases, so one miss costs 0.083 of recall:
+	// 11 hits is 0.917 and 10 is 0.833. The floor sits between them so a single
+	// case drifting out of the top 5 as the corpus grows is tolerated and two
+	// are not. Both floors sit far above the pre-conversion numbers (recall
+	// 0.500, MRR 0.215), which is the state they exist to catch coming back.
+	crossLangRecallFloor     = 0.90
+	crossLangReciprocalFloor = 0.55
 )
 
 type goldenCase struct {
@@ -120,11 +128,17 @@ func rankOfFirstExpected(t *testing.T, dir string, c goldenCase) int {
 
 const crossLangFile = "testdata/golden-crosslang.json"
 
-// TestCrossLanguageRetrieval gauges how reachable the French half of the wiki
-// is from an English query. It deliberately has no floor and never fails: it
-// measures a migration in progress, not a regression. Every case here is a page
-// still written in French, so the number rises as pages convert and is the
-// cheapest way to see whether the English-only rule is being followed.
+// TestCrossLanguageRetrieval keeps the converted pages reachable from an
+// English query. Every case here names a page that was French until the
+// 2026-08-19 conversion, when recall@5 went 0.500 -> 1.000 and MRR 0.215 ->
+// 0.778; the floors below guard that gain.
+//
+// What this does NOT do is detect new French drift. The set is a fixed list of
+// twelve query->page pairs, so a French page written next month is not in it and
+// this test never looks at it. That job belongs to
+// ~/.jardin/skills/scripts/wiki-english-check.ts, which scans every page line by
+// line. Do not widen this test to cover it — a golden set measures ranking, not
+// corpus hygiene.
 func TestCrossLanguageRetrieval(t *testing.T) {
 	dir, ok := wikiDir()
 	if !ok {
@@ -152,6 +166,16 @@ func TestCrossLanguageRetrieval(t *testing.T) {
 		}
 	}
 	n := float64(len(cases))
+	recall, mrr := float64(hits)/n, reciprocal/n
 	t.Logf("cross-language recall@%d = %.3f (%d/%d)   MRR = %.3f",
-		evalK, float64(hits)/n, hits, len(cases), reciprocal/n)
+		evalK, recall, hits, len(cases), mrr)
+
+	if recall < crossLangRecallFloor {
+		t.Errorf("cross-language recall@%d dropped to %.3f, floor is %.2f",
+			evalK, recall, crossLangRecallFloor)
+	}
+	if mrr < crossLangReciprocalFloor {
+		t.Errorf("cross-language MRR dropped to %.3f, floor is %.2f",
+			mrr, crossLangReciprocalFloor)
+	}
 }
