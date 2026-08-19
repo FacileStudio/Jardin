@@ -47,6 +47,7 @@ func TestChunkLevelBeatsPageLevel(t *testing.T) {
 		t.Skip("no wiki on this machine")
 	}
 	cases := loadGolden(t)
+	requireCorpus(t, dir, cases)
 
 	pageRecall, pageMRR := measure(t, dir, cases, Search)
 	chunkRecall, chunkMRR := measure(t, dir, cases, SearchChunks)

@@ -13,6 +13,12 @@ const (
 	recallFloor     = 0.60
 	reciprocalFloor = 0.50
 
+	// A quarter of the golden pages is the line between "the corpus moved" and
+	// "the corpus is gone". Editing ranking code never deletes three quarters of
+	// the wiki, so anything above this floor is still a real measurement and
+	// stays a failure; below it the eval is scoring an empty shelf.
+	corpusFloor = 0.25
+
 	// The cross-language set is 12 cases, so one miss costs 0.083 of recall:
 	// 11 hits is 0.917 and 10 is 0.833. The floor sits between them so a single
 	// case drifting out of the top 5 as the corpus grows is tolerated and two
@@ -56,12 +62,40 @@ func realWiki(t *testing.T) string {
 	return dir
 }
 
+// requireCorpus extends realWiki's skip philosophy from "no wiki" to "no corpus
+// to measure". The eval scores ranking against the live wiki, so a machine that
+// reset or rebuilt ~/.mycelium/memory has nothing to score and would otherwise
+// fail the build until 65 named pages were recreated by hand. Skipping needs a
+// wholesale-missing corpus: at corpusFloor a rename or five still trips
+// TestGoldenSetPointsAtPagesThatExist loudly, which is the signal that tells a
+// moved page apart from a recall drop.
+func requireCorpus(t *testing.T, dir string, cases []goldenCase) {
+	t.Helper()
+	pages := map[string]bool{}
+	for _, c := range cases {
+		for _, want := range c.Expect {
+			pages[want] = true
+		}
+	}
+	present := 0
+	for page := range pages {
+		if _, err := os.Stat(filepath.Join(dir, page)); err == nil {
+			present++
+		}
+	}
+	if len(pages) == 0 || float64(present)/float64(len(pages)) < corpusFloor {
+		t.Skipf("golden corpus absent from %s (%d/%d pages present) — wiki reset or rebuilt, nothing to measure", dir, present, len(pages))
+	}
+}
+
 // TestGoldenSetPointsAtPagesThatExist separates a retrieval regression from a
 // corpus that moved. A renamed page must fail here, naming itself, rather than
 // showing up as a silent drop in recall.
 func TestGoldenSetPointsAtPagesThatExist(t *testing.T) {
 	dir := realWiki(t)
-	for _, c := range loadGolden(t) {
+	cases := loadGolden(t)
+	requireCorpus(t, dir, cases)
+	for _, c := range cases {
 		for _, want := range c.Expect {
 			if _, err := os.Stat(filepath.Join(dir, want)); err != nil {
 				t.Errorf("golden set references a missing page %q (query %q) — fix the golden set, this is not a recall miss", want, c.Query)
@@ -76,6 +110,7 @@ func TestGoldenSetPointsAtPagesThatExist(t *testing.T) {
 func TestRetrievalRecallAtK(t *testing.T) {
 	dir := realWiki(t)
 	cases := loadGolden(t)
+	requireCorpus(t, dir, cases)
 
 	hits, reciprocalSum := 0, 0.0
 	for _, c := range cases {
@@ -152,6 +187,7 @@ func TestCrossLanguageRetrieval(t *testing.T) {
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatalf("cross-language set is not valid JSON: %v", err)
 	}
+	requireCorpus(t, dir, cases)
 
 	hits, reciprocal := 0, 0.0
 	for _, c := range cases {
