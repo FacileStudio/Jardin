@@ -2,11 +2,8 @@
 	import type { Snippet } from 'svelte';
 	import { Card, Spinner, icons } from '@facile/muse';
 
-	/*
-	 * Read-only counterpart to DocumentEditor: flows and models are executable, trust-gated per
-	 * machine, so a web editor is a bigger call than "show me what's synced" — this shows the
-	 * synced file, nothing more.
-	 */
+	// Read-only counterpart to DocumentEditor: flows/models are executable and trust-gated
+	// per machine, so an editor here is a bigger call than "show me what's synced."
 	let {
 		title,
 		path,
