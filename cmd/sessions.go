@@ -6,6 +6,7 @@ import (
 
 	"github.com/FacileStudio/Jardin/internal/config"
 	"github.com/FacileStudio/Jardin/internal/sessions"
+	"github.com/FacileStudio/Jardin/internal/ui"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -21,7 +22,7 @@ var sessionsCmd = &cobra.Command{
 			return err
 		}
 		if len(blocks) == 0 {
-			fmt.Println("No sessions recorded yet — run 'jardin sessions scan'.")
+			ui.Hint("No sessions recorded yet — run 'jardin sessions scan'.")
 			return nil
 		}
 		for _, b := range sessions.Recent(blocks, 20) {
@@ -47,7 +48,7 @@ var sessionsLiveCmd = &cobra.Command{
 			return err
 		}
 		if len(entries) == 0 {
-			fmt.Println("No sessions running.")
+			ui.Hint("No sessions running.")
 			return nil
 		}
 		for _, e := range entries {
@@ -102,7 +103,7 @@ var sessionsScanCmd = &cobra.Command{
 }
 
 func init() {
-	sessionsScanCmd.Flags().BoolVar(&sessionsScanAll, "all", false, "rebuild this machine's history from full transcripts")
+	sessionsScanCmd.Flags().BoolVar(&sessionsScanAll, "all", false, "Rebuild this machine's history from full transcripts")
 	sessionsCmd.AddCommand(sessionsScanCmd, sessionsLiveCmd)
 	rootCmd.AddCommand(sessionsCmd)
 }

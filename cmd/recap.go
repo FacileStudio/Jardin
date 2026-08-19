@@ -83,6 +83,6 @@ func flowRecap() string {
 }
 
 func init() {
-	recapCmd.Flags().BoolVar(&recapHook, "hook", false, "read hook JSON from stdin, emit hookSpecificOutput")
+	recapCmd.Flags().BoolVar(&recapHook, "hook", false, "Read hook JSON from stdin, emit hookSpecificOutput")
 	rootCmd.AddCommand(recapCmd)
 }
