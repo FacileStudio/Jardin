@@ -57,14 +57,8 @@ func warnFrenchPages(dataDir string, res *hsync.Result) {
 	if len(findings) == 0 {
 		return
 	}
-	ui.Warn("%d French line(s) in %s", len(findings), findings[0].Path)
-	if len(findings) > 1 {
-		ui.Hint("first at %s:%d — run: bun ~/.jardin/skills/scripts/wiki-english-check.ts",
-			findings[0].Path, findings[0].Line)
-	} else {
-		ui.Hint("at %s:%d — run: bun ~/.jardin/skills/scripts/wiki-english-check.ts",
-			findings[0].Path, findings[0].Line)
-	}
+	ui.Warn("%d French line(s) in %s — the wiki is English-only", len(findings), findings[0].Path)
+	ui.Hint("first at %s:%d — see 'jardin doctor' for the whole corpus", findings[0].Path, findings[0].Line)
 }
 
 var syncCmd = &cobra.Command{
@@ -109,6 +103,7 @@ var pushCmd = &cobra.Command{
 		if res.Total() == 0 {
 			fmt.Println("Nothing to push.")
 		}
+		warnFrenchPages(dataDir, res)
 		return nil
 	},
 }

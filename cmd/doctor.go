@@ -12,6 +12,7 @@ import (
 	"github.com/FacileStudio/Jardin/internal/cell"
 	"github.com/FacileStudio/Jardin/internal/config"
 	"github.com/FacileStudio/Jardin/internal/daemon"
+	"github.com/FacileStudio/Jardin/internal/memory"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -175,6 +176,27 @@ var doctorCmd = &cobra.Command{
 				return fmt.Sprintf("%d conflict(s): %s", len(conflicts), strings.Join(conflicts, ", ")), false
 			}
 			return "none", true
+		})
+
+		// The wiki is English-only (rules/20-memory.md). doctor is where this
+		// belongs rather than the sync path alone: the daemon shells out to
+		// `jardin sync` every 60s and discards its output on success, so a
+		// warning printed there reaches nobody. doctor is read by a human and
+		// by the jardin-health flow.
+		check("wiki language", func() (string, bool) {
+			memoryDir := filepath.Join(dataDir, "memory")
+			if _, err := os.Stat(memoryDir); err != nil {
+				return "no wiki on this machine", true
+			}
+			findings, err := memory.ScanWiki(memoryDir)
+			if err != nil {
+				return err.Error(), false
+			}
+			if len(findings) > 0 {
+				return fmt.Sprintf("%d French line(s), first at %s:%d — the wiki is English-only",
+					len(findings), findings[0].Path, findings[0].Line), false
+			}
+			return "English only", true
 		})
 
 		check("last sync", func() (string, bool) {
