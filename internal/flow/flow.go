@@ -65,6 +65,12 @@ type Step struct {
 	// Ephemeral keeps this step's output out of the artifact. The value still
 	// reaches the steps that need it; it just never lands on disk.
 	Ephemeral bool `yaml:"ephemeral,omitempty"`
+	// Secret names environment variables this step treats as sensitive,
+	// whatever they are called. Redaction otherwise guesses from the name,
+	// which misses a credential held in a neutrally named variable. Use it for
+	// a secret the step consumes; a step that produces one on stdout wants
+	// Ephemeral instead.
+	Secret []string `yaml:"secret,omitempty"`
 	// Type names a model extension to run instead of a shell command, and With
 	// carries its arguments. A step is one or the other, never both.
 	Type         string         `yaml:"type,omitempty"`
@@ -222,5 +228,31 @@ func validateStep(s Step, known map[string]bool) error {
 	if s.Timeout > MaxTimeout {
 		return fmt.Errorf("step %q asks for %ds, over the %ds cap", s.Name, s.Timeout, MaxTimeout)
 	}
+	if err := validateSecret(s); err != nil {
+		return err
+	}
 	return validateNeeds(s, known)
+}
+
+// validateSecret checks the names a step declares sensitive. A name that no
+// shell can export would silently mask nothing, which is the failure this
+// field exists to prevent, so it fails in Parse rather than at run time.
+func validateSecret(s Step) error {
+	seen := make(map[string]bool, len(s.Secret))
+	for _, name := range s.Secret {
+		if name == "" {
+			return fmt.Errorf("step %q declares a secret with no name", s.Name)
+		}
+		if err := validEnvName(name); err != nil {
+			return fmt.Errorf("step %q: %w", s.Name, err)
+		}
+		if name == tokenEnvVar {
+			return fmt.Errorf("step %q declares %s secret, which never reaches a step", s.Name, tokenEnvVar)
+		}
+		if seen[name] {
+			return fmt.Errorf("step %q declares %s secret twice", s.Name, name)
+		}
+		seen[name] = true
+	}
+	return nil
 }

@@ -111,7 +111,9 @@ func runStep(ctx context.Context, step Step, ex execution) (StepResult, output) 
 
 	stepEnv := stepEnvOf(step, ex.resolved)
 	env := childEnv(stepEnv)
-	redact := newRedactor(env, ex.secret...)
+	declared := declaredValues(env, step.Secret)
+	masked := append(append([]string{}, declared...), ex.secret...)
+	redact := newRedactor(env, masked...)
 
 	cmd, cmdErr := stepCommand(stepCtx, step, ex.model, stepEnv)
 	if cmdErr != nil {
@@ -151,7 +153,7 @@ func runStep(ctx context.Context, step Step, ex execution) (StepResult, output) 
 		res.Stdout, res.Stderr, res.Ephemeral = "", "", true
 	}
 	raw := output{Stdout: stdout, Stderr: stderr, ExitCode: code,
-		StdoutCut: outCut, StderrCut: errCut, Ephemeral: step.Ephemeral}
+		StdoutCut: outCut, StderrCut: errCut, Ephemeral: step.Ephemeral, Secrets: declared}
 	return res, raw
 }
 
@@ -198,6 +200,28 @@ func childEnv(stepEnv map[string]string) []string {
 		out = append(out, name+"="+value)
 	}
 	return out
+}
+
+// declaredValues reads the values of the variables a step declared sensitive.
+// A declaration is explicit, so it skips the length floor newRedactor applies
+// to its guesses — but not an empty value, which is a variable nobody set and
+// would otherwise mask every gap in the output.
+func declaredValues(env []string, names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	wanted := make(map[string]bool, len(names))
+	for _, name := range names {
+		wanted[name] = true
+	}
+	values := make([]string, 0, len(names))
+	for _, entry := range env {
+		name, value, ok := strings.Cut(entry, "=")
+		if ok && value != "" && wanted[name] {
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 func isSecretName(name string) bool {
