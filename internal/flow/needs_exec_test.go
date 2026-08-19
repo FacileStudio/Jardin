@@ -177,8 +177,11 @@ func TestAllowFailureDoesNotRescueAnUnresolvableNeed(t *testing.T) {
 	if run.Status != StatusUnresolved {
 		t.Errorf("status = %q, want %q", run.Status, StatusUnresolved)
 	}
-	if len(run.Steps) != 2 {
-		t.Fatalf("ran %d steps, want the run to stop at the unresolvable one", len(run.Steps))
+	if len(run.Steps) != 3 {
+		t.Fatalf("recorded %d steps, want 3 — the producer, the unresolvable step, and the one it blocked", len(run.Steps))
+	}
+	if run.Steps[2].Stdout != "" || !run.Steps[2].Skipped {
+		t.Error("the step after an unresolvable need ran instead of being skipped")
 	}
 	if !run.Steps[1].NotStarted {
 		t.Error("the step that never ran is not marked NotStarted, so exit -1 is its only signal")

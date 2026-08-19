@@ -15,11 +15,11 @@ func TestParseRejectsBadNeeds(t *testing.T) {
 	cases := map[string]struct{ body, want string }{
 		"forward reference": {
 			body: "  - name: first\n    needs:\n      V: second.stdout\n    run: 'true'\n  - name: second\n    run: 'true'\n",
-			want: "does not run before it",
+			want: "form a cycle",
 		},
 		"unknown step": {
 			body: "  - name: first\n    needs:\n      V: nowhere.stdout\n    run: 'true'\n",
-			want: "does not run before it",
+			want: "is not a step in this flow",
 		},
 		"unknown field": {
 			body: "  - name: first\n    run: 'true'\n  - name: second\n    needs:\n      V: first.duration\n    run: 'true'\n",

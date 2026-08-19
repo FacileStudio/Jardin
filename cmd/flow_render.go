@@ -78,6 +78,56 @@ func flowRunRows(runs []*flow.Run) []flowRunRow {
 	return rows
 }
 
+type flowQueryRow struct {
+	Flow       string    `json:"flow"`
+	ID         string    `json:"id"`
+	Status     string    `json:"status"`
+	StartedAt  time.Time `json:"started_at"`
+	DurationMS int64     `json:"duration_ms"`
+	Failed     []string  `json:"failed_steps,omitempty"`
+}
+
+func flowQueryRows(runs []*flow.Run) []flowQueryRow {
+	rows := make([]flowQueryRow, 0, len(runs))
+	for _, r := range runs {
+		rows = append(rows, flowQueryRow{
+			Flow: r.Flow, ID: r.ID, Status: r.Status, StartedAt: r.StartedAt,
+			DurationMS: r.Duration().Milliseconds(), Failed: failedSteps(r),
+		})
+	}
+	return rows
+}
+
+// failedSteps names the steps that actually broke, skipping the ones that only
+// went down with them — a list of casualties buries the cause.
+func failedSteps(r *flow.Run) []string {
+	var names []string
+	for _, s := range r.Steps {
+		if s.Skipped || (s.ExitCode == 0 && !s.TimedOut) {
+			continue
+		}
+		names = append(names, s.Name)
+	}
+	return names
+}
+
+func printQuery(runs []*flow.Run) {
+	width := 0
+	for _, r := range runs {
+		if len(r.Flow) > width {
+			width = len(r.Flow)
+		}
+	}
+	for _, r := range runs {
+		line := fmt.Sprintf("  %-*s  %-10s %-26s %10s", width, r.Flow, r.Status,
+			r.StartedAt.Format(time.RFC3339), r.Duration().Round(time.Millisecond))
+		if failed := failedSteps(r); len(failed) > 0 {
+			line += "  " + ui.Dim("at "+strings.Join(failed, ", "))
+		}
+		fmt.Println(line)
+	}
+}
+
 func trustState(f *flow.Flow) string {
 	pinned, err := flow.TrustedChecksum(f.Name)
 	switch {
@@ -131,6 +181,29 @@ func confirmTrust(f *flow.Flow) error {
 	}
 	if strings.ToLower(strings.TrimSpace(answer)) != "y" {
 		return fmt.Errorf("flow %q was not pinned", f.Name)
+	}
+	return nil
+}
+
+// confirmModel shows the code before it is approved. A model is executed, not
+// read, so the same rule as a flow applies: nothing runs on this machine until
+// a person has looked at it here.
+func confirmModel(m *flow.Model, data []byte) error {
+	fmt.Printf("\n%s\n%s\n\n", ui.Dim("--- "+m.Path), strings.TrimRight(string(data), "\n"))
+	ui.Hint("current  %s", m.Checksum)
+	if flowTrustYes {
+		return nil
+	}
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return fmt.Errorf("refusing to pin %q unreviewed: rerun with --yes once you have read it", m.Type)
+	}
+	fmt.Printf("Pin %s so typed steps may run it here? [y/N] ", m.Type)
+	answer, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && answer == "" {
+		return err
+	}
+	if strings.ToLower(strings.TrimSpace(answer)) != "y" {
+		return fmt.Errorf("model %q was not pinned", m.Type)
 	}
 	return nil
 }

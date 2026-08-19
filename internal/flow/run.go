@@ -1,15 +1,14 @@
 package flow
 
 import (
-	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -25,6 +24,8 @@ type Options struct {
 	WorkDir string
 	Machine string
 	Stream  io.Writer
+	// Parallel caps how many steps run at once. Zero means DefaultParallel.
+	Parallel int
 }
 
 // Execute runs a flow's steps in order and returns the record of what
@@ -39,29 +40,21 @@ func Execute(ctx context.Context, f *Flow, opts Options) *Run {
 		Status:       StatusOK,
 		Steps:        make([]StepResult, 0, len(f.Steps)),
 	}
-	referenced := referencedSteps(f)
-	outputs := make(map[string]output, len(referenced))
-	for _, step := range f.Steps {
-		resolved, err := resolve(step, outputs)
-		if err != nil {
-			run.Steps = append(run.Steps, unresolved(step, err))
-			run.Status = StatusUnresolved
-			break
-		}
-		res, out := runStep(ctx, step, resolved, run.WorkDir, opts.Stream)
-		if referenced[step.Name] {
-			outputs[step.Name] = out
-		}
-		run.Steps = append(run.Steps, res)
-		if res.TimedOut {
-			run.Status = StatusTimeout
-			break
-		}
-		if res.ExitCode != 0 && !step.AllowFailure {
-			run.Status = StatusFailed
-			break
-		}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	models, err := preflight(ctx, f)
+	if err != nil {
+		run.Status = StatusUnresolved
+		run.Error = err.Error()
+		run.FinishedAt = time.Now().UTC()
+		return run
 	}
+
+	s := newScheduler(f, run, opts.Parallel, cancel)
+	s.models = models
+	s.drive(ctx, run.WorkDir, newSink(opts.Stream))
+	sortSteps(run.Steps)
 	run.FinishedAt = time.Now().UTC()
 	return run
 }
@@ -87,20 +80,49 @@ func resolveDir(dir string) string {
 	return abs
 }
 
-func runStep(ctx context.Context, step Step, resolved map[string]string, dir string, stream io.Writer) (StepResult, output) {
+// stepCommand builds the process a step runs: a shell command, or a model
+// extension executed by its runtime.
+func stepCommand(ctx context.Context, step Step, model *Model, env map[string]string) (*exec.Cmd, error) {
+	if step.Type == "" {
+		return exec.CommandContext(ctx, "sh", "-c", step.Run), nil
+	}
+	if model == nil {
+		return nil, fmt.Errorf("step %q has no resolved model for %q", step.Name, step.Type)
+	}
+	return modelCommand(ctx, model, step, env)
+}
+
+// execution is everything a step needs beyond itself: the values resolved from
+// earlier steps, where to run, where to mirror output, and the model backing a
+// typed step.
+type execution struct {
+	resolved map[string]string
+	dir      string
+	live     *sink
+	model    *Model
+}
+
+func runStep(ctx context.Context, step Step, ex execution) (StepResult, output) {
 	stepCtx, cancel := context.WithTimeout(ctx, time.Duration(step.EffectiveTimeout())*time.Second)
 	defer cancel()
 
-	env := childEnv(stepEnvOf(step, resolved))
+	stepEnv := stepEnvOf(step, ex.resolved)
+	env := childEnv(stepEnv)
 	redact := newRedactor(env)
 
-	cmd := exec.CommandContext(stepCtx, "sh", "-c", step.Run)
-	cmd.Dir = dir
+	cmd, cmdErr := stepCommand(stepCtx, step, ex.model, stepEnv)
+	if cmdErr != nil {
+		return unresolved(step, cmdErr), output{}
+	}
+	cmd.Dir = ex.dir
 	cmd.Env = env
 	isolate(cmd)
-	live := newSink(stream)
-	out := newCapture(live, "["+step.Name+"] ", redact)
-	errOut := newCapture(live, "["+step.Name+"! ", redact)
+	mirror := ex.live
+	if step.Ephemeral {
+		mirror = nil
+	}
+	out := newCapture(mirror, "["+step.Name+"] ", redact)
+	errOut := newCapture(mirror, "["+step.Name+"! ", redact)
 	cmd.Stdout = out
 	cmd.Stderr = errOut
 
@@ -113,13 +135,17 @@ func runStep(ctx context.Context, step Step, resolved map[string]string, dir str
 	code := exitCodeOf(err)
 	res := StepResult{
 		Name:       step.Name,
+		StartedAt:  started.UTC(),
 		ExitCode:   code,
 		DurationMS: time.Since(started).Milliseconds(),
 		Stdout:     redact(stdout),
 		Stderr:     redact(stderr),
-		Resolved:   redactMap(resolved, redact),
+		Resolved:   redactMap(ex.resolved, redact),
 		Truncated:  outCut || errCut,
 		TimedOut:   errors.Is(stepCtx.Err(), context.DeadlineExceeded),
+	}
+	if step.Ephemeral {
+		res.Stdout, res.Stderr, res.Ephemeral = "", "", true
 	}
 	raw := output{Stdout: stdout, Stderr: stderr, ExitCode: code, StdoutCut: outCut, StderrCut: errCut}
 	return res, raw
@@ -198,103 +224,4 @@ func newRedactor(env []string) func(string) string {
 	}
 	replacer := strings.NewReplacer(pairs...)
 	return replacer.Replace
-}
-
-type sink struct {
-	mu sync.Mutex
-	w  io.Writer
-}
-
-func newSink(w io.Writer) *sink {
-	if w == nil {
-		return nil
-	}
-	return &sink{w: w}
-}
-
-func (s *sink) writeString(text string) {
-	if s == nil {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, _ = io.WriteString(s.w, text)
-}
-
-type capture struct {
-	mu        sync.Mutex
-	buf       []byte
-	pending   []byte
-	truncated bool
-	stream    *sink
-	prefix    string
-	redact    func(string) string
-}
-
-func newCapture(stream *sink, prefix string, redact func(string) string) *capture {
-	return &capture{stream: stream, prefix: prefix, redact: redact}
-}
-
-func (c *capture) Write(p []byte) (int, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if room := MaxStreamBytes - len(c.buf); room > 0 {
-		if len(p) > room {
-			c.buf = append(c.buf, p[:room]...)
-			c.truncated = true
-		} else {
-			c.buf = append(c.buf, p...)
-		}
-	} else if len(p) > 0 {
-		c.truncated = true
-	}
-	c.mirrorLines(p)
-	return len(p), nil
-}
-
-func (c *capture) mirrorLines(p []byte) {
-	if c.stream == nil || len(p) == 0 {
-		return
-	}
-	c.pending = append(c.pending, p...)
-	cut := bytes.LastIndexByte(c.pending, '\n')
-	if cut < 0 {
-		return
-	}
-	complete := string(c.pending[:cut+1])
-	c.pending = append(c.pending[:0], c.pending[cut+1:]...)
-	c.emit(complete)
-}
-
-func (c *capture) emit(text string) {
-	var b strings.Builder
-	for _, line := range strings.SplitAfter(c.redact(text), "\n") {
-		if line == "" {
-			continue
-		}
-		b.WriteString(c.prefix)
-		b.WriteString(line)
-		if !strings.HasSuffix(line, "\n") {
-			b.WriteString("\n")
-		}
-	}
-	c.stream.writeString(b.String())
-}
-
-// flush writes whatever the step left without a trailing newline, so a partial
-// last line is not swallowed.
-func (c *capture) flush() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.stream == nil || len(c.pending) == 0 {
-		return
-	}
-	c.emit(string(c.pending))
-	c.pending = c.pending[:0]
-}
-
-func (c *capture) result() (string, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return string(c.buf), c.truncated
 }
