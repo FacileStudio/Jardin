@@ -64,26 +64,35 @@ func readSamples(dataDir, machine string, since time.Time) []Snapshot {
 		if e.IsDir() || strings.HasPrefix(name, ".") || !strings.HasSuffix(name, ".jsonl") {
 			continue
 		}
-		f, err := os.Open(filepath.Join(dir, name))
-		if err != nil {
+		out = append(out, snapshotsInFile(filepath.Join(dir, name), machine, since)...)
+	}
+	return out
+}
+
+// snapshotsInFile reads one sample shard, keeping the snapshots inside the
+// window. A sample written before Snapshot carried a machine is stamped with
+// the directory it was found in, which is the machine that wrote it.
+func snapshotsInFile(path, machine string, since time.Time) []Snapshot {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	var out []Snapshot
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
+	for scanner.Scan() {
+		var s Snapshot
+		if json.Unmarshal(scanner.Bytes(), &s) != nil || s.UpdatedAt.IsZero() {
 			continue
 		}
-		scanner := bufio.NewScanner(f)
-		scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
-		for scanner.Scan() {
-			var s Snapshot
-			if json.Unmarshal(scanner.Bytes(), &s) != nil || s.UpdatedAt.IsZero() {
-				continue
-			}
-			if !since.IsZero() && s.UpdatedAt.Before(since) {
-				continue
-			}
-			if s.Machine == "" {
-				s.Machine = machine
-			}
-			out = append(out, s)
+		if !since.IsZero() && s.UpdatedAt.Before(since) {
+			continue
 		}
-		f.Close()
+		if s.Machine == "" {
+			s.Machine = machine
+		}
+		out = append(out, s)
 	}
 	return out
 }
@@ -105,6 +114,18 @@ func History(dataDir string, since time.Time, machine string) HistoryReport {
 	}
 	sort.SliceStable(samples, func(i, j int) bool { return samples[i].UpdatedAt.Before(samples[j].UpdatedAt) })
 
+	for _, s := range samples {
+		out.Labels = append(out.Labels, s.UpdatedAt.UTC().Format(time.RFC3339))
+	}
+	for _, key := range windowKeysInOrder(samples) {
+		out.Series = append(out.Series, seriesFor(key, samples))
+	}
+	return out
+}
+
+// windowKeysInOrder collects every window key any sample carries, ranked so
+// the series come back in a stable, meaningful order rather than map order.
+func windowKeysInOrder(samples []Snapshot) []string {
 	var keys []string
 	seen := make(map[string]bool)
 	for _, s := range samples {
@@ -122,22 +143,22 @@ func History(dataDir string, since time.Time, machine string) HistoryReport {
 		}
 		return keys[i] < keys[j]
 	})
+	return keys
+}
 
-	for _, s := range samples {
-		out.Labels = append(out.Labels, s.UpdatedAt.UTC().Format(time.RFC3339))
-	}
-	for _, key := range keys {
-		series := HistorySeries{Key: key, Label: Label(key), Values: make([]*float64, len(samples))}
-		for i, s := range samples {
-			for _, w := range s.Windows {
-				if w.Key == key {
-					value := w.UsedPercentage
-					series.Values[i] = &value
-					break
-				}
+// seriesFor builds one window's series across every sample. A sample that does
+// not carry this window leaves a nil, which the dashboard renders as a gap
+// rather than as a zero.
+func seriesFor(key string, samples []Snapshot) HistorySeries {
+	series := HistorySeries{Key: key, Label: Label(key), Values: make([]*float64, len(samples))}
+	for i, s := range samples {
+		for _, w := range s.Windows {
+			if w.Key == key {
+				value := w.UsedPercentage
+				series.Values[i] = &value
+				break
 			}
 		}
-		out.Series = append(out.Series, series)
 	}
-	return out
+	return series
 }

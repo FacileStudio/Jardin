@@ -107,6 +107,27 @@ func collectClaude(claudeDir string, state *ScanState, resolve func(cwd string) 
 	return events, nil
 }
 
+// dedupeUsage zeroes an event's counters when its request has already been
+// counted, and records the request otherwise. A streamed response repeats
+// identical usage lines under one requestId, so counting each would multiply
+// every total by however many chunks arrived. The recent-request window is
+// capped, since a transcript is unbounded and the state file is not.
+func dedupeUsage(ev *Event, reqID string, fs *FileState, seen map[string]bool) {
+	if reqID == "" {
+		return
+	}
+	if seen[reqID] {
+		ev.TokensIn, ev.TokensOut, ev.CacheRead, ev.CacheWrite = 0, 0, 0, 0
+		ev.CostInput, ev.CostOutput, ev.CostTotal = 0, 0, 0
+		return
+	}
+	seen[reqID] = true
+	fs.RecentReqs = append(fs.RecentReqs, reqID)
+	if len(fs.RecentReqs) > recentReqCap {
+		fs.RecentReqs = fs.RecentReqs[len(fs.RecentReqs)-recentReqCap:]
+	}
+}
+
 func tailFile(path string, fs *FileState, resolve func(cwd string) string) ([]Event, int64, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -135,18 +156,7 @@ func tailFile(path string, fs *FileState, resolve func(cwd string) string) ([]Ev
 		if !ok {
 			continue
 		}
-		if reqID != "" {
-			if seen[reqID] {
-				ev.TokensIn, ev.TokensOut, ev.CacheRead, ev.CacheWrite = 0, 0, 0, 0
-				ev.CostInput, ev.CostOutput, ev.CostTotal = 0, 0, 0
-			} else {
-				seen[reqID] = true
-				fs.RecentReqs = append(fs.RecentReqs, reqID)
-				if len(fs.RecentReqs) > recentReqCap {
-					fs.RecentReqs = fs.RecentReqs[len(fs.RecentReqs)-recentReqCap:]
-				}
-			}
-		}
+		dedupeUsage(&ev, reqID, fs, seen)
 		events = append(events, ev)
 	}
 	return events, offset, nil

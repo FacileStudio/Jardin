@@ -65,26 +65,33 @@ func appendBlocks(dataDir, machine string, blocks []Block) error {
 		byMonth[month] = append(byMonth[month], b)
 	}
 	for month, group := range byMonth {
-		f, err := os.OpenFile(filepath.Join(dir, month+".jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-		if err != nil {
-			return err
-		}
-		for _, b := range group {
-			line, err := json.Marshal(b)
-			if err != nil {
-				f.Close()
-				return err
-			}
-			if _, err := f.Write(append(line, '\n')); err != nil {
-				f.Close()
-				return err
-			}
-		}
-		if err := f.Close(); err != nil {
+		if err := writeShard(filepath.Join(dir, month+".jsonl"), group); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// writeShard appends one month's blocks to its shard. The file is closed on
+// every path, including a mid-write failure, since a leaked descriptor on an
+// append-only shard is how a later write silently goes missing.
+func writeShard(path string, group []Block) error {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	for _, b := range group {
+		line, err := json.Marshal(b)
+		if err != nil {
+			f.Close()
+			return err
+		}
+		if _, err := f.Write(append(line, '\n')); err != nil {
+			f.Close()
+			return err
+		}
+	}
+	return f.Close()
 }
 
 // ReadBlocks returns every sealed block from every machine's shards, deduped
@@ -102,20 +109,7 @@ func ReadBlocks(dataDir string) ([]Block, error) {
 		if strings.HasPrefix(name, ".") || !strings.HasSuffix(name, ".jsonl") {
 			return nil
 		}
-		f, err := os.Open(path)
-		if err != nil {
-			return nil
-		}
-		defer f.Close()
-		scanner := bufio.NewScanner(f)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		for scanner.Scan() {
-			var b Block
-			if json.Unmarshal(scanner.Bytes(), &b) == nil && b.ID != "" && !seen[b.ID] {
-				seen[b.ID] = true
-				blocks = append(blocks, b)
-			}
-		}
+		blocks = append(blocks, readShard(path, seen)...)
 		return nil
 	})
 	if err != nil && !os.IsNotExist(err) {
@@ -123,4 +117,27 @@ func ReadBlocks(dataDir string) ([]Block, error) {
 	}
 	sort.Slice(blocks, func(i, j int) bool { return blocks[i].StartedAt.Before(blocks[j].StartedAt) })
 	return blocks, nil
+}
+
+// readShard returns the blocks in one shard that have not been seen already,
+// recording each ID as it goes. A shard it cannot open is skipped rather than
+// failing the read: shards are written by other machines and one being
+// unreadable at this instant says nothing about the rest.
+func readShard(path string, seen map[string]bool) []Block {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	var blocks []Block
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		var b Block
+		if json.Unmarshal(scanner.Bytes(), &b) == nil && b.ID != "" && !seen[b.ID] {
+			seen[b.ID] = true
+			blocks = append(blocks, b)
+		}
+	}
+	return blocks
 }

@@ -1,7 +1,6 @@
 package sessions
 
 import (
-	"sort"
 	"time"
 )
 
@@ -92,6 +91,38 @@ type timelineGroup struct {
 	cells []timelineCell
 }
 
+// blocksInRange drops the blocks that ended before the window opened.
+func blocksInRange(blocks []Block, since time.Time) []*Block {
+	var inRange []*Block
+	for i := range blocks {
+		b := &blocks[i]
+		if !since.IsZero() && b.EndedAt.Before(since) {
+			continue
+		}
+		inRange = append(inRange, b)
+	}
+	return inRange
+}
+
+// timelineStart is the first bucket a series covers: the window's own start
+// when one was given, otherwise the earliest block in range. It reports false
+// when there is neither, which is an empty answer rather than an error.
+func timelineStart(inRange []*Block, since time.Time, bucket string) (time.Time, bool) {
+	if !since.IsZero() {
+		return truncateBucket(since, bucket), true
+	}
+	if len(inRange) == 0 {
+		return time.Time{}, false
+	}
+	start := truncateBucket(inRange[0].StartedAt, bucket)
+	for _, b := range inRange {
+		if s := truncateBucket(b.StartedAt, bucket); s.Before(start) {
+			start = s
+		}
+	}
+	return start, true
+}
+
 // Timeline buckets sessions over time, gap-filled so every bucket between the
 // first one in range and today is present. Series are ranked by total active
 // seconds, capped at MaxSeries with the remainder folded into "Other"; by=total
@@ -105,128 +136,27 @@ func Timeline(blocks []Block, since time.Time, bucket string, by string) Series 
 	}
 	out := Series{Bucket: bucket, By: by, Labels: []string{}, Series: []TimelineSeries{}}
 
-	var inRange []*Block
-	for i := range blocks {
-		b := &blocks[i]
-		if !since.IsZero() && b.EndedAt.Before(since) {
-			continue
-		}
-		inRange = append(inRange, b)
-	}
-
+	inRange := blocksInRange(blocks, since)
 	now := truncateBucket(time.Now(), bucket)
-	var start time.Time
-	switch {
-	case !since.IsZero():
-		start = truncateBucket(since, bucket)
-	case len(inRange) > 0:
-		start = truncateBucket(inRange[0].StartedAt, bucket)
-		for _, b := range inRange {
-			if s := truncateBucket(b.StartedAt, bucket); s.Before(start) {
-				start = s
-			}
-		}
-	default:
+	start, ok := timelineStart(inRange, since, bucket)
+	if !ok {
 		return out
 	}
 	if start.After(now) {
 		start = now
 	}
-	out.Labels = bucketLabels(start, now, bucket)
-	if len(out.Labels) == 0 {
+
+	axis := newTimelineAxis(start, now, bucket)
+	if len(axis.labels) == 0 {
 		return out
 	}
+	out.Labels = axis.labels
 
-	index := make(map[string]int, len(out.Labels))
-	for i, label := range out.Labels {
-		index[label] = i
-	}
-	layout := bucketLayout(bucket)
-
-	groups := make(map[string]*timelineGroup)
-	var order []string
-	for _, b := range inRange {
-		key := AllKey
-		if by != TotalKey {
-			key = groupKey(b, by)
-			if key == "" {
-				if by == "model" {
-					continue
-				}
-				key = "(none)"
-			}
-		}
-		g := groups[key]
-		if g == nil {
-			g = &timelineGroup{key: key, cells: make([]timelineCell, len(out.Labels))}
-			groups[key] = g
-			order = append(order, key)
-		}
-		slot, ok := index[truncateBucket(b.StartedAt, bucket).Format(layout)]
-		if !ok {
-			if b.StartedAt.UTC().Before(start) {
-				slot = 0
-			} else {
-				slot = len(out.Labels) - 1
-			}
-		}
-		seconds := int64(b.Duration().Seconds())
-		cell := &g.cells[slot]
-		cell.seconds += seconds
-		cell.sessions++
-		cell.tokensIn += b.TokensIn + b.CacheWrite
-		cell.tokensOut += b.TokensOut
-		cell.cacheRead += b.CacheRead
-		cell.costTotal += b.CostTotal
-		g.total += seconds
-	}
-
-	ranked := make([]*timelineGroup, 0, len(groups))
-	for _, key := range order {
-		ranked = append(ranked, groups[key])
-	}
-	sort.Slice(ranked, func(i, j int) bool {
-		if ranked[i].total != ranked[j].total {
-			return ranked[i].total > ranked[j].total
-		}
-		return ranked[i].key < ranked[j].key
-	})
-
-	if len(ranked) > MaxSeries {
-		other := &timelineGroup{key: OtherKey, cells: make([]timelineCell, len(out.Labels))}
-		for _, g := range ranked[MaxSeries-1:] {
-			for i, c := range g.cells {
-				other.cells[i].seconds += c.seconds
-				other.cells[i].sessions += c.sessions
-				other.cells[i].tokensIn += c.tokensIn
-				other.cells[i].tokensOut += c.tokensOut
-				other.cells[i].cacheRead += c.cacheRead
-				other.cells[i].costTotal += c.costTotal
-			}
-			other.total += g.total
-		}
-		ranked = append(ranked[:MaxSeries-1:MaxSeries-1], other)
-	}
-
+	ranked := accumulate(inRange, by, axis)
+	rankGroups(ranked)
+	ranked = foldBeyondMax(ranked, len(axis.labels))
 	for _, g := range ranked {
-		s := TimelineSeries{
-			Key:       g.key,
-			Seconds:   make([]int64, len(out.Labels)),
-			Sessions:  make([]int, len(out.Labels)),
-			TokensIn:  make([]int64, len(out.Labels)),
-			TokensOut: make([]int64, len(out.Labels)),
-			CacheRead: make([]int64, len(out.Labels)),
-			CostTotal: make([]float64, len(out.Labels)),
-		}
-		for i, c := range g.cells {
-			s.Seconds[i] = c.seconds
-			s.Sessions[i] = c.sessions
-			s.TokensIn[i] = c.tokensIn
-			s.TokensOut[i] = c.tokensOut
-			s.CacheRead[i] = c.cacheRead
-			s.CostTotal[i] = c.costTotal
-		}
-		out.Series = append(out.Series, s)
+		out.Series = append(out.Series, g.series(len(axis.labels)))
 	}
 	return out
 }
