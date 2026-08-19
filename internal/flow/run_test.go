@@ -3,6 +3,7 @@ package flow
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -164,6 +165,10 @@ func TestExecuteTruncatesOversizedOutput(t *testing.T) {
 	}
 }
 
+// TestExecuteUsesWorkDir compares the step's pwd against the resolved temp dir:
+// on macOS /var is a symlink to /private/var, so t.TempDir() and the shell spell
+// the same directory differently. The recorded WorkDir stays a raw comparison —
+// the runner must keep the path it was configured with.
 func TestExecuteUsesWorkDir(t *testing.T) {
 	dir := t.TempDir()
 	run := execFlow(t, []Step{{Name: "pwd", Run: "pwd"}}, Options{WorkDir: dir})
@@ -171,8 +176,16 @@ func TestExecuteUsesWorkDir(t *testing.T) {
 	if run.WorkDir != dir {
 		t.Errorf("WorkDir = %q, want %q", run.WorkDir, dir)
 	}
-	if got := strings.TrimSpace(run.Steps[0].Stdout); got != dir {
-		t.Errorf("step ran in %q, want %q", got, dir)
+	want, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := filepath.EvalSymlinks(strings.TrimSpace(run.Steps[0].Stdout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("step ran in %q, want %q", got, want)
 	}
 }
 
