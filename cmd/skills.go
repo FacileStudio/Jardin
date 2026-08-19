@@ -9,6 +9,7 @@ import (
 
 	"github.com/FacileStudio/Mycelium/internal/cell"
 	"github.com/FacileStudio/Mycelium/internal/config"
+	"github.com/FacileStudio/Mycelium/internal/ui"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -28,7 +29,7 @@ var skillsListCmd = &cobra.Command{
 			return err
 		}
 		if len(skills) == 0 {
-			fmt.Println("No skills.")
+			ui.Hint("No skills.")
 			return nil
 		}
 		for _, s := range skills {
@@ -91,7 +92,7 @@ var skillsValidateCmd = &cobra.Command{
 		}
 
 		if len(names) == 0 {
-			fmt.Println("No skills to validate.")
+			ui.Hint("No skills to validate.")
 			return nil
 		}
 
@@ -191,6 +192,6 @@ func init() {
 	skillsCmd.AddCommand(skillsListCmd)
 	skillsCmd.AddCommand(skillsAddCmd)
 	skillsCmd.AddCommand(skillsValidateCmd)
-	skillsValidateCmd.Flags().BoolVar(&skillsValidateAll, "all", false, "validate all skills")
+	skillsValidateCmd.Flags().BoolVar(&skillsValidateAll, "all", false, "Validate all skills")
 	rootCmd.AddCommand(skillsCmd)
 }

@@ -465,13 +465,13 @@ func openBrowser(url string) {
 }
 
 func init() {
-	loginCmd.Flags().StringVarP(&loginMachine, "machine", "m", "", "machine name to register (default: config machine or hostname)")
-	loginCmd.Flags().BoolVar(&loginNoDaemon, "no-daemon", false, "skip enabling the background sync service")
-	loginCmd.Flags().StringVar(&loginToken, "token", "", "authenticate with a token from the dashboard")
-	loginCmd.Flags().BoolVar(&loginTokenStdin, "token-stdin", false, "read the token from stdin")
-	loginCmd.Flags().BoolVar(&loginPassword, "password", false, "authenticate with the server password instead of the browser")
-	loginCmd.Flags().BoolVar(&loginPasswordStdin, "password-stdin", false, "read the server password from stdin")
-	loginCmd.Flags().BoolVar(&loginNoBrowser, "no-browser", false, "print the authorization URL instead of opening a browser")
-	loginCmd.Flags().StringVar(&loginSpace, "space", "", "select a space to sync after login (name or id)")
+	loginCmd.Flags().StringVarP(&loginMachine, "machine", "m", "", "Machine name to register (default: config machine or hostname)")
+	loginCmd.Flags().BoolVar(&loginNoDaemon, "no-daemon", false, "Skip enabling the background sync service")
+	loginCmd.Flags().StringVar(&loginToken, "token", "", "Authenticate with a token from the dashboard")
+	loginCmd.Flags().BoolVar(&loginTokenStdin, "token-stdin", false, "Read the token from stdin")
+	loginCmd.Flags().BoolVar(&loginPassword, "password", false, "Authenticate with the server password instead of the browser")
+	loginCmd.Flags().BoolVar(&loginPasswordStdin, "password-stdin", false, "Read the server password from stdin")
+	loginCmd.Flags().BoolVar(&loginNoBrowser, "no-browser", false, "Print the authorization URL instead of opening a browser")
+	loginCmd.Flags().StringVar(&loginSpace, "space", "", "Select a space to sync after login (name or id)")
 	rootCmd.AddCommand(loginCmd)
 }

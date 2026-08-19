@@ -65,7 +65,7 @@ var usageCmd = &cobra.Command{
 			return printUsageJSON(views, machine)
 		}
 		if len(views) == 0 {
-			fmt.Println("No usage recorded yet — run 'mycelium install claude' so Claude Code's status line reports it.")
+			ui.Hint("No usage recorded yet — run 'mycelium install claude' so Claude Code's status line reports it.")
 			return nil
 		}
 		for i, v := range views {
@@ -213,7 +213,7 @@ func printSnapshot(s usage.SnapshotView, self bool) {
 	}
 	fmt.Println()
 	if len(s.Windows) == 0 {
-		fmt.Println("  no windows reported")
+		ui.Hint("no windows reported")
 		return
 	}
 	width := 0
@@ -309,9 +309,9 @@ func statusLineText(s usage.Snapshot) string {
 }
 
 func init() {
-	usageCmd.Flags().BoolVar(&usageStatusLine, "statusline", false, "read Claude Code's status-line payload on stdin, record it, print one line")
-	usageCmd.Flags().BoolVar(&usageLive, "live", false, "fetch live limits from Anthropic's OAuth usage endpoint")
-	usageCmd.Flags().BoolVar(&usageJSON, "json", false, "emit the snapshot as JSON")
+	usageCmd.Flags().BoolVar(&usageStatusLine, "statusline", false, "Read Claude Code's status-line payload on stdin, record it, print one line")
+	usageCmd.Flags().BoolVar(&usageLive, "live", false, "Fetch live limits from Anthropic's OAuth usage endpoint")
+	usageCmd.Flags().BoolVar(&usageJSON, "json", false, "Emit the snapshot as JSON")
 	usageCmd.AddCommand(usageLoginCmd, usageLogoutCmd)
 	rootCmd.AddCommand(usageCmd)
 }

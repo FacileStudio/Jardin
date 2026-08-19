@@ -197,9 +197,9 @@ func init() {
 	flowCmd.AddCommand(flowTrustCmd)
 	flowCmd.AddCommand(flowUntrustCmd)
 	for _, c := range []*cobra.Command{flowListCmd, flowRunsCmd, flowShowCmd} {
-		c.Flags().BoolVar(&flowJSON, "json", false, "emit JSON")
+		c.Flags().BoolVar(&flowJSON, "json", false, "Emit JSON")
 	}
-	flowTrustCmd.Flags().BoolVar(&flowTrustYes, "yes", false, "pin without the interactive confirmation")
-	flowRunsCmd.Flags().IntVar(&flowRunsLimit, "limit", 20, "how many runs to list")
+	flowTrustCmd.Flags().BoolVar(&flowTrustYes, "yes", false, "Pin without the interactive confirmation")
+	flowRunsCmd.Flags().IntVar(&flowRunsLimit, "limit", 20, "How many runs to list")
 	rootCmd.AddCommand(flowCmd)
 }

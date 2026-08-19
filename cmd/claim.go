@@ -9,6 +9,7 @@ import (
 
 	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/FacileStudio/Mycelium/internal/sessions"
+	"github.com/FacileStudio/Mycelium/internal/ui"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -173,7 +174,7 @@ var claimListCmd = &cobra.Command{
 		}
 		entries := sessions.ReadClaimsLive(config.DataDir(), project, time.Now())
 		if len(entries) == 0 {
-			fmt.Println("No active claims.")
+			ui.Hint("No active claims.")
 			return nil
 		}
 		for _, e := range entries {
@@ -214,7 +215,7 @@ var claimShowCmd = &cobra.Command{
 		}
 		entries := sessions.ReadClaimsLive(config.DataDir(), project, time.Now())
 		if len(entries) == 0 {
-			fmt.Println("No active claims on this repo.")
+			ui.Hint("No active claims on this repo.")
 			return nil
 		}
 		for _, e := range entries {
@@ -226,7 +227,7 @@ var claimShowCmd = &cobra.Command{
 			if e.Body != "" {
 				fmt.Println(e.Body)
 			} else {
-				fmt.Println("  (no notes yet)")
+				ui.Hint("(no notes yet)")
 			}
 			fmt.Println()
 		}
@@ -235,12 +236,12 @@ var claimShowCmd = &cobra.Command{
 }
 
 func init() {
-	claimCmd.PersistentFlags().StringVarP(&claimProject, "project", "p", "", "project/repo to claim (default: current repo)")
-	claimCmd.PersistentFlags().StringVarP(&claimMachine, "machine", "m", "", "machine name (default: config)")
-	claimCmd.PersistentFlags().StringVar(&claimAgent, "agent", "", "agent name (default: machine)")
-	claimStartCmd.Flags().StringVarP(&claimBranch, "branch", "b", "", "branch (default: current git branch)")
-	claimStartCmd.Flags().StringVar(&claimBody, "body", "", "initial scratchpad body")
-	claimListCmd.Flags().BoolVar(&claimAll, "all", false, "show claims across all repos")
+	claimCmd.PersistentFlags().StringVarP(&claimProject, "project", "p", "", "Project/repo to claim (default: current repo)")
+	claimCmd.PersistentFlags().StringVarP(&claimMachine, "machine", "m", "", "Machine name (default: config)")
+	claimCmd.PersistentFlags().StringVar(&claimAgent, "agent", "", "Agent name (default: machine)")
+	claimStartCmd.Flags().StringVarP(&claimBranch, "branch", "b", "", "Branch (default: current git branch)")
+	claimStartCmd.Flags().StringVar(&claimBody, "body", "", "Initial scratchpad body")
+	claimListCmd.Flags().BoolVar(&claimAll, "all", false, "Show claims across all repos")
 	claimCmd.AddCommand(claimStartCmd, claimNoteCmd, claimDoneCmd, claimListCmd, claimShowCmd)
 	rootCmd.AddCommand(claimCmd)
 }

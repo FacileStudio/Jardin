@@ -147,6 +147,6 @@ func resolveSymlink(path string) (string, bool) {
 }
 
 func init() {
-	installCmd.Flags().BoolVar(&installAll, "all", false, "generate configs for all agents")
+	installCmd.Flags().BoolVar(&installAll, "all", false, "Generate configs for all agents")
 	rootCmd.AddCommand(installCmd)
 }
