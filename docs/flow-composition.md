@@ -93,6 +93,29 @@ An unpinned model refuses to run; an edited one loses its pin and refuses again.
 A type name is a path fragment and is checked for escaping — `../../.ssh/id_rsa`
 does not resolve. `bun` is only required by flows that declare a `type`.
 
+**The pin covers what the model imports, not just the file it names.** A model
+written with `defineModel()` hands its argv, its stdin and the call into
+`execute()` to a file in `_lib`, so a pin that stopped at the entry would leave
+the outermost layer of every model editable under an approval that still read
+clean. `trust-model` resolves the import closure, prints every file in it, and
+hashes them together:
+
+```console
+$ jardin flow trust-model @facile/http-check
+--- .../facile/http-check.ts
+--- .../_lib/defineModel.ts
+  2 files: the entry and everything it imports
+```
+
+Relative (`./near`) and subpath (`#lib/*`, via the models root's
+`package.json`) specifiers are followed. A bare specifier like `bun` is the
+runtime's, not this tree's, and is not hashed. An import that resolves to a real
+file **outside** the models root is refused outright rather than pinned.
+
+One limit worth knowing: a computed specifier — ``import(`./${name}`)`` — cannot
+be resolved statically and is not in the closure. It is plainly visible in the
+entry file you read before pinning, which is where that case is caught.
+
 ## v3 — the dependency graph
 
 Steps form a graph, and steps with no edge between them run at the same time.
