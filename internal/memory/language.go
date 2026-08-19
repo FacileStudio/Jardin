@@ -138,13 +138,16 @@ func isOpaqueToken(token string) bool {
 // match its own output, doctor reports wiki-relative ones. The exemption is
 // decided on the base name so neither caller can lose it by passing a different
 // shape of path.
+//
+// An unreadable file yields no findings rather than an error: this runs on a
+// sync and inside doctor, and a warning path must never be the reason either
+// fails.
 func scanFile(absPath, reportPath string) []LanguageFinding {
 	if filepath.Base(absPath) == langExemptFile {
 		return nil
 	}
 	data, err := os.ReadFile(absPath)
 	if err != nil {
-		// A warning path must never be the reason a sync or a doctor run fails.
 		return nil
 	}
 	var findings []LanguageFinding
