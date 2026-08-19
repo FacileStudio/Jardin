@@ -109,8 +109,12 @@ func runStep(ctx context.Context, step Step, resolved map[string]string, dir str
 	cmd.Dir = dir
 	cmd.Env = env
 	isolate(cmd)
-	out := newCapture(live, "["+step.Name+"] ", redact)
-	errOut := newCapture(live, "["+step.Name+"! ", redact)
+	mirror := live
+	if step.Ephemeral {
+		mirror = nil
+	}
+	out := newCapture(mirror, "["+step.Name+"] ", redact)
+	errOut := newCapture(mirror, "["+step.Name+"! ", redact)
 	cmd.Stdout = out
 	cmd.Stderr = errOut
 

@@ -167,19 +167,42 @@ func (s *scheduler) judge(out outcome) {
 	step := s.step(out.name)
 	switch {
 	case res.TimedOut:
-		s.run.Status = StatusTimeout
+		s.worsen(StatusTimeout)
 		s.stopped = true
 		s.cancel()
 	case res.NotStarted && !res.Skipped:
 		s.blocked[out.name] = true
-		s.run.Status = StatusUnresolved
+		s.worsen(StatusUnresolved)
 	case res.Skipped:
 		s.blocked[out.name] = true
 	case res.ExitCode != 0 && !step.AllowFailure:
 		s.blocked[out.name] = true
-		if s.run.Status == StatusOK {
-			s.run.Status = StatusFailed
-		}
+		s.worsen(StatusFailed)
+	}
+}
+
+// statusRank orders how badly a run ended. Steps finish in whatever order the
+// scheduler gives them, so a status that is simply assigned would report
+// whichever step happened to land last — the same flow could describe itself
+// differently on two runs.
+func statusRank(status string) int {
+	switch status {
+	case StatusFailed:
+		return 1
+	case StatusUnresolved:
+		return 2
+	case StatusTimeout:
+		return 3
+	default:
+		return 0
+	}
+}
+
+// worsen moves the run's status towards the worst thing that happened to it,
+// and never back, so the result does not depend on scheduling.
+func (s *scheduler) worsen(status string) {
+	if statusRank(status) > statusRank(s.run.Status) {
+		s.run.Status = status
 	}
 }
 

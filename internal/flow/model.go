@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/FacileStudio/Jardin/internal/config"
 )
@@ -22,6 +23,10 @@ const (
 	// modelRuntime executes a model. It is not a dependency of jardin: a flow
 	// that declares no type never looks for it.
 	modelRuntime = "bun"
+	// describeTimeout bounds the preflight call. Every step has a timeout; the
+	// phase that runs model code before any step had none, so a model that hung
+	// in describe hung the whole run with nothing left to stop it.
+	describeTimeout = 30 * time.Second
 )
 
 // Model is a typed step implementation resolved on this machine.
@@ -108,6 +113,8 @@ func TrustModel(m *Model) error {
 // Describe asks a model what it accepts. It runs the model with one argument
 // and reads JSON back, so adding a model needs no jardin release.
 func Describe(ctx context.Context, m *Model) (*Schema, error) {
+	ctx, cancel := context.WithTimeout(ctx, describeTimeout)
+	defer cancel()
 	out, err := runtimeOutput(ctx, m, "describe", nil)
 	if err != nil {
 		return nil, err

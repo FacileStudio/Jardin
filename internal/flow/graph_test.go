@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
@@ -93,20 +94,30 @@ func TestCycleErrorNamesTheLoop(t *testing.T) {
 	}
 }
 
-func TestIndependentStepsRunAtTheSameTime(t *testing.T) {
-	start := time.Now()
+// Concurrency is asserted from the recorded times rather than from the clock:
+// a step that starts before another has finished overlapped it, and that stays
+// true however slow the machine is. A wall-clock bound would only be measuring
+// how busy the runner was.
+func TestIndependentStepsOverlap(t *testing.T) {
 	run := execFlow(t, []Step{
 		{Name: "a", DependsOn: []string{}, Run: "sleep 1"},
 		{Name: "b", DependsOn: []string{}, Run: "sleep 1"},
 		{Name: "c", DependsOn: []string{}, Run: "sleep 1"},
 	}, Options{})
-	elapsed := time.Since(start)
 
 	if run.Status != StatusOK {
 		t.Fatalf("status = %q, want %q", run.Status, StatusOK)
 	}
-	if elapsed > 2*time.Second {
-		t.Errorf("three independent one-second steps took %v: they ran in series", elapsed)
+	if len(run.Steps) != 3 {
+		t.Fatalf("recorded %d steps", len(run.Steps))
+	}
+	first := run.Steps[0]
+	firstEnded := first.StartedAt.Add(time.Duration(first.DurationMS) * time.Millisecond)
+	for _, later := range run.Steps[1:] {
+		if !later.StartedAt.Before(firstEnded) {
+			t.Errorf("%q started at %v, after %q finished at %v: they ran in series",
+				later.Name, later.StartedAt, first.Name, firstEnded)
+		}
 	}
 }
 
@@ -140,6 +151,8 @@ func TestFailureStopsItsBranchAndNothingElse(t *testing.T) {
 	}
 }
 
+// Only the lower bound is asserted: a busy machine can make this slower, but
+// nothing can make serialised steps finish faster than their sum.
 func TestParallelLimitIsRespected(t *testing.T) {
 	start := time.Now()
 	run := execFlow(t, []Step{
@@ -172,5 +185,49 @@ func TestArtifactRecordsRealStartOrder(t *testing.T) {
 	}
 	if !run.Steps[0].StartedAt.Before(run.Steps[1].StartedAt) {
 		t.Error("start times do not reflect the real order")
+	}
+}
+
+// Steps finish in whatever order the scheduler gives them, so a run that both
+// failed and hit an unresolvable need must not report whichever landed last.
+func TestWorstStatusWinsRegardlessOfOrder(t *testing.T) {
+	run := execFlow(t, []Step{
+		{Name: "slowfail", DependsOn: []string{}, Run: "sleep 0.3; exit 1"},
+		{Name: "big", DependsOn: []string{}, Run: "awk 'BEGIN{while(i++ < 3000) printf \"%s\", \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}'"},
+		{Name: "consume", DependsOn: []string{"big"}, Needs: map[string]string{"V": "big.stdout"}, Run: "echo hi"},
+	}, Options{})
+
+	if run.Status != StatusUnresolved {
+		t.Fatalf("status = %q, want %q — the worst outcome, not the last one", run.Status, StatusUnresolved)
+	}
+	var failed bool
+	for _, s := range run.Steps {
+		if s.Name == "slowfail" && s.ExitCode == 1 {
+			failed = true
+		}
+	}
+	if !failed {
+		t.Error("the failing step is missing from the artifact, so the status hides it entirely")
+	}
+}
+
+// A step marked ephemeral must not reach the terminal either. Keeping a secret
+// off disk while printing it to a console that agents and CI capture is not
+// keeping it.
+func TestEphemeralOutputIsNotStreamedLive(t *testing.T) {
+	var live bytes.Buffer
+	run := execFlow(t, []Step{
+		{Name: "mint", Run: "echo super-secret-token", Ephemeral: true},
+		{Name: "loud", Run: "echo ordinary-output"},
+	}, Options{Stream: &live})
+
+	if run.Status != StatusOK {
+		t.Fatalf("status = %q", run.Status)
+	}
+	if strings.Contains(live.String(), "super-secret-token") {
+		t.Errorf("ephemeral output was streamed to the terminal: %q", live.String())
+	}
+	if !strings.Contains(live.String(), "ordinary-output") {
+		t.Error("suppressing ephemeral output also silenced the ordinary steps")
 	}
 }
