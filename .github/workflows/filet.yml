@@ -8,19 +8,24 @@ on:
 permissions:
   contents: read
 
-# filet needs Go >= 1.26.5, and GOTOOLCHAIN=auto resolves that to the newest
-# toolchain module it can see. On 2026-08-19 that became go1.26.7, which is
-# listed as a module but 404s on go.dev — the newest published release is
-# go1.26.6 — so installing filet failed and every check was skipped. Pinning to
-# a version that exists is the fix; raise it when 1.26.7 is actually downloadable.
+# Install the newest published Go and use exactly that. filet needs >= 1.26.5,
+# and GOTOOLCHAIN=auto resolved it to go1.26.7 on 2026-08-19: a toolchain module
+# that is listed but 404s on go.dev, where go1.26.6 is the newest release. So
+# installing filet failed and every check was skipped, with no findings to say
+# why. setup-go tracks what is actually downloadable, and GOTOOLCHAIN=local
+# stops the resolver reaching past it — a future version filet really needs then
+# fails as "requires go >= X" rather than as a 404.
 env:
-  GOTOOLCHAIN: go1.26.6
+  GOTOOLCHAIN: local
 
 jobs:
   filet:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
       - uses: FacileStudio/filet@v0.3.0
         with:
           version: v0.3.0
