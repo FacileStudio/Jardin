@@ -18,6 +18,7 @@ const (
 	manifestName = ".sync-base.json"
 	conflictExt  = ".conflict"
 	tokensFile   = "tokens.json"
+	usagePrefix  = "usage/"
 )
 
 // Client talks to a Mycelium server over HTTP, scoped to one space when Space
@@ -260,8 +261,9 @@ func (c *Client) Sync(dataDir string) (*Result, error) {
 }
 
 // resolveConflict handles a path where both sides changed since base. Content
-// always beats a deletion, so nothing is lost; between two edits it picks a
-// deterministic winner and keeps the loser as <path>.conflict.
+// always beats a deletion, so nothing is lost; a single-writer path takes the
+// fresher copy outright; between two genuine edits it picks a deterministic
+// winner and keeps the loser as <path>.conflict.
 func (c *Client) resolveConflict(dataDir, p string, local, remote FileEntry, next map[string]string, res *Result) error {
 	if local.Checksum == "" {
 		if err := c.downloadFile(dataDir, p); err != nil {
@@ -280,6 +282,10 @@ func (c *Client) resolveConflict(dataDir, p string, local, remote FileEntry, nex
 		next[p] = local.Checksum
 		res.Conflicts = append(res.Conflicts, p+" (deleted on server, edited locally — kept local copy)")
 		return nil
+	}
+
+	if singleWriter(p) {
+		return c.resolveSingleWriter(dataDir, p, local, remote, next, res)
 	}
 
 	if localWins(local, remote) {
