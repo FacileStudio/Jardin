@@ -125,21 +125,30 @@ func markInstalled(now time.Time) {
 	os.Chtimes(path, now, now)
 }
 
-// DetectAgents returns the names of the code assistants whose rule files exist
-// on this machine.
 // DetectAgents reports the agents whose home-level config directory exists.
 //
 // Only home-scoped adapters can be found this way. Cursor writes .cursor/rules/
 // and Copilot writes .github/copilot-instructions.md, both relative to a
 // project, so there is nothing under $HOME to look for and neither belongs
 // here. Opencode does have a home config, and its absence was why `doctor`
-// reported four agents where `install --all` writes seven.
+// reported four agents where `install --all` writes eight.
+//
+// The `agents` marker reads differently from the rest. ~/.claude exists
+// because Claude Code created it, so finding it means that tool is installed;
+// ~/.agents is created by this adapter, so finding it means only that someone
+// opted into the convention here once. That is deliberate rather than
+// circular reasoning: the alternative is keying off whichever consumer
+// happens to be installed, and the adapter is named for the specification
+// precisely because it does not belong to one. Bootstrap with an explicit
+// `jardin install agents` or any `--all`; the daemon refreshes it from then
+// on.
 func DetectAgents() []string {
 	home, _ := os.UserHomeDir()
 	markers := []struct {
 		agent string
 		path  string
 	}{
+		{"agents", filepath.Join(home, ".agents")},
 		{"claude", filepath.Join(home, ".claude")},
 		{"codex", filepath.Join(home, ".codex")},
 		{"gemini", filepath.Join(home, ".gemini")},

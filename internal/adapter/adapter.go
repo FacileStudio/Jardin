@@ -2,6 +2,9 @@ package adapter
 
 import (
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 
 	"github.com/FacileStudio/Jardin/internal/cell"
 )
@@ -49,16 +52,35 @@ func Get(name string) (Adapter, error) {
 	return a, nil
 }
 
-// Available returns the registered adapter names.
-func Available() string {
-	var names []string
-	for name := range registry {
-		names = append(names, name)
-	}
-	return fmt.Sprintf("%v", names)
+// Names returns every registered adapter name, sorted.
+//
+// Sorted rather than left in registry order because Go randomises map
+// iteration per run. Without this the "available" list in Get's error, the
+// list in `install --help` and the order `install --all` writes its files all
+// shuffle between invocations, which reads as instability in the tool rather
+// than as the deliberate non-determinism it actually is.
+func Names() []string {
+	return slices.Sorted(maps.Keys(registry))
 }
 
-// All returns the registry itself.
-func All() map[string]Adapter {
-	return registry
+// Available returns the registered adapter names as one display string.
+func Available() string {
+	return strings.Join(Names(), ", ")
+}
+
+// All returns every registered adapter, in Names order.
+//
+// A slice rather than the registry map, and the difference is the point: a
+// map hands the caller Go's randomised iteration, which is what made
+// `install --all` write its files in a different order every run. Returning
+// the sequence already sorted means a caller cannot reintroduce that by
+// accident, and leaves no key lookup to get wrong — an absent key would
+// yield a nil Adapter and panic on first use.
+func All() []Adapter {
+	names := Names()
+	out := make([]Adapter, 0, len(names))
+	for _, name := range names {
+		out = append(out, registry[name])
+	}
+	return out
 }

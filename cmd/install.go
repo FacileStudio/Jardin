@@ -19,7 +19,6 @@ var installAll bool
 var installCmd = &cobra.Command{
 	Use:   "install [agent]",
 	Short: "Generate config for an agent",
-	Long:  "Generate agent-specific config from rules and skills.\n\nWith no argument, generates for the agents detected on this machine.\n--all generates for every adapter, including tools that are not installed.\nAvailable agents: claude, gemini, codex, cursor, copilot, hermes, opencode",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !installAll && len(args) == 0 {
@@ -146,7 +145,20 @@ func resolveSymlink(path string) (string, bool) {
 	return resolved, true
 }
 
+// installLong builds the help text with the adapter list read from the
+// registry rather than typed into it. The same list is spelled out in the
+// README, AGENTS.md, two docs pages and the dashboard's master prompt; a
+// hardcoded seventh copy here is how the next adapter goes missing from one
+// of them without anything failing.
+func installLong() string {
+	return "Generate agent-specific config from rules and skills.\n\n" +
+		"With no argument, generates for the agents detected on this machine.\n" +
+		"--all generates for every adapter, including tools that are not installed.\n" +
+		"Available agents: " + adapter.Available()
+}
+
 func init() {
+	installCmd.Long = installLong()
 	installCmd.Flags().BoolVar(&installAll, "all", false, "Generate configs for all agents")
 	rootCmd.AddCommand(installCmd)
 }

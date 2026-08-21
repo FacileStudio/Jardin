@@ -53,6 +53,6 @@ When you do write:
 - \`jardin rules list\` / \`jardin rules edit <name>\` — shared rules (\`~/.jardin/rules/\`).
 - \`jardin skills list\` / \`jardin skills add <name>\` — shared skills (\`~/.jardin/skills/\`).
 - \`jardin install <agent>\` (or \`--all\`) regenerates an agent's native config from
-  rules + skills + machine block; \`jardin diff <agent>\` previews first. Agents: claude,
-  codex, gemini, cursor, copilot, hermes.
+  rules + skills + machine block; \`jardin diff <agent>\` previews first. Agents: agents,
+  claude, codex, gemini, cursor, copilot, hermes, opencode.
 `;

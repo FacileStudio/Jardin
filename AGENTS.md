@@ -34,7 +34,7 @@ git tag v0.x.x && git push --tags
 ├── internal/
 │   ├── config/         # ~/.jardin.yml + paths
 │   ├── cell/           # local store: read rules/skills/machine, scaffold
-│   ├── adapter/        # one file per agent (claude, codex, gemini, cursor, copilot, hermes)
+│   ├── adapter/        # one file per agent (agents, claude, codex, gemini, cursor, copilot, hermes, opencode)
 │   ├── memory/         # memory search + index
 │   ├── sessions/       # agent session tracking: transcript scan, sessionize, shards, stats
 │   ├── daemon/         # background sync service (launchd/systemd)

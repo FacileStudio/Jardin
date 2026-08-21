@@ -26,7 +26,8 @@ and fans it out. The agents stay thin; the brain is shared.
 ## What it does
 
 - Stores memory, rules, and skills as plain markdown under `~/.jardin`, with no database
-- Generates native config for `claude`, `codex`, `gemini`, `cursor`, `copilot`, `hermes`
+- Generates native config for `claude`, `codex`, `gemini`, `cursor`, `copilot`, `hermes`,
+  `opencode`, and `agents` (the cross-vendor `~/.agents/` standard path)
   and ships a pi extension that integrates Pi into the same session tracking
 - Syncs every machine against a Jardin server with a three-way reconcile that never drops
   a version
@@ -141,7 +142,7 @@ Full reference: [docs/configuration.md](docs/configuration.md).
 main.go      Entry point — tronc healthcheck, then the cobra tree
 cmd/         One file per command (init, login, sync, install, serve, sessions, spaces, usage)
 internal/
-  adapter/   One file per agent (claude, codex, gemini, cursor, copilot, hermes)
+  adapter/   One file per agent (agents, claude, codex, gemini, cursor, copilot, hermes, opencode)
   cell/      Local store: scaffold and read the markdown tree
   config/    ~/.jardin.yml and the data directory paths
   daemon/    Background sync service (launchd / systemd)
