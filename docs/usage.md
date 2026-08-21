@@ -245,8 +245,10 @@ mycelium diff codex
 
 | Agent | Writes |
 |---|---|
+| `agents` | `~/.agents/AGENTS.md`, skills as `~/.agents/skills/<name>/SKILL.md` — the cross-vendor standard path, read by nacelle and any tool following the AGENTS.md spec. Its `AGENTS.md` opens with a generated-by notice; `mycelium diff agents` first if the file may be handwritten |
 | `claude` | `~/.claude/CLAUDE.md`, skills as `~/.claude/skills/<name>/SKILL.md`, plus a `SessionStart` hook and a `statusLine` in `~/.claude/settings.json` |
 | `codex` | `~/.codex/AGENTS.md`, skills as `~/.codex/skills/<name>/SKILL.md` |
+| `opencode` | `~/.config/opencode/AGENTS.md`, skills as `~/.config/opencode/skills/<name>/SKILL.md` |
 | `gemini` | `~/.gemini/GEMINI.md`, skills as `~/.gemini/skills/<name>/SKILL.md` |
 | `hermes` | `~/SOUL.md` |
 | `copilot` | `.github/copilot-instructions.md` |

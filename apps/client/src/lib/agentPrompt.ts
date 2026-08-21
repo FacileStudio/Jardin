@@ -53,6 +53,6 @@ When you do write:
 - \`mycelium rules list\` / \`mycelium rules edit <name>\` — shared rules (\`~/.mycelium/rules/\`).
 - \`mycelium skills list\` / \`mycelium skills add <name>\` — shared skills (\`~/.mycelium/skills/\`).
 - \`mycelium install <agent>\` (or \`--all\`) regenerates an agent's native config from
-  rules + skills + machine block; \`mycelium diff <agent>\` previews first. Agents: claude,
-  codex, gemini, cursor, copilot, hermes.
+  rules + skills + machine block; \`mycelium diff <agent>\` previews first. Agents: agents,
+  claude, codex, gemini, cursor, copilot, hermes, opencode.
 `;

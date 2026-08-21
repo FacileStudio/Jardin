@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +30,43 @@ func TestDetectAgentsWithoutGeneratedFiles(t *testing.T) {
 	got := DetectAgents()
 	if len(got) != 1 || got[0] != "claude" {
 		t.Fatalf("agent dir without generated config must still be detected, got %v", got)
+	}
+}
+
+// TestDetectAgentsFindsTheAgentsStandardDirectory covers the one marker that
+// does not mean what the others mean. ~/.claude exists because Claude Code
+// created it, so finding it says that tool is installed; ~/.agents is created
+// by mycelium's own agents adapter, so finding it says only that someone opted
+// into the convention here once. Detection still has to fire, because it is
+// what makes the daemon refresh the tree after the first install.
+func TestDetectAgentsFindsTheAgentsStandardDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	os.MkdirAll(filepath.Join(home, ".agents"), 0755)
+
+	got := DetectAgents()
+	if len(got) != 1 || got[0] != "agents" {
+		t.Fatalf("expected [agents], got %v", got)
+	}
+}
+
+// TestDetectAgentsOrderFollowsTheMarkerList pins the ordering the other tests
+// in this file assert by index. Creation order is deliberately the reverse of
+// the expected result: without this, a reader has no way to tell whether
+// got[0] == "claude" is a contract or an accident of how the temp dirs were
+// made, and the first person to add a marker breaks those assertions for a
+// reason unrelated to what they were testing.
+func TestDetectAgentsOrderFollowsTheMarkerList(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, dir := range []string{".codex", ".claude", ".agents"} {
+		os.MkdirAll(filepath.Join(home, dir), 0755)
+	}
+
+	got := DetectAgents()
+	want := []string{"agents", "claude", "codex"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("DetectAgents() = %v, want %v", got, want)
 	}
 }
 

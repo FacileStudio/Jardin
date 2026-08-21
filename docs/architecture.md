@@ -152,12 +152,31 @@ self-registers in `internal/adapter`, so adding an agent is one small file.
 
 | Agent | Writes |
 |---|---|
+| `agents` | `~/.agents/AGENTS.md`, skills as `~/.agents/skills/<name>/SKILL.md` |
 | `claude` | `~/.claude/CLAUDE.md`, skills as `~/.claude/skills/<name>/SKILL.md` |
 | `codex` | `~/.codex/AGENTS.md`, skills as `~/.codex/skills/<name>/SKILL.md` |
+| `opencode` | `~/.config/opencode/AGENTS.md`, skills as `~/.config/opencode/skills/<name>/SKILL.md` |
 | `gemini` | `~/.gemini/GEMINI.md`, skills as `~/.gemini/skills/<name>/SKILL.md` |
 | `hermes` | `~/SOUL.md` |
 | `copilot` | `.github/copilot-instructions.md` |
 | `cursor` | `.cursor/rules/<name>.mdc` |
+
+`agents` is the only adapter not named for a tool. It targets the AGENTS.md specification's
+own global-base path, which is stewarded cross-vendor rather than by any one vendor, so a
+single tree serves every agent that follows the convention — nacelle reads both paths today
+— instead of needing one more adapter per tool. Both `~/.agents/AGENTS.md` and
+`~/.agents/skills/**/SKILL.md` are named by the specification itself, and Gemini CLI already
+reads `~/.agents/skills/` as an alias for its own — a second consumer of the same tree.
+
+It is also the only adapter whose output opens with a generated-by notice. The others write
+inside a directory their own vendor owns, so authorship is unambiguous; `~/.agents` is where
+the specification tells a user to put their *own* global instructions, which makes it the one
+target where mycelium can plausibly overwrite something handwritten. Run `mycelium diff agents`
+before the first install on a machine that may already have one.
+
+**Known risk**: an open proposal would move the global base to `$XDG_CONFIG_HOME/agents/
+AGENTS.md`. It is unresolved, and consumers read `~/.agents` today, so that is what this
+writes — but the path is not settled the way a vendor directory is.
 
 The `claude` adapter also merges two things into `~/.claude/settings.json`: a `SessionStart`
 hook that injects `mycelium recap` output as agent context, and a `statusLine` running
