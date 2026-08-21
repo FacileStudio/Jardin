@@ -154,7 +154,7 @@ self-registers in `internal/adapter`, so adding an agent is one small file.
 |---|---|
 | `claude` | `~/.claude/CLAUDE.md`, skills as `~/.claude/skills/<name>/SKILL.md` |
 | `codex` | `~/.codex/AGENTS.md`, skills as `~/.codex/skills/<name>/SKILL.md` |
-| `gemini` | `~/.gemini/GEMINI.md` |
+| `gemini` | `~/.gemini/GEMINI.md`, skills as `~/.gemini/skills/<name>/SKILL.md` |
 | `hermes` | `~/SOUL.md` |
 | `copilot` | `.github/copilot-instructions.md` |
 | `cursor` | `.cursor/rules/<name>.mdc` |
