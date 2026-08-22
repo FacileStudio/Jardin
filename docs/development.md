@@ -13,14 +13,30 @@ Local setup, the test suite, and the quality gate that runs before every push.
 ## Setup
 
 ```sh
-mise run hooks
+mise install
 mise run install
 ```
 
-`mise run hooks` runs `git config core.hooksPath .githooks`, which is what enables the
-pre-push gate in this clone. Git does not do it for you when you clone.
+`mise install` installs the pinned toolchain, then runs `lefthook install` through its
+`postinstall` hook. That is what writes the git hooks into this clone. Git does not do it
+for you when you clone.
 
 `mise run install` runs `bun install --frozen-lockfile` in `apps/client`.
+
+## Git hooks
+
+`lefthook.yml` wires two hooks, and `mise install` is the only command you need to run to
+get them.
+
+- `commit-msg` comes from the shared config in
+  [FacileStudio/hooks](https://github.com/FacileStudio/hooks), pinned by tag. It requires a
+  Conventional Commits subject, `type(scope): summary`, and rewrites the subject with the
+  gitmoji for that type. Do not type the emoji yourself, the hook adds it.
+- `pre-push` runs `sh scripts/check.sh`. That script is unchanged by the move to lefthook,
+  and it is still the gate. Only the thing that calls it changed.
+
+lefthook fetches the shared config once and caches it, so the pinned `ref` means no network
+call per commit. To pick up a new hook policy, bump that `ref` in `lefthook.yml`.
 
 ## Build and run
 
@@ -92,7 +108,7 @@ mise run format
 
 Two details worth knowing before you change the script:
 
-- **The pre-push hook calls the script directly**, not through mise. `mise run` resolves
+- **The pre-push job calls the script directly**, not through mise. `mise run` resolves
   every tool in the merged config before running any task body, so an unrelated broken tool
   in your global mise config would take the gate down with it.
 - **The script resolves the toolchain from `GOROOT`** when it is set. mise exports `GOROOT`

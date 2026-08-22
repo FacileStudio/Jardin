@@ -116,7 +116,7 @@ every request as admin.
 ### Local development
 
 ```sh
-mise run hooks
+mise install
 go build -o jardin .
 mise run check
 ```
