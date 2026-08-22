@@ -1,7 +1,8 @@
 # Roadmap
 
 Written 2026-08-22. A cold-start handoff: enough to pick up a track with no prior
-conversation. Ordering lives here; the reasoning behind each item lives in the commit that
+conversation. **The executable form is `SPEC.md` — exact files, exact steps, exit criteria per
+step.** This file holds the why and the ordering; the reasoning behind each item lives in the commit that
 closes it, and the research behind both tracks is in
 `~/.jardin/memory/syntheses/agent-memory-practice-2026.md`.
 
@@ -136,19 +137,20 @@ and stats every object before discarding each one. Every sync gets slower as his
 
 ## Track B — make memory age honestly
 
-**Read "Is the finding the file?" under Not decided first.** B1, B2 and B3 all want per-claim
-metadata that page-level frontmatter cannot express. If that question resolves to yes, the three
-of them collapse into one structural change rather than three separate fixes; if it resolves to
-no, they need a within-page schema and should be designed together.
+**B1 and B2 are one change, not two.** Both want per-claim metadata that page-level frontmatter
+cannot express, and both are delivered by the metadata block in `SPEC.md` step 1. B3 depends on
+that block existing.
 
-Each item is a gap measured against 2026 practice; see the synthesis for sources.
+### B1. Per-finding metadata, in the page
 
-### B1. `supersedes` in frontmatter, not prose
+An HTML-comment block under each `### heading` carrying `id`, `date`, `source`, `confirmed` and
+`supersedes`. The field reports teams converging on machine-readable supersession "because
+rebuilding the index doesn't resolve a semantic conflict"; jardin's `[SUPERSEDED by: ...]` is
+prose, so nothing can down-rank a dead claim or follow the chain.
 
-The field reports teams converging on an explicit frontmatter field, "because rebuilding the
-index doesn't resolve a semantic conflict". Jardin's `[SUPERSEDED by: ...]` is inline, so nothing
-can down-rank a dead claim or follow the chain. Smallest item here, largest effect on retrieval
-quality.
+**In the page, not one file per finding** — see the rejection below. `internal/memory/chunk.go`
+already parses page frontmatter with `frontmatter()` and `scalar()`, so this is the same pattern
+one level down rather than a new format.
 
 ### B2. `last_confirmed_at`
 
@@ -209,6 +211,18 @@ consolidation happens only when an agent chooses to write a synthesis — one pa
   reading the text separates the two. Attacks meanwhile succeed at 80–95% with a poison rate
   under 0.1%. The controls that survive this are **provenance** (already required by the wiki
   rules) and **revert** (A1), not a filter.
+- **Not one finding per file.** The whole motivation was per-claim metadata, and B1 delivers that
+  in place. Splitting would *cost* the thing that is measured: context is worth 35-49% of
+  retrieval failures (Anthropic, Contextual Retrieval — baseline 5.7% failure at P@20 0.65,
+  contextual embeddings 3.7% at 0.74, 49% fewer with contextual BM25), and `hybrid.go` already
+  banks part of it because `chunkHeader()` enriches every chunk with its page's title and type.
+  It would also add naming, frontmatter and placement ceremony to every agent write, against the
+  agent-surface rule, and there is no write command to absorb that — `jardin memory` has only
+  `search` and `index`. And it cannot be settled cheaply: all 65 golden cases in
+  `internal/memory/testdata/golden.json` name **page paths**, so a split invalidates the ground
+  truth and turns the A/B into two unrelated measurements. Revisit only if a single page starts
+  holding genuinely unrelated findings — which is "split this page in two", not "split every
+  claim into a file".
 
 ## Not decided
 
@@ -245,52 +259,6 @@ stale line in another repo's ROADMAP. That is textbook weak-signal poisoning wit
 attacking. Against accidental poisoning provenance works far better than the adversarial numbers
 suggest, because the agent is not hiding: it cites a source, and the source can be checked.
 Checking the source is what caught that one.
-
-### Is the finding the file?
-
-Today a page is a file and a finding is a `### heading` inside it. But `SearchChunks` already
-ranks findings, so the system treats the finding as the unit of knowledge while storing it as a
-fragment of a page. Frontmatter is per-page, so the metadata that matters most is stuck in prose:
-one page holds thirty findings with thirty dates, sources and confidences, and page frontmatter
-can express one of each. **Five of Track B's six items are downstream of this** — B1, B2 and B3
-all want per-claim fields.
-
-ADR practice is the closest established model and it backs the split: one decision per file,
-immutable once written, **superseded by linking rather than editing**, kept deliberately apart
-from commit history. It also answers the "thousands of tiny files" objection, since ADR corpora
-work at that size. The counter-argument is human browsing — `projects/nacelle.md` holding a
-hundred related findings is genuinely good to read — but the answer is the same one that applies
-to `index.md`: if the router is generated, the page can be too. Findings are the data; a page is
-a rendering.
-
-**Two measurements bear on this, and they constrain the design rather than settling it.**
-
-*Context is worth 35-49% of retrieval failures.* Anthropic's Contextual Retrieval prepends 50-100
-tokens explaining each chunk's role in its source document: baseline 5.7% failure at P@20 0.65,
-contextual embeddings 3.7% (a 35% improvement) at P@20 0.74, and 49% fewer failures once
-contextual BM25 joins it. **Jardin already banks part of this through the page** — `hybrid.go`
-scores enriched chunk text, so the page's title and type count toward the match. Split findings
-into standalone files naively and that enrichment is thrown away. Any finding-as-file design must
-carry in frontmatter what the page title supplies today: project, topic, related pages. That is a
-hard constraint with a number attached.
-
-*Validity periods are worth up to 18.5%.* Zep/Graphiti stores atomic facts with explicit periods
-of validity and reports up to 18.5% accuracy improvement on LongMemEval's temporal-reasoning and
-cross-session-synthesis tasks, against 94.8% vs 93.4% on DMR — the gains concentrate exactly where
-jardin is weak, on "when was this true and is it still". That is measured upside for B1 and B2,
-obtained specifically by storing atomic units with temporal metadata rather than blobs. The
-number does not transfer — Zep benchmarks conversational memory against MemGPT, not a markdown
-wiki — but the direction does.
-
-**What remains unmeasured** is the file boundary itself. Nobody has A/B'd one-file-per-claim
-against one-file-per-topic. The evidence above is strong on what a stored unit must *carry* and
-silent on where the file should *split*.
-
-**Settle it by experiment instead.** `internal/memory/eval_test.go` holds 65 golden cases plus 12
-cross-language, with `recallFloor = 0.60`, and `fixture_eval_test.go` runs against a fixture
-rather than the live wiki. Convert a subset of the corpus to one-finding-per-file, run the eval
-both ways, and compare recall@5. That is an afternoon and it produces a number instead of an
-argument.
 
 ## Exit criteria
 
