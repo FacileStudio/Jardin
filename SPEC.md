@@ -349,10 +349,40 @@ and a test asserts a superseded chunk ranks below its replacement for a query ma
 
 `internal/memory/rank.go`, `internal/memory/chunk.go`
 
+**The instrument for this landed 2026-08-24. Step 11 itself is still open.**
+
 `[[page-name]]` links form a graph that retrieval currently ignores. Fuse an entity/link signal
 into the score alongside BM25 and the vector half.
 
-**Exit**: eval recall@5 does not regress; a test shows a page linked from a strong match gains.
+Before this could be measured at all, the eval had to be re-armed. It had been skipping since the
+2026-08-19 wiki reset, holding 2 of 67 golden pages against a 25% floor, and both evals scored the
+page-level `Search` while every agent-facing path calls `SearchChunks`. So the whole of B3 and
+step 10 shipped with nothing measuring them. What exists now:
+
+| Set | Cases | Today | Job |
+|---|---|---|---|
+| `~/.mycelium/eval/golden.json` | 76 | recall 1.000, MRR 0.978 | live corpus, regression only |
+| `testdata/golden-fixture.json` | 48 | recall 1.000, MRR 0.979 | CI gate, regression only |
+| the same 48 under page-level `Search` | 48 | recall 1.000, MRR 0.983 | `GET /api/memory/search` still ships it |
+| `testdata/golden-fixture-hard.json` | 60 | recall 1.000, MRR 0.853 | grade on MRR |
+| `testdata/golden-links.json` | 10 | **recall 0.000** | **grade step 11 here** |
+
+Only the link set has headroom, and it has it by construction: every linker page ranks 1, every
+answer ranks 22nd or worse, and the linker links to the answer.
+`TestLinkCasesAreLinkDecisive` asserts that setup today. Two `[[ ]]` false positives sit in
+`testdata/corpus/tools/posix-sh-is-not-bash.md` on purpose, so **match link targets against known
+page names, never against the bracket syntax**.
+
+**Exit**: the recall figures above do not regress, and recall on the link set rises off 0.000.
+The link set is wired to receive that: flip `linkSignalLanded` to `true` in
+`link_eval_test.go` and raise `linkRecallFloor` to what you measure. Do not invert the
+well-formedness assertions — `TestLinkCasesAreWellFormed` holds whatever the ranker does, and
+`TestLinkRetrieval` is the one that grades.
+
+**Both entry points are measured, deliberately.** `SearchChunks` serves the CLI and
+`POST /api/memory/search`; the page-level `Search` serves `GET /api/memory/search` from
+`internal/server/content.go:43`. The eval used to grade only `Search`; grading only
+`SearchChunks` would have moved the blind spot instead of closing it.
 
 ### 12. Episodic-to-semantic consolidation  `[filet]`
 
@@ -381,6 +411,10 @@ fails it is dropped with a reason.
 | `cmd/memory_history.go` | **new** — log, diff, revert (6) |
 | `internal/config/config.go` | modify — MachineName, shared with cmd (4) |
 | `internal/memory/rank.go` | modify — recency, supersession, link signal (10, 11) |
+| `internal/memory/evalset.go` | **new** — InspectEvalSet, for doctor's eval set check (11 prereq) |
+| `internal/memory/link_eval_test.go` | **new** — the link-decisive setup contract (11 prereq) |
+| `internal/memory/eval_test.go` | modify — SearchChunks, golden set out of the repo (11 prereq) |
+| `cmd/doctor.go` | modify — `eval set` staleness check (11 prereq) |
 | `internal/memory/hybrid.go` | modify — pass the new signals through (10, 11) |
 | `internal/journal/` | **new package** — Init, Commit (4) |
 | `internal/sync/sync.go`, `client.go` | modify — bulk-delete guard, commit hook (3, 5) |
@@ -417,9 +451,18 @@ one-time one.
   this is irrelevant. Record the bound; do not be surprised at 10,000 pages.
 - **Concurrency.** The daemon ticks roughly every 60s and a CLI command can run at the same
   moment. go-git does not lock for you. Serialise journal writes, or a commit races a commit.
-- **The eval scores the live wiki.** `internal/memory/eval_test.go` reads `~/.mycelium/memory` and
-  its 65 golden cases name real page paths. Any change to page layout breaks it for reasons
-  unrelated to ranking. Use `fixture_eval_test.go` for experiments.
+- **The eval scores the live wiki.** `internal/memory/eval_test.go` reads the memory directory
+  under `config.DataDir()`, and its 76 golden cases name real page paths, so any change to page
+  layout breaks it for reasons unrelated to ranking. `requireCorpus` skips below 25% rather than
+  failing, which is correct and invisible: that is how it went four days unnoticed. `mycelium doctor`
+  now carries an `eval set` line at the same threshold, so the skip is visible. Use the fixture
+  sets for experiments.
+- **Three of the four sets are saturated at recall 1.000, and that is a corpus property.** Each
+  query was written by an agent that verified the answer ranked top-5, which selects for easy
+  queries; and 70 pages on 70 disjoint topics make lexical retrieval easy anyway. Stripping the
+  rarest shared term from all 60 hard queries moved MRR 0.983 to 0.853 and moved recall not at all.
+  Making a lexical set genuinely hard needs confusable near-duplicate pages. Do not read 1.000 as
+  a quality result.
 - **`filet` limits bite.** `fileLines: 300` and `funcLines: 60`. `internal/sync/sync.go` and
   `internal/memory/rank.go` are already substantial; budget for a file split rather than a
   line-shave, and never raise the threshold.

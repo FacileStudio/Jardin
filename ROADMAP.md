@@ -29,6 +29,31 @@ the prose `**Date**:` line the writing convention mandates. B3 reads the block f
 prose line second, which is the difference between a ranker that works on 329 chunks and one that
 works on none. **See the correction under B1 below: the unit B1 chose was wrong for this wiki.**
 
+## Shipped on 2026-08-24 (branch `eval-rearm`, not pushed)
+
+**Four commits on `eval-rearm`, off `7c6b63f`.** They are deliberately not on `main`: a push to
+`main` rebuilds and swaps the production container in about 20 seconds and does not wait for CI,
+so anything landing there should be a decision rather than a reflex. Merge when you have read it.
+
+**The retrieval eval was re-armed.** It had been skipping since the 2026-08-19 reset and nobody
+knew, so B3 and step 10 both shipped unmeasured. Four things changed:
+
+- **Both evals graded `Search`**, the page-level path. Every agent-facing caller uses
+  `SearchChunks`, where step 10's recency decay and struck-span dropping actually live. One-line
+  fix; fixture MRR moved 0.974 to 0.990 and the floors held.
+- **The live golden set left the repository.** Mycelium is public and the set is 76 plain-English
+  descriptions of a private wiki's pages. It now lives at `~/.mycelium/eval/golden.json`, syncs like
+  the wiki, and `loadGolden` skips when it is absent. Both it and `doctor` resolve through
+  `config.DataDir()`, so they cannot read different trees.
+- **`mycelium doctor` gained an `eval set` line** at the same 25% threshold the eval's own guard
+  uses, so a stale set is visible instead of silent.
+- **The fixture corpus went 30 to 70 pages**, with a 60-case hard set and a 10-case link set.
+  `golden-crosslang.json` was retired: it proved the 2026-08-19 French to English conversion
+  worked, a one-time measurement now enforced mechanically by the `wiki language` check.
+
+**Read the numbers with the caveat.** Three of four sets sit at recall 1.000 and cannot show an
+improvement. See the saturation risk in `SPEC.md`.
+
 ## Shipped on 2026-08-23 (v0.22.0)
 
 - **The release.** Four platform tarballs, checksums, Homebrew tap at 0.22.0, server on the same
@@ -94,8 +119,10 @@ so the block only earns its keep for `supersedes`, and supersession here marks a
 than a finding. See the correction under B1.
 
 **4. B4, wiki links in ranking.** `SPEC.md` step 11. The graph exists and retrieval ignores it.
-The smallest remaining code item, and it has a measurable exit: eval recall must not regress, and
-a page linked from a strong match should gain.
+The smallest remaining code item, and **as of 2026-08-24 it is the only one with an instrument
+that can grade it**: `testdata/golden-links.json`, ten cases sitting at recall 0.000 by
+construction. See the table under SPEC step 11 for what each of the four case sets is for, and
+read the saturation risk before trusting a 1.000.
 
 **5. B6, consolidation.** `SPEC.md` step 12. The largest item on this page and still last.
 
@@ -284,6 +311,20 @@ assumed. See the correction under B1.
 
 The recommendation is fusing semantic similarity, BM25 and entity matching into one score. The
 graph exists and is ignored.
+
+**The measurement landed 2026-08-24; the signal has not.** Three things a worker needs before
+touching `rank.go`:
+
+- **Match targets against known page names, not against `[[...]]`.** Two false positives are
+  planted in `testdata/corpus/tools/posix-sh-is-not-bash.md`: `[[:space:]]` in a grep fence, and
+  bash `[[ ]]` test syntax. The live wiki has both classes for real.
+- **Three `related:` spellings coexist** in the live wiki, plus body links written two ways. A
+  resolver has to normalise `[[slug]]`, bare `[a, b]` and `[dir/slug.md]` to one thing.
+  `normaliseLink` in `link_eval_test.go` does it by basename, which is why
+  `TestCorpusBasenamesAreUnique` exists.
+- **`frontmatter()` strips YAML before chunking**, so a `related:` link carries zero BM25 weight
+  today while a body `[[link]]` adds its slug's words to that chunk. Whichever the signal reads,
+  they are not equivalent inputs.
 
 ### B5. A secrets clause in the storage gate
 
