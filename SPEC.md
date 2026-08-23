@@ -54,7 +54,8 @@ distribute (`go-git` is an ordinary Go dependency).
 
 Steps 1–3 are independent of each other and of everything below. Start anywhere in them.
 
-**Steps 1, 2, 3, 8 and 9 landed on 2026-08-23**, in v0.20.0. Steps 4 to 7 and 10 to 12 are open.
+**Steps 1, 2, 3, 8 and 9 landed on 2026-08-23**: 1, 2 and 3 in v0.20.0, then 8 and 9 in v0.21.0.
+Steps 4 to 7 and 10 to 12 are open.
 Step 4, the journal, is the one to do next: the guard in step 3 stops a mass deletion, but
 losing five pages is still permanent until there is a history to restore them from.
 

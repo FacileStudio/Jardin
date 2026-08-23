@@ -12,8 +12,9 @@ Memory, rules, skills, flows, sessions and claims all ship. The `agents` adapter
 v0.19.0, so `~/.agents/AGENTS.md` and `~/.agents/skills/` are generated for every tool that
 follows the AGENTS.md specification.
 
-**v0.20.0, 2026-08-23, shipped five items from this page**: A3, A6, A7, B1 and B5, plus two
-fixes that came out of reviewing them. The list is below; `SPEC.md` carries the per-step detail.
+**Five items from this page shipped on 2026-08-23**: B1, B5 and A3 in v0.20.0, then A6 and A7 in
+v0.21.0, plus two fixes that came out of reviewing them. The list is below; `SPEC.md` carries the
+per-step detail.
 
 **Memory still has no history**, and that is the whole of Track A. The sync is a three-way
 reconcile by checksum, current state only, so a page cannot be diffed, blamed or rolled back. On
@@ -26,18 +27,20 @@ closes that.
 purely lexical, so a superseded claim still ranks exactly as well as its correction. B3 is what
 makes B1 worth anything.
 
-## Shipped in v0.20.0
+## Shipped on 2026-08-23
 
-- **A3, the bulk-delete guard**, wider than this page describes it below. Both directions count
-  against one limit, because a local wipe pushed up empties the copy every other machine pulls
-  from, and that is the half no journal can undo yet.
-- **A6, `.conflict` files out of `memory/`.** The losing copy of an edit-vs-edit now mirrors the
-  page under `~/.mycelium/.conflicts/<path>` and keeps its real extension. Both layouts are pruned
-  and reported, because machines are still carrying the old sibling files.
-- **A7, dot-directories pruned from the tree walk.** `LocalTree` returns `filepath.SkipDir`
-  rather than `nil`, so no sync will descend into the `.git` that A1 is about to create.
-- **B1, per-finding metadata**, parsed in `chunk.go` into fields on `Chunk`.
-- **B5, the secrets clause**, a fourth condition on the storage gate, in all 8 agent configs.
+- **A3, the bulk-delete guard** (v0.20.0), wider than this page describes it below. Both
+  directions count against one limit, because a local wipe pushed up empties the copy every other
+  machine pulls from, and that is the half no journal can undo yet.
+- **A6, `.conflict` files out of `memory/`** (v0.21.0). The losing copy of an edit-vs-edit now
+  mirrors the page under `~/.mycelium/.conflicts/<path>` and keeps its real extension. Both layouts
+  are pruned and reported, because machines are still carrying the old sibling files.
+- **A7, dot-directories pruned from the tree walk** (v0.21.0). `LocalTree` returns
+  `filepath.SkipDir` rather than `nil`, so no sync descends into the `.git` A1 is about to
+  create.
+- **B1, per-finding metadata** (v0.20.0), parsed in `chunk.go` into fields on `Chunk`.
+- **B5, the secrets clause** (v0.20.0), a fourth condition on the storage gate, in all 8 agent
+  configs.
 - Two review findings fixed alongside. The bulk-delete refusal prints entirely to stderr rather
   than splitting across two streams, and `doctor`'s `last sync` check fails past 24 hours instead
   of reporting the age and passing at any value. The second one mattered the moment a sync could
@@ -145,7 +148,7 @@ optimised for keyword retrieval rather than for reading top to bottom.
 
 ### A6. Move `.conflict` files out of `memory/`
 
-**Done in v0.20.0.**
+**Done in v0.21.0.**
 
 `internal/sync/conflict.go`
 
@@ -159,7 +162,7 @@ supply a merge base, so two agents appending different findings to one page merg
 
 ### A7. Prune dot-directories in the tree walk
 
-**Done in v0.20.0.**
+**Done in v0.21.0.**
 
 `internal/sync/tree.go`
 
