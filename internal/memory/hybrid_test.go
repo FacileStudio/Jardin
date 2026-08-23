@@ -7,7 +7,7 @@ import (
 
 type ranker func(dir, query string) ([]SearchResult, error)
 
-func measure(t *testing.T, dir string, cases []goldenCase, rank ranker) (float64, float64) {
+func measure(t *testing.T, dir string, cases []EvalCase, rank ranker) (float64, float64) {
 	t.Helper()
 	hits, reciprocal := 0, 0.0
 	for _, c := range cases {

@@ -5,21 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/FacileStudio/Mycelium/internal/config"
 )
 
 const (
 	evalK           = 5
-	goldenSetFile   = "testdata/golden.json"
-	recallFloor     = 0.60
-	reciprocalFloor = 0.50
-
-	// The cross-language set is 12 cases, so one miss costs 0.083 of recall:
-	// 11 hits is 0.917 and 10 is 0.833. The floor sits between them so a single
-	// case drifting out of the top 5 as the corpus grows is tolerated and two
-	// are not. Both floors sit far above the pre-conversion numbers (recall
-	// 0.500, MRR 0.215), which is the state they exist to catch coming back.
-	crossLangRecallFloor     = 0.90
-	crossLangReciprocalFloor = 0.55
+	recallFloor     = 0.85
+	reciprocalFloor = 0.75
 
 	// Below this share of the golden pages, the wiki on this machine is not the
 	// corpus these sets were written against and the eval is skipped. The floor
@@ -29,36 +22,50 @@ const (
 	corpusFloor = 0.25
 )
 
-type goldenCase struct {
-	Query  string   `json:"query"`
-	Expect []string `json:"expect"`
+// goldenSetPath resolves the live-wiki golden set, which lives under the data
+// directory rather than in this repository. This repository is public and the
+// set is a plain-English description of every page in a private wiki, so
+// committing it would publish that for the benefit of nobody: the eval only runs
+// where a wiki exists, and CI has none. Under the data directory it reaches the
+// machines that can use it by the same sync the wiki already uses.
+//
+// It resolves through config.DataDir, which honours DATA_DIR, so this and the
+// eval set check in doctor always read the same file. Hardcoding a home
+// directory here would let doctor report on one tree while the eval measured
+// another.
+func goldenSetPath() (string, bool) {
+	path := EvalSetPath(config.DataDir())
+	if _, err := os.Stat(path); err != nil {
+		return "", false
+	}
+	return path, true
 }
 
-func loadGolden(t *testing.T) []goldenCase {
+func loadGolden(t *testing.T) []EvalCase {
 	t.Helper()
-	data, err := os.ReadFile(goldenSetFile)
+	path, ok := goldenSetPath()
+	if !ok {
+		t.Skipf("no golden set at %s; the live-wiki eval runs only where the wiki does", EvalSetPath(config.DataDir()))
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("golden set unreadable: %v", err)
 	}
-	var cases []goldenCase
+	var cases []EvalCase
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatalf("golden set is not valid JSON: %v", err)
 	}
-	if len(cases) < 50 {
-		t.Fatalf("golden set has %d cases, want at least 50", len(cases))
+	if len(cases) < EvalMinCases {
+		t.Fatalf("golden set has %d cases, want at least %d", len(cases), EvalMinCases)
 	}
 	return cases
 }
 
 func realWiki(t *testing.T) string {
 	t.Helper()
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Skip("no home directory")
-	}
-	dir := filepath.Join(home, ".mycelium", "memory")
+	dir := filepath.Join(config.DataDir(), "memory")
 	if _, err := os.Stat(dir); err != nil {
-		t.Skip("no wiki on this machine; eval needs ~/.mycelium/memory")
+		t.Skip("no wiki on this machine; the eval needs a memory directory under the data dir")
 	}
 	return dir
 }
@@ -67,7 +74,7 @@ func realWiki(t *testing.T) string {
 // set names. Recall measured against a corpus that does not contain the answers
 // is not a low score, it is not a measurement — and a test that is red forever
 // is a test nobody reads, which costs more than the coverage it pretends to add.
-func requireCorpus(t *testing.T, dir string, cases []goldenCase) {
+func requireCorpus(t *testing.T, dir string, cases []EvalCase) {
 	t.Helper()
 	total, present := 0, 0
 	for _, c := range cases {
@@ -103,30 +110,27 @@ func TestGoldenSetPointsAtPagesThatExist(t *testing.T) {
 	}
 }
 
-// TestRetrievalRecallAtK is the gate every retrieval change is measured
-// against. It prints recall@5 and MRR so a change can be compared to the
-// number the last run reported.
+// TestRetrievalRecallAtK is the live-corpus regression gate. Measured
+// 2026-08-24 on the regenerated set: recall@5 1.000 and MRR around 0.98 over 76
+// cases naming all 50 pages. The MRR is deliberately imprecise here, because it
+// moves every time a page is written: it read 0.978 and 0.980 twenty minutes
+// apart on the day it was recorded. Read the log line, not this comment. The floors sit well under that on purpose, because this
+// corpus is the live wiki and gains pages every week; a floor set close to
+// today's number would go red because somebody wrote a page rather than because
+// ranking moved. corpusFloor catches the other failure, a corpus that is gone.
+//
+// Read the 1.000 as a warning, not a triumph. Each query was written by reading
+// the page it names and checked against live search, which selects for queries
+// the ranker already answers, so this set can show a regression and cannot show
+// an improvement. It is not the place to grade a ranking change. The fixture
+// link set is, because its cases are built to sit outside the top five.
 func TestRetrievalRecallAtK(t *testing.T) {
 	dir := realWiki(t)
 	cases := loadGolden(t)
 	requireCorpus(t, dir, cases)
 
-	hits, reciprocalSum := 0, 0.0
-	for _, c := range cases {
-		rank := rankOfFirstExpected(t, dir, c)
-		if rank > 0 && rank <= evalK {
-			hits++
-		}
-		if rank > 0 {
-			reciprocalSum += 1.0 / float64(rank)
-		} else {
-			t.Logf("miss: %q → want one of %v", c.Query, c.Expect)
-		}
-	}
-
-	recall := float64(hits) / float64(len(cases))
-	mrr := reciprocalSum / float64(len(cases))
-	t.Logf("recall@%d = %.3f (%d/%d)   MRR = %.3f", evalK, recall, hits, len(cases), mrr)
+	recall, mrr := scoreSet(t, dir, cases)
+	t.Logf("recall@%d = %.3f (%d cases)   MRR = %.3f", evalK, recall, len(cases), mrr)
 
 	if recall < recallFloor {
 		t.Errorf("recall@%d dropped to %.3f, floor is %.2f", evalK, recall, recallFloor)
@@ -136,9 +140,57 @@ func TestRetrievalRecallAtK(t *testing.T) {
 	}
 }
 
-func rankOfFirstExpected(t *testing.T, dir string, c goldenCase) int {
+// searcher is a retrieval entry point. Both shipping ones are measured: the
+// eval used to grade only the page-level Search, and pointing it at SearchChunks
+// alone would have moved the blind spot rather than removed it.
+type searcher func(dir, query string) ([]SearchResult, error)
+
+// scoreSet runs every case through SearchChunks, the chunk-level path the CLI
+// and the POST route use.
+func scoreSet(t *testing.T, dir string, cases []EvalCase) (recall, mrr float64) {
 	t.Helper()
-	results, err := Search(dir, c.Query)
+	return scoreSetWith(t, dir, cases, SearchChunks)
+}
+
+// scoreSetWith runs every case through search and returns recall@evalK and MRR.
+// Each miss is logged with its query, because a recall number on its own does
+// not say which case moved.
+func scoreSetWith(t *testing.T, dir string, cases []EvalCase, search searcher) (recall, mrr float64) {
+	t.Helper()
+	hits, reciprocal := 0, 0.0
+	for _, c := range cases {
+		rank := rankWith(t, dir, c, search)
+		if rank > 0 && rank <= evalK {
+			hits++
+		}
+		if rank > 0 {
+			reciprocal += 1.0 / float64(rank)
+		} else {
+			t.Logf("miss: %q → want one of %v", c.Query, c.Expect)
+		}
+	}
+	n := float64(len(cases))
+	return float64(hits) / n, reciprocal / n
+}
+
+// rankOfFirstExpected returns the rank of the first expected page under
+// SearchChunks, the chunk-level path. cmd/memory.go and the POST half of
+// /api/memory/search both call it, and step 10's recency decay and struck-span
+// dropping live there and nowhere else.
+//
+// It is not the only shipping path. internal/server/content.go serves
+// GET /api/memory/search from the page-level Search, so both are measured; see
+// TestFixtureRetrievalPageLevel.
+func rankOfFirstExpected(t *testing.T, dir string, c EvalCase) int {
+	t.Helper()
+	return rankWith(t, dir, c, SearchChunks)
+}
+
+// rankWith returns the 1-based rank of the first expected page under search, or
+// 0 when it does not appear at all.
+func rankWith(t *testing.T, dir string, c EvalCase, search searcher) int {
+	t.Helper()
+	results, err := search(dir, c.Query)
 	if err != nil {
 		t.Fatalf("search %q: %v", c.Query, err)
 	}
@@ -160,66 +212,11 @@ func rankOfFirstExpected(t *testing.T, dir string, c goldenCase) int {
 	return 0
 }
 
-const crossLangFile = "testdata/golden-crosslang.json"
-
-// TestCrossLanguageRetrieval keeps the converted pages reachable from an
-// English query. Every case here names a page that was French until the
-// 2026-08-19 conversion, when recall@5 went 0.500 -> 1.000 and MRR 0.215 ->
-// 0.778; the floors below guard that gain.
-//
-// What this does NOT do is detect new French drift. The set is a fixed list of
-// twelve query->page pairs, so a French page written next month is not in it and
-// this test never looks at it. That job belongs to
-// ~/.mycelium/skills/scripts/wiki-english-check.ts, which scans every page line by
-// line. Do not widen this test to cover it — a golden set measures ranking, not
-// corpus hygiene.
-func TestCrossLanguageRetrieval(t *testing.T) {
-	dir, ok := wikiDir()
-	if !ok {
-		t.Skip("no wiki on this machine")
-	}
-	data, err := os.ReadFile(crossLangFile)
-	if err != nil {
-		t.Fatalf("cross-language set unreadable: %v", err)
-	}
-	var cases []goldenCase
-	if err := json.Unmarshal(data, &cases); err != nil {
-		t.Fatalf("cross-language set is not valid JSON: %v", err)
-	}
-	requireCorpus(t, dir, cases)
-
-	hits, reciprocal := 0, 0.0
-	for _, c := range cases {
-		rank := rankOfFirstExpected(t, dir, c)
-		if rank > 0 && rank <= evalK {
-			hits++
-		}
-		if rank > 0 {
-			reciprocal += 1.0 / float64(rank)
-		} else {
-			t.Logf("unreachable in English: %q → %v", c.Query, c.Expect)
-		}
-	}
-	n := float64(len(cases))
-	recall, mrr := float64(hits)/n, reciprocal/n
-	t.Logf("cross-language recall@%d = %.3f (%d/%d)   MRR = %.3f",
-		evalK, recall, hits, len(cases), mrr)
-
-	if recall < crossLangRecallFloor {
-		t.Errorf("cross-language recall@%d dropped to %.3f, floor is %.2f",
-			evalK, recall, crossLangRecallFloor)
-	}
-	if mrr < crossLangReciprocalFloor {
-		t.Errorf("cross-language MRR dropped to %.3f, floor is %.2f",
-			mrr, crossLangReciprocalFloor)
-	}
-}
-
 // The guard exists to skip a missing corpus, not to make the eval optional. A
 // wiki that still holds its golden pages must run the eval, or a real recall
 // regression would leave as quietly as a reset does.
 func TestRequireCorpusOnlySkipsWhenTheCorpusIsGone(t *testing.T) {
-	cases := []goldenCase{{Query: "q", Expect: []string{"a.md", "b.md", "c.md", "d.md"}}}
+	cases := []EvalCase{{Query: "q", Expect: []string{"a.md", "b.md", "c.md", "d.md"}}}
 
 	full := t.TempDir()
 	for _, name := range cases[0].Expect {

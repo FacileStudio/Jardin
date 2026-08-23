@@ -158,7 +158,7 @@ func trim(results []SearchResult, limit int) []SearchResult {
 	return results
 }
 
-func measureRanker(t *testing.T, dir string, cases []goldenCase, rank ranker) [2]float64 {
+func measureRanker(t *testing.T, dir string, cases []EvalCase, rank ranker) [2]float64 {
 	t.Helper()
 	recall, mrr := measure(t, dir, cases, rank)
 	return [2]float64{recall, mrr}
