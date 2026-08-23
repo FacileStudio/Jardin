@@ -199,6 +199,20 @@ var doctorCmd = &cobra.Command{
 			return historyState(dataDir)
 		})
 
+		check("eval set", func() (string, bool) {
+			set, err := memory.InspectEvalSet(dataDir)
+			if err != nil {
+				return err.Error(), false
+			}
+			if !set.Present {
+				return "not on this machine", true
+			}
+			if why := set.Unusable(); why != "" {
+				return why + " — regenerate it", false
+			}
+			return fmt.Sprintf("%d cases, %d of %d pages present", set.Cases, set.Found, set.Named), true
+		})
+
 		fmt.Println()
 		if allGood {
 			color.Green("All checks passed.")
