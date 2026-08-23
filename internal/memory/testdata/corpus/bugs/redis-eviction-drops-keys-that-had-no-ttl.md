@@ -2,6 +2,7 @@
 title: Redis eviction removes keys you never marked expirable
 type: bug
 tags: [redis, eviction, memory, cache]
+related: [keep-the-cache-and-the-source-of-truth-apart, redis-pipelining-versus-transactions]
 ---
 
 # Eviction under memory pressure

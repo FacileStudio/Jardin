@@ -2,6 +2,7 @@
 title: Postgres connection pool exhaustion under slow queries
 type: bug
 tags: [postgres, pool, timeout, database]
+related: [read-your-write-lands-on-a-lagging-standby, postgres-statement-timeout-versus-lock-timeout]
 ---
 
 # Postgres connection pool exhaustion

@@ -1,0 +1,72 @@
+[
+ {
+  "query": "an unbounded label multiplied an existing request counter into four hundred thousand series",
+  "expect": [
+   "tools/exemplars-point-at-one-recorded-call.md"
+  ],
+  "linker": "bugs/prometheus-cardinality-blowup-from-one-label.md"
+ },
+ {
+  "query": "one report endpoint held a pooled connection for the whole request and starved everything else",
+  "expect": [
+   "bugs/read-your-write-lands-on-a-lagging-standby.md"
+  ],
+  "linker": "bugs/postgres-connection-pool-exhaustion.md"
+ },
+ {
+  "query": "HEALTHCHECK written in shell form cannot work on a distroless base",
+  "expect": [
+   "tools/ephemeral-debug-container-attaches-to-a-running-pod.md"
+  ],
+  "linker": "bugs/docker-distroless-has-no-shell.md"
+ },
+ {
+  "query": "concurrent calls refresh the same token and the server revokes the whole family",
+  "expect": [
+   "tools/single-flight-collapses-a-stampede.md"
+  ],
+  "linker": "bugs/oauth-refresh-token-rotation-race.md"
+ },
+ {
+  "query": "413 Request Entity Too Large with nothing in the application log",
+  "expect": [
+   "conventions/an-interrupted-upload-should-resume-from-an-offset.md"
+  ],
+  "linker": "bugs/nginx-rejects-large-uploads-with-413.md"
+ },
+ {
+  "query": "sh is dash on Debian so the pipeline step dies where the interactive terminal was fine",
+  "expect": [
+   "bugs/a-slim-container-carries-no-certificate-store.md"
+  ],
+  "linker": "tools/posix-sh-is-not-bash.md"
+ },
+ {
+  "query": "the producer traced its publish and the consumer begins a fresh root",
+  "expect": [
+   "tools/baggage-travels-with-the-trace-context.md"
+  ],
+  "linker": "bugs/otel-trace-breaks-at-the-queue-boundary.md"
+ },
+ {
+  "query": "the write returned 201 and the query that followed saw zero hits until the shard refreshed",
+  "expect": [
+   "conventions/wait-for-a-condition-with-a-deadline.md"
+  ],
+  "linker": "bugs/elasticsearch-refresh-interval-delays-search-visibility.md"
+ },
+ {
+  "query": "sessions written with no expiry were evicted under allkeys-lru at maxmemory",
+  "expect": [
+   "conventions/keep-the-cache-and-the-source-of-truth-apart.md"
+  ],
+  "linker": "bugs/redis-eviction-drops-keys-that-had-no-ttl.md"
+ },
+ {
+  "query": "upserting on the email claim let a recycled address silently take over an account",
+  "expect": [
+   "conventions/backfill-a-new-key-column-before-you-read-it.md"
+  ],
+  "linker": "conventions/oidc-email-is-not-a-stable-identity.md"
+ }
+]

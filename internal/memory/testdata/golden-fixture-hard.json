@@ -1,0 +1,362 @@
+[
+ {
+  "query": "package-lock.json changed in a pull request that touched no dependencies",
+  "expect": [
+   "conventions/npm-ci-installs-from-the-lockfile.md"
+  ]
+ },
+ {
+  "query": "the build machine resolved a newer version than the developer had",
+  "expect": [
+   "conventions/npm-ci-installs-from-the-lockfile.md"
+  ]
+ },
+ {
+  "query": "install fails after a major upgrade because a plugin declares the old range",
+  "expect": [
+   "bugs/npm-peer-dependency-eresolve-conflict.md"
+  ]
+ },
+ {
+  "query": "npm 6 only printed a warning and now the same tree refuses to install",
+  "expect": [
+   "bugs/npm-peer-dependency-eresolve-conflict.md"
+  ]
+ },
+ {
+  "query": "cannot find module in production after an unrelated upgrade",
+  "expect": [
+   "bugs/hoisted-node-modules-hide-a-missing-dependency.md"
+  ]
+ },
+ {
+  "query": "code imports something package.json never mentions and the tests pass",
+  "expect": [
+   "bugs/hoisted-node-modules-hide-a-missing-dependency.md"
+  ]
+ },
+ {
+  "query": "a dependency fetched a platform binary while installing",
+  "expect": [
+   "tools/npm-ignore-scripts-and-lifecycle-hooks.md"
+  ]
+ },
+ {
+  "query": "stop transitive packages executing as root during a container build",
+  "expect": [
+   "tools/npm-ignore-scripts-and-lifecycle-hooks.md"
+  ]
+ },
+ {
+  "query": "install prints this is than usual and never finishes",
+  "expect": [
+   "bugs/pip-backtracks-through-old-releases.md"
+  ]
+ },
+ {
+  "query": "resolver keeps building source distributions to read their requirements",
+  "expect": [
+   "bugs/pip-backtracks-through-old-releases.md"
+  ]
+ },
+ {
+  "query": "pytest in a makefile uses the system interpreter instead of the virtualenv",
+  "expect": [
+   "bugs/venv-activation-does-not-survive-a-make-recipe.md"
+  ]
+ },
+ {
+  "query": "whatever the first line exported is gone by the second command",
+  "expect": [
+   "bugs/venv-activation-does-not-survive-a-make-recipe.md"
+  ]
+ },
+ {
+  "query": "crate compiles in its own directory but fails from the workspace root",
+  "expect": [
+   "bugs/cargo-unifies-features-across-a-workspace-build.md"
+  ]
+ },
+ {
+  "query": "ignored because another member wants the defaults",
+  "expect": [
+   "bugs/cargo-unifies-features-across-a-workspace-build.md"
+  ]
+ },
+ {
+  "query": "running make test does nothing when a test directory exists",
+  "expect": [
+   "bugs/make-target-skipped-when-a-file-shares-its-name.md"
+  ]
+ },
+ {
+  "query": "generated file regenerates every invocation on a filesystem with whole seconds",
+  "expect": [
+   "bugs/make-target-skipped-when-a-file-shares-its-name.md"
+  ]
+ },
+ {
+  "query": "every new branch starts cold and downloads all the dependencies again",
+  "expect": [
+   "conventions/ci-cache-keys-hash-the-lockfile.md"
+  ]
+ },
+ {
+  "query": "saving again under an entry that already exists is a silent no-op",
+  "expect": [
+   "conventions/ci-cache-keys-hash-the-lockfile.md"
+  ]
+ },
+ {
+  "query": "syntax error unexpected parenthesis in a slim image but fine on a mac",
+  "expect": [
+   "tools/posix-sh-is-not-bash.md"
+  ]
+ },
+ {
+  "query": "echo printed the flag instead of the escape in a runner step",
+  "expect": [
+   "tools/posix-sh-is-not-bash.md"
+  ]
+ },
+ {
+  "query": "the graph tail flattens because the +Inf holds most of the samples",
+  "expect": [
+   "bugs/prometheus-histogram-quantile-capped-by-buckets.md"
+  ]
+ },
+ {
+  "query": "default client buckets stop at ten seconds so the tail is invisible",
+  "expect": [
+   "bugs/prometheus-histogram-quantile-capped-by-buckets.md"
+  ]
+ },
+ {
+  "query": "daily volume panel dips below zero every time we deploy",
+  "expect": [
+   "bugs/prometheus-counter-reset-makes-a-delta-negative.md"
+  ]
+ },
+ {
+  "query": "re-registering a collector at runtime looks like a restart to the graph",
+  "expect": [
+   "bugs/prometheus-counter-reset-makes-a-delta-negative.md"
+  ]
+ },
+ {
+  "query": "a relabel change dropped a job and nobody was told",
+  "expect": [
+   "bugs/prometheus-vanished-target-silences-the-alert.md"
+  ]
+ },
+ {
+  "query": "the rule went silent because the selector matches no samples",
+  "expect": [
+   "bugs/prometheus-vanished-target-silences-the-alert.md"
+  ]
+ },
+ {
+  "query": "head series climbing and the scraper restarts on memory pressure",
+  "expect": [
+   "bugs/prometheus-cardinality-blowup-from-one-label.md"
+  ]
+ },
+ {
+  "query": "added a user id to a counter to answer one support question",
+  "expect": [
+   "bugs/prometheus-cardinality-blowup-from-one-label.md"
+  ]
+ },
+ {
+  "query": "throughput graph goes blank when i zoom into the last fifteen minutes",
+  "expect": [
+   "bugs/grafana-rate-window-narrower-than-scrape-interval.md"
+  ]
+ },
+ {
+  "query": "hardcoded 1m window works until one scrape arrives late",
+  "expect": [
+   "bugs/grafana-rate-window-narrower-than-scrape-interval.md"
+  ]
+ },
+ {
+  "query": "the producer and the consumer show up as two operations",
+  "expect": [
+   "bugs/otel-trace-breaks-at-the-queue-boundary.md"
+  ]
+ },
+ {
+  "query": "nowhere when the work moves to a background goroutine",
+  "expect": [
+   "bugs/otel-trace-breaks-at-the-queue-boundary.md"
+  ]
+ },
+ {
+  "query": "spans present at the edge and missing in the middle of one request",
+  "expect": [
+   "conventions/trace-sampling-decides-once-at-the-root.md"
+  ]
+ },
+ {
+  "query": "we only keep failures but the decision happens before the error exists",
+  "expect": [
+   "conventions/trace-sampling-decides-once-at-the-root.md"
+  ]
+ },
+ {
+  "query": "eleven overnight for conditions that were gone by morning",
+  "expect": [
+   "conventions/alert-rules-need-a-for-duration.md"
+  ]
+ },
+ {
+  "query": "the resolving and refiring while it hovers on the threshold",
+  "expect": [
+   "conventions/alert-rules-need-a-for-duration.md"
+  ]
+ },
+ {
+  "query": "writes to stdout blocked the handlers when the collector fell behind",
+  "expect": [
+   "conventions/log-volume-under-load-needs-sampling.md"
+  ]
+ },
+ {
+  "query": "one dependency timing out made every request write a stack trace",
+  "expect": [
+   "conventions/log-volume-under-load-needs-sampling.md"
+  ]
+ },
+ {
+  "query": "profile came back nearly empty while requests took four seconds",
+  "expect": [
+   "tools/pprof-cpu-profile-misses-blocked-time.md"
+  ]
+ },
+ {
+  "query": "goroutines parked on a channel contribute no samples at all",
+  "expect": [
+   "tools/pprof-cpu-profile-misses-blocked-time.md"
+  ]
+ },
+ {
+  "query": "workers get kicked out of the while still chewing through a batch",
+  "expect": [
+   "bugs/kafka-slow-consumer-triggers-endless-rebalance.md"
+  ]
+ },
+ {
+  "query": "offset commit rejected because processing took too long",
+  "expect": [
+   "bugs/kafka-slow-consumer-triggers-endless-rebalance.md"
+  ]
+ },
+ {
+  "query": "one entity's events landed on several partitions and ran concurrently",
+  "expect": [
+   "bugs/kafka-ordering-lost-when-the-record-has-no-key.md"
+  ]
+ },
+ {
+  "query": "the second message overtook the first for the same account id",
+  "expect": [
+   "bugs/kafka-ordering-lost-when-the-record-has-no-key.md"
+  ]
+ },
+ {
+  "query": "work vanished when the process died five seconds after the",
+  "expect": [
+   "conventions/kafka-commit-offsets-after-the-work.md"
+  ]
+ },
+ {
+  "query": "silent loss between the poll and the side effect being durable",
+  "expect": [
+   "conventions/kafka-commit-offsets-after-the-work.md"
+  ]
+ },
+ {
+  "query": "extra consumers stay idle while one of them holds the whole backlog",
+  "expect": [
+   "bugs/rabbitmq-unlimited-prefetch-starves-other-consumers.md"
+  ]
+ },
+ {
+  "query": "restarting a worker redelivered tens of thousands of messages at once",
+  "expect": [
+   "bugs/rabbitmq-unlimited-prefetch-starves-other-consumers.md"
+  ]
+ },
+ {
+  "query": "a rejected message bounces between two queues all night",
+  "expect": [
+   "bugs/rabbitmq-dead-letter-loop-replays-forever.md"
+  ]
+ },
+ {
+  "query": "a broken message once it has been requeued too many times",
+  "expect": [
+   "bugs/rabbitmq-dead-letter-loop-replays-forever.md"
+  ]
+ },
+ {
+  "query": "the bucket bill grew and the object sizes do not explain it",
+  "expect": [
+   "tools/s3-lifecycle-rule-aborts-incomplete-multipart-uploads.md"
+  ]
+ },
+ {
+  "query": "big file transfers something stored behind when the client crashes",
+  "expect": [
+   "tools/s3-lifecycle-rule-aborts-incomplete-multipart-uploads.md"
+  ]
+ },
+ {
+  "query": "download link expired far sooner than the window I requested",
+  "expect": [
+   "conventions/presigned-urls-expire-with-their-signing-credential.md"
+  ]
+ },
+ {
+  "query": "temporary role credentials made the shared url stop working",
+  "expect": [
+   "conventions/presigned-urls-expire-with-their-signing-credential.md"
+  ]
+ },
+ {
+  "query": "cluster went unstable as the number of mapped fields kept climbing",
+  "expect": [
+   "bugs/elasticsearch-dynamic-mapping-explodes-the-field-count.md"
+  ]
+ },
+ {
+  "query": "one key per customer in the document made the master node slow",
+  "expect": [
+   "bugs/elasticsearch-dynamic-mapping-explodes-the-field-count.md"
+  ]
+ },
+ {
+  "query": "test passes on a laptop and fails on the build machine when it reads back a write",
+  "expect": [
+   "bugs/elasticsearch-refresh-interval-delays-search-visibility.md"
+  ]
+ },
+ {
+  "query": "misses a document for a second after writing it",
+  "expect": [
+   "bugs/elasticsearch-refresh-interval-delays-search-visibility.md"
+  ]
+ },
+ {
+  "query": "the cdn kept handing out the wrong language to everyone",
+  "expect": [
+   "bugs/cdn-cached-a-response-without-a-vary-header.md"
+  ]
+ },
+ {
+  "query": "responses differ by accept-encoding but the edge stored only one",
+  "expect": [
+   "bugs/cdn-cached-a-response-without-a-vary-header.md"
+  ]
+ }
+]

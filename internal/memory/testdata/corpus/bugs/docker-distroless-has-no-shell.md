@@ -2,6 +2,7 @@
 title: A distroless image has no shell, so shell-form healthchecks never run
 type: bug
 tags: [docker, distroless, healthcheck, deploy]
+related: [tools/ephemeral-debug-container-attaches-to-a-running-pod.md]
 ---
 
 # Distroless images have no shell

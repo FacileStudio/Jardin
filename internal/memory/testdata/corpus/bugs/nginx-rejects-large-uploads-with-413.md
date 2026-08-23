@@ -2,6 +2,7 @@
 title: 413 on upload comes from the proxy, not the application
 type: bug
 tags: [nginx, proxy, upload, limits]
+related: [an-interrupted-upload-should-resume-from-an-offset, nginx-buffers-a-streaming-response]
 ---
 
 # 413 Request Entity Too Large

@@ -2,6 +2,7 @@
 title: Key accounts on the OIDC subject, never on the email
 type: convention
 tags: [oidc, identity, auth, email]
+related: [conventions/backfill-a-new-key-column-before-you-read-it.md]
 ---
 
 # Email is not a stable identity
@@ -22,3 +23,4 @@ Store it on first sign-in and treat the email as a mutable attribute you refresh
 on every login. Adopting an existing row by matching the address is only
 defensible when the provider also asserts `email_verified`, and several common
 providers hardcode that claim to false.
+

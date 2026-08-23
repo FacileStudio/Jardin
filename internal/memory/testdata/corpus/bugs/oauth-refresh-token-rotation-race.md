@@ -19,6 +19,7 @@ whole token family. The user is signed out with no error anyone can reproduce on
 demand.
 
 The fix is a single-flight refresh: one in-flight exchange, with every other
-caller awaiting the same promise rather than starting its own. Retry storms
+caller awaiting the same promise rather than starting its own, which is the
+general shape written up in [[single-flight-collapses-a-stampede]]. Retry storms
 after a network blip cause the same failure, so the deduplication has to live
 below the retry layer, not above it.
