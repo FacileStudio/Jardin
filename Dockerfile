@@ -24,12 +24,19 @@ COPY . .
 # remember to bump, which is the copy that drifts on the first release nobody
 # thinks about. A build sitting on a tag reports the tag, one past it reports
 # the tag plus the commit, and a checkout with no tags at all still reports the
-# short sha. Goreleaser stamps this same variable without the leading v, so
-# stripping it keeps `mycelium --version` printing a bare semver either way.
+# short sha, which is what a Dokploy build reports because its clone carries no
+# tags. Goreleaser stamps this same variable without the leading v, so stripping
+# it keeps `mycelium --version` printing a bare semver either way.
 #
-# Without this the container answers "mycelium dev" and nothing running in
-# production can tell you which commit it came from.
-RUN VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)" && \
+# No --dirty. .dockerignore excludes .github, which is tracked, so git in here
+# always sees three deleted workflow files and would mark every build dirty,
+# including one from a spotless checkout. A flag that is always on is not a
+# signal, and the alternative is a rule that .dockerignore may never exclude
+# anything tracked, which nobody would remember.
+#
+# Without any of this the container answers "mycelium dev" and nothing running in
+# production can say which commit it came from.
+RUN VERSION="$(git describe --tags --always 2>/dev/null || echo dev)" && \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH:-amd64} \
     go build -trimpath \
     -ldflags="-s -w -X github.com/FacileStudio/Mycelium/cmd.version=${VERSION#v}" \
