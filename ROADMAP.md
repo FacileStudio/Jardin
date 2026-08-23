@@ -70,14 +70,14 @@ works on none. **See the correction under B1 below: the unit B1 chose was wrong 
    The smallest remaining item.
 3. **B6, consolidation.** The largest item on this page and still last.
 
-Two smaller questions the journal opened, both one line of code if the answer is yes:
+Both questions the journal opened were answered the same day it landed. `extensions/` is
+versioned, because it is authored, it syncs and it is trust-pinned, so losing it is losing a
+page. `doctor` gained a `history` check, because a commit failure is a warning on a sync that
+still succeeds and recording can therefore stop unnoticed.
 
-- **Should `extensions/models/` be versioned?** It holds authored TypeScript that syncs and is
-  trust-pinned, which makes it lose-able exactly the way a page is. It is not in the versioned
-  set, because the set was written before that directory existed.
-- **Should `doctor` report a history that has stopped recording?** A corrupt repository warns on
-  every sync and nothing else notices. This is the same shape as the `last sync` check that was
-  fixed in v0.20.0 for being green at every value.
+One left, and it is older than the journal: **`node_modules/` is not in `syncSkip`.** One
+`bun install` under `extensions/models/` would sync every file of it to the server and to every
+machine. The journal's ignore file stops it being committed here; nothing stops it being synced.
 
 ## Track A — give memory a history
 

@@ -73,12 +73,7 @@ func Log(dataDir, path string, limit int) ([]Entry, error) {
 func collect(iter object.CommitIter, limit int) ([]Entry, error) {
 	var entries []Entry
 	err := iter.ForEach(func(c *object.Commit) error {
-		entries = append(entries, Entry{
-			Ref:     c.Hash.String()[:8],
-			When:    c.Author.When,
-			Machine: c.Author.Name,
-			Message: strings.SplitN(c.Message, "\n", 2)[0],
-		})
+		entries = append(entries, entryOf(c))
 		if limit > 0 && len(entries) >= limit {
 			return stopWalk{}
 		}
@@ -90,6 +85,22 @@ func collect(iter object.CommitIter, limit int) ([]Entry, error) {
 	}
 	return entries, nil
 }
+
+// entryOf reduces a recorded operation to the four things a reader asked for:
+// the ref to hand back to diff and revert, when, which machine, and what moved.
+func entryOf(c *object.Commit) Entry {
+	return Entry{
+		Ref:     c.Hash.String()[:refLength],
+		When:    c.Author.When,
+		Machine: c.Author.Name,
+		Message: strings.SplitN(c.Message, "\n", 2)[0],
+	}
+}
+
+// refLength is how much of a hash a reader has to type back. Eight characters
+// is unambiguous well past any history this will hold and still fits beside a
+// date and a machine name on one line.
+const refLength = 8
 
 // stopWalk ends a history walk once enough entries are in hand. go-git treats
 // any non-nil error from the callback as a stop signal and hands it straight

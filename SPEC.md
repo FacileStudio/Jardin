@@ -139,17 +139,28 @@ failure this track exists to prevent: a file created and deleted between two com
 trace at all. Naming four directories is still explicit staging, not add-all, and it is belt and
 braces with the ignore file rather than depending on it.
 
-**The ignore file covers more than the list below.** `extensions/`, `machines/` and `sessions/`
-arrived after this was written, and `/.*` catches the root dotfiles by shape rather than by name.
-**Open question: `extensions/models/` holds authored TypeScript that syncs and is trust-pinned,
-which makes it lose-able the same way a page is. It is not versioned. Widening the set is one
-line if that is wanted.**
+**Five roots are versioned, not four.** `extensions/` holds the typed model code flows call. It is
+authored, it syncs, and it is trust-pinned, so a bad reconcile loses it exactly the way it loses a
+page. It is absent from the list below only because the directory did not exist when this was
+written. `machines/` and `sessions/` are ignored along with the rest of the telemetry, and `/.*`
+catches the root dotfiles by shape rather than by name.
+
+**A note on `node_modules/`.** `extensions/models/package.json` means one `bun install` there
+would create it. The ignore file names it so it can never be committed. **It is not excluded from
+`syncSkip`, so it would still sync**, which was already true before the journal and is worth
+fixing separately.
 
 **The lock is a file lock, not a mutex.** The risk note below reads as an in-process race. It is
 not one: `internal/daemon/daemon.go` runs `mycelium sync` as a child process rather than calling
 into the package, and `client.Sync` has one call site. Two processes collide, so nothing in one
 address space can see it. `internal/journal/lock.go` takes a non-blocking `flock` with a bounded
 retry, mirroring `internal/sessions/lock.go`.
+
+`journal.Inspect` backs a `history` check in `doctor`, because the journal introduced a state
+that persists until a human acts: every commit failure is a warning on a sync that still
+succeeds, so recording can stop and nothing else notices. That is the same hole the `last sync`
+check had in v0.20.0, and the rule it produced applies here. A machine with no journal yet is
+green, not red: every install that predates this is in that state until its next sync.
 
 Measured on the live wiki, 42 pages and 70 tracked files: 51 ms for the first snapshot, 464K of
 history, 25 ms per commit whether or not there is anything to commit.

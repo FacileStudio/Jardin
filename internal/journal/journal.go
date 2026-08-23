@@ -24,6 +24,7 @@ import (
 
 	"github.com/FacileStudio/Mycelium/internal/config"
 	git "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
@@ -31,10 +32,55 @@ import (
 // the data directory is telemetry or local state: events, usage, claims, runs
 // and sessions all churn on a timer and would bury a page's history in noise.
 //
+// extensions holds the typed model code that flows call. SPEC.md lists four
+// roots and not this one, because the directory did not exist when it was
+// written. It is authored, it syncs, and a bad reconcile loses it exactly the
+// way it loses a page, so it is protected the same way.
+//
 // A function rather than a package variable so no caller can append to the set
 // that decides what is protected.
 func versionedRoots() []string {
-	return []string{"memory", "rules", "skills", "flows"}
+	return []string{"memory", "rules", "skills", "flows", "extensions"}
+}
+
+// Health is what a health check needs to know: whether anything has been
+// recorded on this machine, and what the last thing was.
+type Health struct {
+	Started bool
+	Last    Entry
+}
+
+// Inspect reports the state of the journal without changing it.
+//
+// It exists because the journal introduced a failure that persists until a
+// human acts. Every commit failure is a warning on a sync that still succeeds,
+// which is the right trade, and it also means a machine can stop recording and
+// keep looking fine. The same hole was found in the "last sync" check in
+// v0.20.0: a check that cannot go red is not a check.
+//
+// A missing repository and one that cannot be read are different answers. The
+// first is a machine that has not run init since the journal shipped, and the
+// second is damage.
+func Inspect(dataDir string) (Health, error) {
+	repo, err := git.PlainOpen(dataDir)
+	if err != nil {
+		if errors.Is(err, git.ErrRepositoryNotExists) {
+			return Health{}, nil
+		}
+		return Health{}, fmt.Errorf("the history cannot be opened: %w", err)
+	}
+	head, err := repo.Head()
+	if err != nil {
+		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			return Health{}, nil
+		}
+		return Health{}, fmt.Errorf("the history cannot be read: %w", err)
+	}
+	commit, err := repo.CommitObject(head.Hash())
+	if err != nil {
+		return Health{}, fmt.Errorf("the newest entry is unreadable: %w", err)
+	}
+	return Health{Started: true, Last: entryOf(commit)}, nil
 }
 
 // Init prepares the journal and records whatever the data directory already
@@ -173,7 +219,6 @@ func ignoreBody() string {
 		"/.*",
 		"/claims/",
 		"/events/",
-		"/extensions/",
 		"/machines/",
 		"/runs/",
 		"/sessions/",
@@ -181,6 +226,7 @@ func ignoreBody() string {
 		"/tokens.json",
 		"*.conflict",
 		"*.log",
+		"node_modules/",
 		"",
 	}, "\n")
 }

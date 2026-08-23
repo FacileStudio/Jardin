@@ -12,6 +12,7 @@ import (
 	"github.com/FacileStudio/Mycelium/internal/cell"
 	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/FacileStudio/Mycelium/internal/daemon"
+	"github.com/FacileStudio/Mycelium/internal/journal"
 	"github.com/FacileStudio/Mycelium/internal/memory"
 	hsync "github.com/FacileStudio/Mycelium/internal/sync"
 	"github.com/fatih/color"
@@ -194,6 +195,10 @@ var doctorCmd = &cobra.Command{
 			return lastSyncAge(dataDir, time.Now())
 		})
 
+		check("history", func() (string, bool) {
+			return historyState(dataDir)
+		})
+
 		fmt.Println()
 		if allGood {
 			color.Green("All checks passed.")
@@ -202,6 +207,28 @@ var doctorCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+// historyState reports whether memory can still be recovered on this machine.
+//
+// A commit failure is only ever a warning on a sync that still succeeds, which
+// is deliberate: a full disk must not stop a machine reaching its own wiki. The
+// cost is that recording can stop and nothing else notices, so this is where it
+// has to be visible.
+//
+// A machine that has never started one is not a failure. Every install that
+// predates the journal is in that state until its next sync, and calling that
+// broken would make the check cry wolf on every one of them.
+func historyState(dataDir string) (string, bool) {
+	health, err := journal.Inspect(dataDir)
+	if err != nil {
+		return err.Error() + " — memory cannot be recovered until this is fixed", false
+	}
+	if !health.Started {
+		return "not started yet — the next sync will begin one", true
+	}
+	return fmt.Sprintf("recording, last %s by %s",
+		health.Last.When.Format("2006-01-02 15:04"), health.Last.Machine), true
 }
 
 // syncStaleAfter is how long a machine may go without a completed sync before
