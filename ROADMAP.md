@@ -12,26 +12,51 @@ Memory, rules, skills, flows, sessions and claims all ship. The `agents` adapter
 v0.19.0, so `~/.agents/AGENTS.md` and `~/.agents/skills/` are generated for every tool that
 follows the AGENTS.md specification.
 
-Two things are missing, and they are the two tracks below. **Memory has no history**: the sync
-is a three-way reconcile by checksum, current state only, so a page cannot be diffed, blamed or
-rolled back. On 2026-08-19 that cost 246 pages with no way to recover them. And **memory has no
-freshness signal**: every claim carries a write date that nothing surfaces at retrieval, so a
-stale page outranks a fresh one on wording alone.
+**v0.20.0, 2026-08-23, shipped five items from this page**: A3, A6, A7, B1 and B5, plus two
+fixes that came out of reviewing them. The list is below; `SPEC.md` carries the per-step detail.
+
+**Memory still has no history**, and that is the whole of Track A. The sync is a three-way
+reconcile by checksum, current state only, so a page cannot be diffed, blamed or rolled back. On
+2026-08-19 that cost 246 pages with no way to recover them. A3 now refuses a reconcile that would
+destroy more than ten files, but **anything under ten is still silently permanent**. A1 is what
+closes that.
+
+**The freshness signal is half built.** B1 landed the metadata block, so a finding can declare
+`id`, `date`, `source`, `confirmed` and `supersedes`. Nothing reads them: `rank.go` is still
+purely lexical, so a superseded claim still ranks exactly as well as its correction. B3 is what
+makes B1 worth anything.
+
+## Shipped in v0.20.0
+
+- **A3, the bulk-delete guard**, wider than this page describes it below. Both directions count
+  against one limit, because a local wipe pushed up empties the copy every other machine pulls
+  from, and that is the half no journal can undo yet.
+- **A6, `.conflict` files out of `memory/`.** The losing copy of an edit-vs-edit now mirrors the
+  page under `~/.mycelium/.conflicts/<path>` and keeps its real extension. Both layouts are pruned
+  and reported, because machines are still carrying the old sibling files.
+- **A7, dot-directories pruned from the tree walk.** `LocalTree` returns `filepath.SkipDir`
+  rather than `nil`, so no sync will descend into the `.git` that A1 is about to create.
+- **B1, per-finding metadata**, parsed in `chunk.go` into fields on `Chunk`.
+- **B5, the secrets clause**, a fourth condition on the storage gate, in all 8 agent configs.
+- Two review findings fixed alongside. The bulk-delete refusal prints entirely to stderr rather
+  than splitting across two streams, and `doctor`'s `last sync` check fails past 24 hours instead
+  of reporting the age and passing at any value. The second one mattered the moment a sync could
+  stop and stay stopped.
 
 ## Start here
 
-The tracks below are in logical order, not priority order. If you have one evening, these
-three are hours rather than weeks and each one stands alone:
+1. **A1 and A2, the journal.** `SPEC.md` steps 4 and 5. Everything about recovery, blame and
+   poisoning defence depends on them, and until they land a five-page delete is unrecoverable.
+   The largest remaining piece of Track A and the one to do next.
+2. **B3, a recency term in ranking.** `SPEC.md` step 10. B1 shipped the fields and nothing reads
+   them, so this is the half that turns metadata into behaviour. Smaller than A1, and it now has
+   everything it needs.
+3. **The normative-documents question**, still open under "Not decided" below. It gates moving
+   `CLI-STANDARD.md`, `DOCS-STANDARD.md` and `MIGRATIONS.md` into mycelium, and those have been
+   local-only since the Wiki repo was deleted on 2026-08-22. It wants deciding before Track A
+   finishes rather than after.
 
-1. **B1, `supersedes` in frontmatter.** One key. Today a superseded claim ranks exactly as
-   well as the claim that replaced it, and nothing can follow the chain. Smallest change on
-   this page, largest effect on what an agent actually reads.
-2. **B5, the secrets clause.** One sentence in the storage gate. Flows already carry the rule.
-3. **A3, the bulk-delete guard.** The difference between the 2026-08-19 deletion being
-   recoverable and it not happening.
-
-Then A1 and A2, which everything about recovery, blame and poisoning defence depends on.
-B6 is the largest and belongs last.
+B6 is the largest item on this page and still belongs last.
 
 ## Track A — give memory a history
 
@@ -64,6 +89,8 @@ succeed. The failure goes to the human, never to the agent — the same shape as
 in nacelle returning no tools when mycelium is absent rather than erroring.
 
 ### A3. A bulk-delete guard
+
+**Done in v0.20.0, covering both directions.** See `SPEC.md` step 3.
 
 `internal/sync/`
 
@@ -118,6 +145,8 @@ optimised for keyword retrieval rather than for reading top to bottom.
 
 ### A6. Move `.conflict` files out of `memory/`
 
+**Done in v0.20.0.**
+
 `internal/sync/conflict.go`
 
 A conflict as an event is domain and `doctor` already reports it. A file called
@@ -129,6 +158,8 @@ has no common-ancestor **text**, so "edited on both sides" can only park a copy.
 supply a merge base, so two agents appending different findings to one page merge cleanly.
 
 ### A7. Prune dot-directories in the tree walk
+
+**Done in v0.20.0.**
 
 `internal/sync/tree.go`
 
@@ -143,6 +174,8 @@ that block existing.
 
 ### B1. Per-finding metadata, in the page
 
+**Done in v0.20.0.** Parsed only; no reader yet, which is B3.
+
 An HTML-comment block under each `### heading` carrying `id`, `date`, `source`, `confirmed` and
 `supersedes`. The field reports teams converging on machine-readable supersession "because
 rebuilding the index doesn't resolve a semantic conflict"; mycelium's `[SUPERSEDED by: ...]` is
@@ -153,6 +186,8 @@ already parses page frontmatter with `frontmatter()` and `scalar()`, so this is 
 one level down rather than a new format.
 
 ### B2. `last_confirmed_at`
+
+**Half done in v0.20.0.** The `confirmed` field exists and parses. Nothing writes it yet.
 
 Recommended freshness metadata is `written_at`, `last_confirmed_at`, `expires_at`. Mycelium has the
 first. Reinforce the second only when a memory proves correct during use, so a page verified
@@ -168,6 +203,8 @@ The recommendation is fusing semantic similarity, BM25 and entity matching into 
 graph exists and is ignored.
 
 ### B5. A secrets clause in the storage gate
+
+**Done in v0.20.0.**
 
 The recommended write gate has four conditions and mycelium's has three; "secrets never enter
 memory" is missing. Flows already carry the rule.

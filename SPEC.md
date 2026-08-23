@@ -54,7 +54,9 @@ distribute (`go-git` is an ordinary Go dependency).
 
 Steps 1–3 are independent of each other and of everything below. Start anywhere in them.
 
-**Steps 1, 2 and 3 landed on 2026-08-23.** Steps 4 to 12 are open.
+**Steps 1, 2, 3, 8 and 9 landed on 2026-08-23**, in v0.20.0. Steps 4 to 7 and 10 to 12 are open.
+Step 4, the journal, is the one to do next: the guard in step 3 stops a mass deletion, but
+losing five pages is still permanent until there is a history to restore them from.
 
 ### 1. Per-finding metadata block  `[filet]`
 
@@ -189,6 +191,10 @@ exclude. A finding's `###` heading states what is *true*; a log line states what
 
 ### 8. `.conflict` files leave `memory/`  `[filet]`
 
+**Done 2026-08-23.** The copy keeps its real extension, so `.conflicts/memory/a.md` opens as
+markdown. `ConflictBackups` reads both this layout and the older sibling files, which are still
+on machines that wrote one before the move, and `doctor` reports through it.
+
 `internal/sync/conflict.go`
 
 `writeConflictCopy()` writes `<path>.conflict` beside the page. A conflict as an event is domain
@@ -204,6 +210,10 @@ conflict markers into a page** — that is Obsidian Git's most common complaint.
 **Exit**: a forced edit-vs-edit conflict leaves `memory/` clean and the backup under `.conflicts/`.
 
 ### 9. Prune dot-directories in the tree walk  `[filet]`
+
+**Done 2026-08-23.** `skipWalkDir` asks `syncSkip` one level up, with a trailing slash so
+`runs` matches the `runs/` rule. The root is exempt: its relative path is `.`, which the dotfile
+rule matches, and pruning it returns an empty tree that reads as every file having been deleted.
 
 `internal/sync/tree.go`
 
