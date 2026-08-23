@@ -141,3 +141,17 @@ func SaveMyceliumConfig(cfg *MyceliumConfig) error {
 	}
 	return os.Chmod(path, 0600)
 }
+
+// MachineName is what this machine calls itself: the configured name, the
+// hostname when none is set, and "unknown" when even that fails. It never
+// returns an empty string, because it names the author of a journal commit and
+// the owner of a claim, and both read as corrupt rather than absent when blank.
+func MachineName() string {
+	if cfg, err := LoadMyceliumConfig(); err == nil && strings.TrimSpace(cfg.Machine) != "" {
+		return strings.TrimSpace(cfg.Machine)
+	}
+	if host, err := os.Hostname(); err == nil && host != "" {
+		return host
+	}
+	return "unknown"
+}

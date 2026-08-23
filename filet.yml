@@ -46,6 +46,7 @@ architecture:
     "internal/adapter": [adapter.go]
     "internal/flow": [flow.go, store.go, run.go, trust.go, needs.go, graph.go, schedule.go, query.go, model.go, stream.go]
     "internal/sync": []
+    "internal/journal": []
     "internal/memory": []
     "internal/daemon": []
     "internal/cell": []

@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/FacileStudio/Mycelium/internal/flow"
 	"github.com/FacileStudio/Mycelium/internal/sessions"
 	"github.com/FacileStudio/Mycelium/internal/ui"
@@ -101,7 +102,7 @@ var flowRunCmd = &cobra.Command{
 			return err
 		}
 		ui.Step("Running %s (%s)", f.Name, stepCount(len(f.Steps)))
-		opts := flow.Options{WorkDir: dir, Machine: machineName(), Stream: os.Stdout}
+		opts := flow.Options{WorkDir: dir, Machine: config.MachineName(), Stream: os.Stdout}
 		run := flow.Execute(cmd.Context(), f, opts)
 		path, err := flow.SaveRun(run)
 		if err != nil {

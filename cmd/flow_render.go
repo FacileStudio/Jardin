@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/FacileStudio/Mycelium/internal/flow"
 	"github.com/FacileStudio/Mycelium/internal/ui"
 	"golang.org/x/term"
@@ -285,14 +284,4 @@ func printResolved(s flow.StepResult) {
 	for _, name := range names {
 		ui.Hint("%s=%s", name, s.Resolved[name])
 	}
-}
-
-func machineName() string {
-	if cfg, err := config.LoadMyceliumConfig(); err == nil && strings.TrimSpace(cfg.Machine) != "" {
-		return strings.TrimSpace(cfg.Machine)
-	}
-	if host, err := os.Hostname(); err == nil && host != "" {
-		return host
-	}
-	return "unknown"
 }
