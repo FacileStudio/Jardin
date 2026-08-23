@@ -17,16 +17,36 @@ func syncSkip(rel string) bool {
 		strings.HasSuffix(rel, ".log")
 }
 
+// skipWalkDir reports whether a whole directory can be pruned from a walk
+// rather than filtered one file at a time. The names are the same ones
+// syncSkip already excludes, asked one level up: a trailing slash is what makes
+// "runs" match the "runs/" prefix rule.
+//
+// The root is never skipped. Its relative path is ".", which the dotfile rule
+// would match, and pruning it would return an empty tree that the reconciler
+// reads as every file having been deleted.
+func skipWalkDir(rel string) bool {
+	return rel != "." && syncSkip(rel+"/")
+}
+
 // LocalTree walks the data directory and returns every file in it as a
-// FileEntry.
+// FileEntry. Excluded directories are pruned rather than walked: returning nil
+// for .git still descends into it and stats every object before discarding
+// each one, and that cost grows with every commit the journal will add.
 func LocalTree(dataDir string) ([]FileEntry, error) {
 	var entries []FileEntry
 	err := filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+		if err != nil {
 			return nil
 		}
 		rel, _ := filepath.Rel(dataDir, path)
 		rel = filepath.ToSlash(rel)
+		if info.IsDir() {
+			if skipWalkDir(rel) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if syncSkip(rel) {
 			return nil
 		}
