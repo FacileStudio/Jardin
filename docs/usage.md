@@ -94,8 +94,38 @@ mycelium spaces use --none
 
 ### `mycelium memory search <query>` / `mycelium memory index`
 
-Case-insensitive substring search across every `.md` file under `memory/`, printed as
-`path:line` followed by the matching line. `index` prints `index.md`, the router page.
+Ranked search over `### finding` blocks under `memory/`, not whole pages and not substrings.
+Results print as `path:line`, then the date the claim carries, then the block's heading and
+first line. A block with no date prints none.
+
+The server's hybrid search answers when it can and the local index answers otherwise, so a
+search always returns something. `--verbose` says which half answered, `--local` skips the
+server, `--limit` caps the list.
+
+A `~~struck-through~~` claim is not indexed. The page keeps every word, but a sentence the page
+goes on to retract will not answer a query. Ranking also decays with age, weakly: it breaks ties
+between blocks that already match about equally and never overturns a better match.
+
+`index` prints `index.md`, the router page.
+
+### `mycelium memory log [path]` / `diff <ref> [path]` / `revert <ref> [path]`
+
+What happened to memory, for a human asking. `log` lists changes newest first, each starting
+with the ref that `diff` and `revert` take. A path narrows any of them, spelled the way search
+reports it:
+
+```sh
+mycelium memory log conventions/no-slop.md
+mycelium memory diff a1b2c3d4 conventions/no-slop.md
+mycelium memory revert a1b2c3d4 conventions/no-slop.md
+```
+
+`revert` rewrites every file that existed at that ref and removes anything under the path that
+did not, so it restores a state rather than only adding back. With no path the whole authored
+tree moves, which is the answer to a sync that deleted more than it should have. What it
+replaces is recorded first, so a revert to the wrong ref is itself revertible.
+
+Nothing reaches the other machines until the next `mycelium sync`.
 
 ### `mycelium rules list` / `mycelium rules edit <name>`
 

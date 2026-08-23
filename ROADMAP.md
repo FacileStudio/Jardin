@@ -12,23 +12,37 @@ Memory, rules, skills, flows, sessions and claims all ship. The `agents` adapter
 v0.19.0, so `~/.agents/AGENTS.md` and `~/.agents/skills/` are generated for every tool that
 follows the AGENTS.md specification.
 
-**Five items from this page shipped on 2026-08-23**: B1, B5 and A3 in v0.20.0, then A6 and A7 in
-v0.21.0, plus two fixes that came out of reviewing them. The list is below; `SPEC.md` carries the
-per-step detail.
+**Track A is done.** A1 and A2 landed on 2026-08-23 alongside B3, which closes every item on this
+page except B4 and B6. A page can be deleted and restored with `mycelium memory revert`, the
+history names the machine that changed it, and no agent-facing output contains the word `git`.
 
-**Memory still has no history**, and that is the whole of Track A. The sync is a three-way
-reconcile by checksum, current state only, so a page cannot be diffed, blamed or rolled back. On
-2026-08-19 that cost 246 pages with no way to recover them. A3 now refuses a reconcile that would
-destroy more than ten files, but **anything under ten is still silently permanent**. A1 is what
-closes that.
+**Memory has a history.** `internal/journal` versions `memory/`, `rules/`, `skills/` and `flows/`
+through go-git, committed inside the sync path and never blocking it. The 2026-08-19 accident,
+246 pages gone with no way back, is now recoverable at any size rather than only above the ten
+the A3 guard refuses.
 
-**The freshness signal is half built.** B1 landed the metadata block, so a finding can declare
-`id`, `date`, `source`, `confirmed` and `supersedes`. Nothing reads them: `rank.go` is still
-purely lexical, so a superseded claim still ranks exactly as well as its correction. B3 is what
-makes B1 worth anything.
+**The freshness signal reads what the corpus actually writes.** B1's metadata block turned out to
+be written by nothing: 0 chunks of 476 carry an `id` or a `supersedes`, while 315 findings carry
+the prose `**Date**:` line the writing convention mandates. B3 reads the block first and the
+prose line second, which is the difference between a ranker that works on 329 chunks and one that
+works on none. **See the correction under B1 below: the unit B1 chose was wrong for this wiki.**
 
 ## Shipped on 2026-08-23
 
+- **A1 and A2, the journal.** go-git over the authored tree, committed by the sync path.
+  `Commit` stages four named roots rather than a caller's path list, because a caller can miss a
+  file and a missed page is the accident this exists to prevent. Two commits per sync, not one:
+  one before the reconcile for anything written since the last, one after for what moved. The
+  first closes a window where a page an agent wrote an hour ago and a pull then deleted had never
+  been recorded at all. Every failure is a warning, verified against a corrupt repository and a
+  held lock.
+- **The serialisation is a file lock.** `SPEC.md` read as an in-process race; the daemon runs
+  `mycelium sync` as a child process, so the collision is between two processes and no mutex can
+  see it.
+- **`mycelium memory log`, `diff` and `revert`.** A revert snapshots what it is about to replace,
+  so a wrong ref does not turn one lost page into two. A patch's header names the storage, so it
+  is stripped and a test fails if it comes back.
+- **B3, recency and supersession in ranking**, reshaped by two measurements. See B1 and B3 below.
 - **A3, the bulk-delete guard** (v0.20.0), wider than this page describes it below. Both
   directions count against one limit, because a local wipe pushed up empties the copy every other
   machine pulls from, and that is the half no journal can undo yet.
@@ -48,18 +62,22 @@ makes B1 worth anything.
 
 ## Start here
 
-1. **A1 and A2, the journal.** `SPEC.md` steps 4 and 5. Everything about recovery, blame and
-   poisoning defence depends on them, and until they land a five-page delete is unrecoverable.
-   The largest remaining piece of Track A and the one to do next.
-2. **B3, a recency term in ranking.** `SPEC.md` step 10. B1 shipped the fields and nothing reads
-   them, so this is the half that turns metadata into behaviour. Smaller than A1, and it now has
-   everything it needs.
-3. **The normative-documents question**, still open under "Not decided" below. It gates moving
+1. **The normative-documents question**, still open under "Not decided" below. It gates moving
    `CLI-STANDARD.md`, `DOCS-STANDARD.md` and `MIGRATIONS.md` into mycelium, and those have been
-   local-only since the Wiki repo was deleted on 2026-08-22. It wants deciding before Track A
-   finishes rather than after.
+   local-only since the Wiki repo was deleted on 2026-08-22. It was meant to be decided before
+   Track A finished. Track A has finished, so this is now the oldest thing on the page.
+2. **B4, wiki links in ranking.** `SPEC.md` step 11. The graph exists and retrieval ignores it.
+   The smallest remaining item.
+3. **B6, consolidation.** The largest item on this page and still last.
 
-B6 is the largest item on this page and still belongs last.
+Two smaller questions the journal opened, both one line of code if the answer is yes:
+
+- **Should `extensions/models/` be versioned?** It holds authored TypeScript that syncs and is
+  trust-pinned, which makes it lose-able exactly the way a page is. It is not in the versioned
+  set, because the set was written before that directory existed.
+- **Should `doctor` report a history that has stopped recording?** A corrupt repository warns on
+  every sync and nothing else notices. This is the same shape as the `last sync` check that was
+  fixed in v0.20.0 for being green at every value.
 
 ## Track A — give memory a history
 
@@ -67,6 +85,8 @@ The agent-facing surface must not change. Agents keep writing files and running 
 they never learn that git exists. See `~/.mycelium/memory/conventions/mycelium-agent-surface.md`.
 
 ### A1. A go-git journal over the authored tree
+
+**Done 2026-08-23**, as `internal/journal/`.
 
 `internal/memory/`, or a new `internal/journal/`
 
@@ -86,6 +106,9 @@ commit. Author from the machine name the token already carries. Stage explicit p
 add-all.
 
 ### A2. The journal must never block the work
+
+**Done 2026-08-23**, verified against a corrupt repository and a lock held by another process.
+Both leave the sync at exit 0 with the pages through.
 
 A corrupt repository, a held lock or a full disk must still let the memory write and the sync
 succeed. The failure goes to the human, never to the agent — the same shape as `tools.Mycelium()`
@@ -177,7 +200,27 @@ that block existing.
 
 ### B1. Per-finding metadata, in the page
 
-**Done in v0.20.0.** Parsed only; no reader yet, which is B3.
+**Done in v0.20.0, and it chose the wrong unit. Read this before building on it.**
+
+Two things came out of measuring the corpus while B3 was built, and the second is a design
+correction rather than a status update.
+
+**Nothing writes the block.** 476 chunks in the live wiki, 0 with an `id`, 0 with a `supersedes`,
+0 with a `confirmed`. 315 findings carry the prose `**Date**:` line instead, because that is what
+the writing convention in the shared rules tells an agent to write and nothing tells it to write
+the block. A format an agent is not instructed to produce is a format that does not exist. If the
+block is meant to be used, the rules have to ask for it.
+
+**Supersession here is a sentence, not a finding.** The convention is a `~~struck-through~~` claim
+followed by `[SUPERSEDED by: ...]` and the correction, both inside one `###` block. `supersedes`
+is a pointer between blocks, so it cannot express what the wiki actually does, and acting on it at
+block level would demote the correction along with the claim. B3 handles the real convention by
+dropping struck spans from the indexed text, and keeps `supersedesIDs` ready for the first finding
+that writes a pointer.
+
+The rest of the block is fine and `Date()` uses `confirmed` and `date` when they are there. The
+lesson is narrower than the field's advice suggested: machine-readable supersession is worth
+having, and the unit has to match the unit the humans and agents already correct.
 
 An HTML-comment block under each `### heading` carrying `id`, `date`, `source`, `confirmed` and
 `supersedes`. The field reports teams converging on machine-readable supersession "because
@@ -190,7 +233,9 @@ one level down rather than a new format.
 
 ### B2. `last_confirmed_at`
 
-**Half done in v0.20.0.** The `confirmed` field exists and parses. Nothing writes it yet.
+**Half done in v0.20.0, and still half done.** The `confirmed` field exists, parses, and is the
+first thing `Chunk.Date()` reads. Nothing writes it, which is the same gap as B1: no rule asks an
+agent to. Closing it is a rules change, not a code change.
 
 Recommended freshness metadata is `written_at`, `last_confirmed_at`, `expires_at`. Mycelium has the
 first. Reinforce the second only when a memory proves correct during use, so a page verified
@@ -198,7 +243,18 @@ today and one written seven weeks ago and never rechecked stop looking identical
 
 ### B3. A recency term in ranking
 
-"Decay the score, not the data" — reversible, unlike deletion. Ranking is purely lexical today.
+**Done 2026-08-23.** "Decay the score, not the data", taken literally: nothing is deleted, the
+decay is a multiplier, and a reconfirmed claim scores as new again.
+
+Exponential, half-life 180 days, floored at 0.85, so the whole effect lives in a 15% band and can
+only break ties. A settled convention must not lose to yesterday's note, which is the failure mode
+the field warns about in both directions: too aggressive loses stable facts, too lax keeps stale
+ones forever. On today's corpus the weights run 0.99743 to 1.00000, because the wiki is five days
+old and age genuinely says nothing yet. That is the correct output, not a broken one, and it is
+worth knowing before someone measures it and concludes recency does not work.
+
+The part that pays today is supersession, and it needed a different mechanism than this page
+assumed. See the correction under B1.
 
 ### B4. Let `[[wiki-links]]` contribute to ranking
 
@@ -301,6 +357,10 @@ suggest, because the agent is not hiding: it cites a source, and the source can 
 Checking the source is what caught that one.
 
 ## Exit criteria
+
+**All six met on 2026-08-23.** The last one was the closest to being missed: the ranking effect
+is a fraction of a percent on a corpus this young, so "shows" was read as showing the date rather
+than only scoring by it.
 
 - A page can be deleted and restored with `mycelium memory revert`, and the history names the
   machine that changed it.

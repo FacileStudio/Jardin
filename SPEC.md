@@ -54,10 +54,11 @@ distribute (`go-git` is an ordinary Go dependency).
 
 Steps 1–3 are independent of each other and of everything below. Start anywhere in them.
 
-**Steps 1, 2, 3, 8 and 9 landed on 2026-08-23**: 1, 2 and 3 in v0.20.0, then 8 and 9 in v0.21.0.
-Steps 4 to 7 and 10 to 12 are open.
-Step 4, the journal, is the one to do next: the guard in step 3 stops a mass deletion, but
-losing five pages is still permanent until there is a history to restore them from.
+**Steps 1 to 10 have landed.** 1, 2 and 3 in v0.20.0; 8 and 9 in v0.21.0; 4, 5, 6, 7 and 10 on
+2026-08-23. **Steps 11 and 12 are open**, and 12 is still the largest thing on this page.
+
+Track A is done: a page can be deleted and restored, and the history names the machine. Track B
+has one item left before consolidation, step 11.
 
 ### 1. Per-finding metadata block  `[filet]`
 
@@ -130,6 +131,29 @@ a non-zero exit; `--force` performs it.
 
 ### 4. The journal  `[filet]`
 
+**Done 2026-08-23.** Three deviations from what is written below, all deliberate.
+
+**`Commit` takes no `paths` argument.** It stages the four versioned roots by name. A caller
+passing the paths it happens to know about can miss one, and a missed page is exactly the
+failure this track exists to prevent: a file created and deleted between two commits leaves no
+trace at all. Naming four directories is still explicit staging, not add-all, and it is belt and
+braces with the ignore file rather than depending on it.
+
+**The ignore file covers more than the list below.** `extensions/`, `machines/` and `sessions/`
+arrived after this was written, and `/.*` catches the root dotfiles by shape rather than by name.
+**Open question: `extensions/models/` holds authored TypeScript that syncs and is trust-pinned,
+which makes it lose-able the same way a page is. It is not versioned. Widening the set is one
+line if that is wanted.**
+
+**The lock is a file lock, not a mutex.** The risk note below reads as an in-process race. It is
+not one: `internal/daemon/daemon.go` runs `mycelium sync` as a child process rather than calling
+into the package, and `client.Sync` has one call site. Two processes collide, so nothing in one
+address space can see it. `internal/journal/lock.go` takes a non-blocking `flock` with a bounded
+retry, mirroring `internal/sessions/lock.go`.
+
+Measured on the live wiki, 42 pages and 70 tracked files: 51 ms for the first snapshot, 464K of
+history, 25 ms per commit whether or not there is anything to commit.
+
 `internal/journal/` (new package), `go.mod`
 
 `github.com/go-git/go-git/v5`. **Not** a shelled-out `git`: the server image is
@@ -152,6 +176,21 @@ directory through a file syncer is a documented corruption mode.
 
 ### 5. Commit on the write and sync paths  `[filet]`
 
+**Done 2026-08-23. A sync commits twice, not once.**
+
+Once before the reconcile, for anything written since the last one, and once after, describing
+what moved. Without the first there is a window with no history at all: a page an agent wrote an
+hour ago and a pull then deletes was never in a commit, so nothing can give it back. The
+pre-commit finds nothing on almost every run and writes nothing. The two are different
+operations, so "one commit per operation" still holds.
+
+Only the second warns on failure. Both fail for the same reason and would print the same line,
+and a warning that always arrives twice is one people stop reading.
+
+Messages do not name the peer machine as the example below does. `sync.Result` carries counts and
+paths, not which machine pushed what, and adding that to the wire for a commit subject is not
+worth it.
+
 `cmd/sync.go`, `internal/sync/sync.go`
 
 One commit per operation, never per file. A `mycelium sync` that pulls six changes is one commit.
@@ -168,6 +207,17 @@ as nacelle's `tools.Mycelium()` returning no tools when mycelium is absent rathe
 
 ### 6. Read-only history commands  `[filet]`
 
+**Done 2026-08-23**, in `cmd/memory_history.go` rather than `cmd/memory.go`, which is 140 lines
+and has no room for three more commands under the 300-line cap.
+
+One thing had to be stripped to hold the line about the word `git`: a patch carries a
+`diff --git a/x b/x` header, and `index <sha>..<sha>` under it. `neutralPatch` drops both, leaving
+an ordinary unified diff, and `TestDiffNamesNoStorage` fails if either comes back.
+
+`mycelium memory revert` snapshots the current state before replacing it, so a revert to the wrong
+ref is itself revertible. A recovery command that cannot be recovered from is how one lost page
+becomes two.
+
 `cmd/memory.go`
 
 `mycelium memory log [path]`, `mycelium memory diff <ref> [path]`, `mycelium memory revert <ref>`.
@@ -180,6 +230,8 @@ and no agent-facing help text, flag or output contains the word `git`.
 machine that changed it.
 
 ### 7. `log.md` stays, and commits are never indexed
+
+**Held, 2026-08-23.** Nothing indexes a commit: `readChunkDocs` reads pages and nothing else.
 
 No code. This step is a decision to **not** write code, recorded so it is not undone.
 
@@ -227,9 +279,45 @@ rule matches, and pruning it returns an empty tree that reads as every file havi
 
 ### 10. Recency in ranking  `[filet]`
 
-`internal/memory/rank.go`, `internal/memory/hybrid.go`
+**Done 2026-08-23, and step 1 turned out not to be the dependency this said it was.**
 
-**Depends on step 1.** Combine lexical score with recency and supersession: decay the score, not
+Two measurements changed the design. Both were taken against the live wiki, 476 chunks.
+
+**The metadata block is written by nothing.** 0 chunks carry an `id`, 0 carry a `supersedes`, and
+315 findings carry the prose `**Date**:` line that the writing convention in the shared rules
+mandates. Step 1 shipped a parser for a format the corpus does not use, so a ranker reading only
+`Meta` would have measured an empty set and reported that recency does not help. `Chunk.Date()`
+reads `confirmed`, then `date`, then the prose line, taking the later of two dates on the five
+lines that carry two. That brings 329 of 476 chunks into range. The remaining 147 are page
+preambles with no date, and they are left at weight 1 rather than treated as ancient: absent is
+not old, and penalising them would be a ranking change wearing a freshness costume.
+
+**Supersession here is a sentence, not a block.** The convention is a `~~struck-through~~` claim
+followed by `[SUPERSEDED by: ...]` and the correction, both inside the same `###` finding. So
+down-ranking a chunk that says "SUPERSEDED" demotes the correction along with the claim, which is
+backwards. `Chunk.Text()` drops struck spans from what is indexed and embedded instead, the same
+call `takeMeta` already makes for the metadata comment. 11 chunks are affected, the page keeps
+every word, and unstriking the text brings it straight back. `chunkDisplay` draws its excerpt from
+the same text, so a hit no longer leads with the sentence the page exists to correct.
+
+Measured: the query "commit message replaces the log.md entry removing one obligation" returned
+the retracted sentence in `conventions/mycelium-agent-surface.md` and now returns a live claim on
+another page.
+
+**The decay itself is deliberately weak.** Exponential, half-life 180 days, floored at 0.85, so
+recency moves a score inside a 15% band and can only break ties between chunks that already match
+about equally well. On this corpus the weights run 0.99743 to 1.00000, because the wiki was reset
+on 2026-08-19 and is five days old: age says almost nothing yet and the decay correctly does
+almost nothing. It is built for the corpus in a year, not this one. Exponential rather than the
+Gaussian that suits a date range, because a claim does not stop being true on a cliff.
+
+`supersededIDs` resolves the block's forward pointer for the first finding that writes one. That
+half is ready and unused.
+
+`internal/memory/freshness.go` (new), `internal/memory/chunk.go`, `internal/memory/hybrid.go`,
+`internal/memory/rank.go`
+
+**Depended on step 1, and did not need it.** Combine lexical score with recency and supersession: decay the score, not
 the data, so the decay is reversible and nothing is deleted. A chunk whose `supersedes` names it
 as replaced, or whose `confirmed` date is old, ranks below its correction.
 
@@ -269,7 +357,11 @@ fails it is dropped with a reason.
 
 | Path | Change |
 |---|---|
-| `internal/memory/chunk.go` | new — per-finding metadata block parsing (step 1) |
+| `internal/memory/chunk.go` | new — per-finding metadata block parsing (step 1); struck spans out of the indexed text (10) |
+| `internal/memory/freshness.go` | **new** — the date a claim carries, and what age does to its score (10) |
+| `internal/journal/` | **new package** — Init, Commit, the lock, log/diff/revert (4, 6) |
+| `cmd/memory_history.go` | **new** — log, diff, revert (6) |
+| `internal/config/config.go` | modify — MachineName, shared with cmd (4) |
 | `internal/memory/rank.go` | modify — recency, supersession, link signal (10, 11) |
 | `internal/memory/hybrid.go` | modify — pass the new signals through (10, 11) |
 | `internal/journal/` | **new package** — Init, Commit (4) |
@@ -286,6 +378,9 @@ fails it is dropped with a reason.
 | `~/.mycelium/rules/` | secrets clause (2) — outside this repo |
 
 ## Exit criteria
+
+**All met on 2026-08-23** except the last line, which is a per-release check rather than a
+one-time one.
 
 - A page can be deleted and restored with `mycelium memory revert`, and the history names the
   machine that changed it.
