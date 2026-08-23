@@ -52,26 +52,44 @@ func (c Chunk) Text() string {
 }
 
 // dropStruck removes ~~ ... ~~ spans, which run across lines in this corpus and
-// so cannot be handled a line at a time. An unpaired ~~ leaves the rest of the
-// body alone: a stray pair of tildes must not be able to delete a page from the
-// index. The halves are rejoined with a space so the words either side stay two
-// tokens.
+// so cannot be handled a line at a time.
+//
+// Text inside backticks is literal in markdown, so a page documenting the marker
+// itself writes `~~struck~~` and means the six characters, not a retraction. The
+// scan steps over a code span whole. A struck claim that quotes a path or a
+// command is still stripped entire, because its opening ~~ is reached first and
+// the whole span goes with it, backticks and all.
+//
+// Anything unterminated, a lone ~~ or an odd backtick, leaves the rest of the
+// body untouched. The failure mode here has to be stripping too little: a stray
+// pair of tildes must never be able to delete a page from the index.
+//
+// A stripped span becomes a space so the words either side stay two tokens.
 func dropStruck(body string) string {
 	var out strings.Builder
-	for {
-		open := strings.Index(body, "~~")
-		if open < 0 {
-			break
+	for i := 0; i < len(body); {
+		switch {
+		case body[i] == '`':
+			end := strings.IndexByte(body[i+1:], '`')
+			if end < 0 {
+				out.WriteString(body[i:])
+				return out.String()
+			}
+			out.WriteString(body[i : i+end+2])
+			i += end + 2
+		case strings.HasPrefix(body[i:], "~~"):
+			end := strings.Index(body[i+2:], "~~")
+			if end < 0 {
+				out.WriteString(body[i:])
+				return out.String()
+			}
+			out.WriteString(" ")
+			i += end + 4
+		default:
+			out.WriteByte(body[i])
+			i++
 		}
-		end := strings.Index(body[open+2:], "~~")
-		if end < 0 {
-			break
-		}
-		out.WriteString(body[:open])
-		out.WriteString(" ")
-		body = body[open+2+end+2:]
 	}
-	out.WriteString(body)
 	return out.String()
 }
 

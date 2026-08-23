@@ -174,6 +174,50 @@ func TestUnpairedTildesLeaveTheBodyAlone(t *testing.T) {
 	}
 }
 
+// TestDropStruckShapes covers the two directions that matter and are easy to
+// get backwards. A retraction that quotes a path must still go entirely, and a
+// page documenting the marker itself must survive, because inside backticks the
+// characters are literal and mean no retraction at all.
+func TestDropStruckShapes(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain span goes", "before ~~dead claim~~ after", "before   after"},
+		{"span quoting code goes whole",
+			"~~Ruche has no `go` toolchain, none at all.~~ [SUPERSEDED by: x] It has one.",
+			"  [SUPERSEDED by: x] It has one."},
+		{"marker inside backticks stays",
+			"Chunk.Text() now drops `~~struck~~` spans.",
+			"Chunk.Text() now drops `~~struck~~` spans."},
+		{"bare marker inside backticks stays", "the `~~` convention", "the `~~` convention"},
+		{"unterminated span keeps the rest", "a ~~ stray marker and more", "a ~~ stray marker and more"},
+		{"odd backtick keeps the rest", "a `stray tick and ~~this~~ too", "a `stray tick and ~~this~~ too"},
+		{"span across lines goes", "keep\n~~dead\nover two lines~~\nkeep", "keep\n \nkeep"},
+		{"two spans both go", "a ~~one~~ b ~~two~~ c", "a   b   c"},
+	}
+	for _, c := range cases {
+		if got := dropStruck(c.in); got != c.want {
+			t.Errorf("%s:\n  in   %q\n  got  %q\n  want %q", c.name, c.in, got, c.want)
+		}
+	}
+}
+
+// TestDropStruckNeverGrowsOrLosesLiveText is the safety property. Stripping too
+// little is a missed improvement; stripping too much silently deletes a claim
+// from search with nothing to show for it.
+func TestDropStruckNeverGrowsOrLosesLiveText(t *testing.T) {
+	for _, body := range []string{
+		"", "~~", "~~~~", "`", "``", "~~`~~`", "`~~`~~", "~~a~~~~b~~", "a`b~~c~~d`e",
+	} {
+		got := dropStruck(body)
+		if len(got) > len(body) {
+			t.Errorf("dropStruck(%q) grew to %q", body, got)
+		}
+	}
+}
+
 // TestSupersededChunkRanksBelowItsReplacement is SPEC.md step 10's own exit
 // criterion, for the day a finding fills in the metadata block. No page in the
 // live wiki writes one yet.

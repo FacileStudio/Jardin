@@ -8,13 +8,29 @@ import (
 )
 
 // syncSkip reports whether a path is excluded from sync: the tokens file,
-// hidden dotfiles, conflict backups, logs and flow run artifacts never travel.
+// hidden dotfiles, conflict backups, logs, flow run artifacts and installed
+// packages never travel.
+//
+// node_modules is here because extensions/models carries a package.json, so one
+// bun install inside the data directory would otherwise push every file of it
+// to the server and to every other machine. The server keeps its own copy of
+// this rule in internal/server/sync_api.go and the two must agree: a path one
+// side cannot see and the other can is how a reconcile decides a file was
+// deleted.
 func syncSkip(rel string) bool {
 	return rel == tokensFile ||
 		strings.HasPrefix(rel, ".") ||
 		strings.HasPrefix(rel, "runs/") ||
+		inPackageDir(rel) ||
 		strings.HasSuffix(rel, conflictExt) ||
 		strings.HasSuffix(rel, ".log")
+}
+
+// inPackageDir reports whether a path lies in an installed-package directory.
+// It matches the whole segment, so a page named my-node_modules.md is not
+// mistaken for one.
+func inPackageDir(rel string) bool {
+	return strings.HasPrefix(rel, "node_modules/") || strings.Contains(rel, "/node_modules/")
 }
 
 // skipWalkDir reports whether a whole directory can be pruned from a walk

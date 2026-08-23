@@ -133,6 +133,16 @@ func syncSkip(rel string) bool {
 	return rel == "tokens.json" ||
 		strings.HasPrefix(rel, ".") ||
 		strings.HasPrefix(rel, "runs/") ||
+		inPackageDir(rel) ||
 		strings.HasSuffix(rel, ".conflict") ||
 		rel == "spaces" || strings.HasPrefix(rel, "spaces"+string(os.PathSeparator)) || strings.HasPrefix(rel, "spaces/")
+}
+
+// inPackageDir reports whether a path lies in an installed-package directory.
+// The client keeps the same rule in internal/sync/tree.go and the two must
+// agree: a path one side cannot see and the other can is how a reconcile
+// decides a file was deleted. It matches the whole segment, so a page named
+// my-node_modules.md is not mistaken for one.
+func inPackageDir(rel string) bool {
+	return strings.HasPrefix(rel, "node_modules/") || strings.Contains(rel, "/node_modules/")
 }

@@ -38,3 +38,30 @@ func TestSkipWalkDirPrunesWhatSyncSkipExcludes(t *testing.T) {
 		}
 	}
 }
+
+// TestInstalledPackagesNeverSync guards a directory that does not exist yet.
+// extensions/models carries a package.json, so one bun install inside the data
+// directory would push every file of node_modules to the server and to every
+// other machine. Matching the whole segment keeps a page that merely has the
+// word in its name.
+func TestInstalledPackagesNeverSync(t *testing.T) {
+	for _, path := range []string{
+		"node_modules/left-pad/index.js",
+		"extensions/models/node_modules/zod/package.json",
+	} {
+		if !syncSkip(path) {
+			t.Errorf("%q would sync", path)
+		}
+	}
+	for _, path := range []string{
+		"memory/tools/my-node_modules.md",
+		"memory/conventions/node_modules-and-sync.md",
+	} {
+		if syncSkip(path) {
+			t.Errorf("%q is a page and must sync", path)
+		}
+	}
+	if !skipWalkDir("extensions/models/node_modules") {
+		t.Error("the directory must be pruned rather than walked file by file")
+	}
+}
