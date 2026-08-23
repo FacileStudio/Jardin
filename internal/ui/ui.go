@@ -46,6 +46,13 @@ func Hint(format string, a ...any) {
 	fmt.Fprintf(os.Stdout, "  %s\n", faint.Sprint(fmt.Sprintf(format, a...)))
 }
 
+// ErrorHint prints the same indented, faint line to stderr, for the detail that
+// belongs under an Error. Reaching for Hint there splits one message across two
+// streams, so a `2>log` keeps the headline and loses the explanation.
+func ErrorHint(format string, a ...any) {
+	fmt.Fprintf(os.Stderr, "  %s\n", faint.Sprint(fmt.Sprintf(format, a...)))
+}
+
 // Outcome is how one line of a report turned out.
 type Outcome int
 

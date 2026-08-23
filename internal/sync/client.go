@@ -11,11 +11,17 @@ import (
 
 // Client talks to a Mycelium server over HTTP, scoped to one space when Space
 // is set.
+//
+// AllowBulkDelete waives the limit on how many local files one Sync may
+// remove. It is a field rather than a parameter so Push, Pull and the daemon's
+// unattended sync are untouched by it, and so only the human typing --force
+// can turn it on.
 type Client struct {
-	BaseURL    string
-	Token      string
-	Space      string
-	HTTPClient *http.Client
+	BaseURL         string
+	Token           string
+	Space           string
+	AllowBulkDelete bool
+	HTTPClient      *http.Client
 }
 
 // FileEntry is one file's identity as the sync reconciler compares it: path
