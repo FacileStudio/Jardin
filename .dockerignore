@@ -1,4 +1,5 @@
-.git
+# .git is deliberately not ignored: the build reads the tag out of it to stamp
+# the version. It is 8M and never reaches the final image, only the builder.
 .github
 .gstack
 dist
