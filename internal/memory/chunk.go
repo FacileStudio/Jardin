@@ -14,6 +14,19 @@ type Chunk struct {
 	Line    int    `json:"line"`
 	Header  string `json:"header"`
 	Body    string `json:"body"`
+	Meta    Meta   `json:"meta"`
+}
+
+// Meta is the optional metadata a finding declares in an HTML comment under its
+// heading. Every field is a plain string and there is deliberately no slice or
+// map here: Chunk is compared with == to decide whether a block changed, and a
+// single reference field would turn that comparison into a compile error.
+type Meta struct {
+	ID         string `json:"id,omitempty"`
+	Date       string `json:"date,omitempty"`
+	Source     string `json:"source,omitempty"`
+	Confirmed  string `json:"confirmed,omitempty"`
+	Supersedes string `json:"supersedes,omitempty"`
 }
 
 // Text is what gets embedded: the header followed by the block, so the vector
@@ -61,6 +74,7 @@ func Chunks(path, content string) []Chunk {
 }
 
 func appendChunk(chunks []Chunk, c Chunk, body []string) []Chunk {
+	c.Meta, body = takeMeta(body)
 	c.Body = strings.TrimSpace(strings.Join(body, "\n"))
 	if c.Body == "" && c.Heading == "" {
 		return chunks
@@ -69,6 +83,75 @@ func appendChunk(chunks []Chunk, c Chunk, body []string) []Chunk {
 		c.Header += " / " + c.Heading
 	}
 	return append(chunks, split(c)...)
+}
+
+// takeMeta lifts the metadata comment off the front of a finding's body and
+// returns the body without it. The comment counts as metadata only when it
+// yields at least one recognised field, because `<!-- lang:fr -->` is a live
+// marker in this wiki and stripping it would delete the exemption it grants.
+// Stripping matters for the rest: Text() is what gets embedded, and `<!--`
+// noise in a vector or a BM25 index is paid for on every query.
+func takeMeta(body []string) (Meta, []string) {
+	start := 0
+	for start < len(body) && strings.TrimSpace(body[start]) == "" {
+		start++
+	}
+	if start == len(body) || !strings.HasPrefix(strings.TrimSpace(body[start]), "<!--") {
+		return Meta{}, body
+	}
+	inner, rest, ok := metaBlock(body, start)
+	if !ok {
+		return Meta{}, body
+	}
+	meta := Meta{
+		ID:         scalar(inner, "id"),
+		Date:       scalar(inner, "date"),
+		Source:     scalar(inner, "source"),
+		Confirmed:  scalar(inner, "confirmed"),
+		Supersedes: scalar(inner, "supersedes"),
+	}
+	if meta == (Meta{}) {
+		return Meta{}, body
+	}
+	return meta, rest
+}
+
+// metaBlock splits a comment block off the front of a body and returns its
+// inner text, the lines that follow it and whether it closed at all. Each line
+// is trimmed before joining so an indented continuation still reaches scalar()
+// looking like a frontmatter line. A blank line ends the search, which is what
+// keeps an unterminated `<!--` from swallowing the rest of a page that has no
+// `-->` anywhere in it.
+func metaBlock(body []string, start int) (string, []string, bool) {
+	var inner []string
+	for i := start; i < len(body); i++ {
+		line := strings.TrimSpace(body[i])
+		if i == start {
+			line = strings.TrimSpace(strings.TrimPrefix(line, "<!--"))
+		} else if line == "" {
+			return "", nil, false
+		}
+		cut := strings.Index(line, "-->")
+		if cut < 0 {
+			inner = append(inner, line)
+			continue
+		}
+		inner = append(inner, strings.TrimSpace(line[:cut]))
+		rest := withTail(strings.TrimSpace(line[cut+len("-->"):]), body[i+1:])
+		return strings.Join(inner, "\n"), rest, true
+	}
+	return "", nil, false
+}
+
+// withTail puts whatever was typed after the closing `-->` back at the head of
+// the body. Dropping it looked harmless because the page still renders, but the
+// sentence would then be missing from every search result that page returns,
+// and nothing about the file would show that it had gone.
+func withTail(tail string, rest []string) []string {
+	if tail == "" {
+		return rest
+	}
+	return append([]string{tail}, rest...)
 }
 
 // split breaks an oversized block at line boundaries so no part is truncated by
