@@ -54,7 +54,12 @@ distribute (`go-git` is an ordinary Go dependency).
 
 Steps 1–3 are independent of each other and of everything below. Start anywhere in them.
 
+**Steps 1, 2 and 3 landed on 2026-08-23.** Steps 4 to 12 are open.
+
 ### 1. Per-finding metadata block  `[filet]`
+
+**Done 2026-08-23.** Tests landed in `chunk_meta_test.go` rather than `chunk_test.go`, which was
+close enough to the 300-line cap that adding them would have left no room.
 
 `internal/memory/chunk.go`, `internal/memory/chunk_test.go`
 
@@ -82,6 +87,8 @@ page without; `go test ./internal/memory/` green; `filet check .` exit 0.
 
 ### 2. Secrets clause in the storage gate
 
+**Done 2026-08-23.** The gate has a fourth condition and all 8 agent configs carry it.
+
 `~/.mycelium/rules/` (the shared rules, not this repo), and this repo's `AGENTS.md` if it restates
 the gate
 
@@ -94,13 +101,24 @@ with it.
 
 ### 3. Bulk-delete guard  `[filet]`
 
+**Done 2026-08-23, wider than written below.**
+
 `internal/sync/sync.go`, `internal/sync/client.go`, `cmd/sync.go`
 
 A reconcile whose plan would delete more than `maxSilentDeletes` (start at 10) local files stops
 before writing, reports the count and the paths, and requires `--force`. Versioning makes the
 2026-08-19 deletion recoverable; this makes it not happen.
 
-Applies to the local side only. A deletion arriving from the server is the same event.
+**Applies to both directions, counted against one limit.** This step originally guarded local
+deletions only. Review found that the unguarded direction is the one nothing can undo yet: a local
+wipe pushed up empties the copy every other machine pulls from, and step 4 has not landed. So
+`plannedDeletes` collects removals both ways and refuses when the two together pass
+`MaxSilentDeletes`. `BulkDeleteError` keeps them in separate fields, because "gone from this
+machine" and "gone from the server" read as different accidents to whoever hits the refusal.
+
+Two fixes came out of the same review and shipped with it: `ui.ErrorHint` keeps the whole refusal
+on stderr, and `doctor`'s `last sync` check now fails past 24 hours. It used to report the age and
+pass at any value, which is a hole only once a sync can stop and stay stopped.
 
 **Exit**: a test drives a reconcile that would remove 11 files and asserts nothing was deleted and
 a non-zero exit; `--force` performs it.
@@ -249,6 +267,8 @@ fails it is dropped with a reason.
 | `internal/sync/tree.go` | modify — `SkipDir` on dot-directories (9) |
 | `cmd/memory.go` | modify — `log`, `diff`, `revert` (6) |
 | `cmd/sync.go` | modify — commit per sync, `--force` (3, 5) |
+| `internal/ui/ui.go` | modify — `ErrorHint`, so a refusal stays on one stream (3) |
+| `cmd/doctor.go` | modify — fail the `last sync` check once it is stale (3) |
 | `internal/daemon/daemon.go` | modify — consolidation stage (12) |
 | `internal/consolidate/` | **new package** (12) |
 | `go.mod` | add `github.com/go-git/go-git/v5` |
