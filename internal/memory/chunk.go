@@ -29,13 +29,50 @@ type Meta struct {
 	Supersedes string `json:"supersedes,omitempty"`
 }
 
-// Text is what gets embedded: the header followed by the block, so the vector
-// carries the page's identity as well as the block's content.
+// Text is what gets indexed and embedded: the header followed by the block,
+// so the vector carries the page's identity as well as the block's content,
+// with anything the author struck through removed.
+//
+// A ~~struck-through~~ span is the wiki's way of saying a claim turned out to
+// be wrong, and it is normally followed by "[SUPERSEDED by: ...]" and the
+// correction in the same finding. Both halves are indexed today, so a query can
+// match the dead half and hand an agent a claim the page itself contradicts two
+// lines further down. Dropping it from the index is a score change, not a
+// deletion: the page still holds every word, a reader still sees it, and
+// unstriking the text brings it straight back.
+//
+// This is the same call takeMeta already makes for the metadata comment. Not
+// everything in a body is worth paying for on every query.
 func (c Chunk) Text() string {
+	body := dropStruck(c.Body)
 	if c.Header == "" {
-		return c.Body
+		return body
 	}
-	return c.Header + "\n\n" + c.Body
+	return c.Header + "\n\n" + body
+}
+
+// dropStruck removes ~~ ... ~~ spans, which run across lines in this corpus and
+// so cannot be handled a line at a time. An unpaired ~~ leaves the rest of the
+// body alone: a stray pair of tildes must not be able to delete a page from the
+// index. The halves are rejoined with a space so the words either side stay two
+// tokens.
+func dropStruck(body string) string {
+	var out strings.Builder
+	for {
+		open := strings.Index(body, "~~")
+		if open < 0 {
+			break
+		}
+		end := strings.Index(body[open+2:], "~~")
+		if end < 0 {
+			break
+		}
+		out.WriteString(body[:open])
+		out.WriteString(" ")
+		body = body[open+2+end+2:]
+	}
+	out.WriteString(body)
+	return out.String()
 }
 
 // MaxChunkChars bounds what one chunk carries. Embedding models truncate

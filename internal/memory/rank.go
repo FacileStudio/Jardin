@@ -20,6 +20,7 @@ type doc struct {
 	body    string
 	tokens  map[string]int
 	length  int
+	weight  float64
 }
 
 // tokenize lowercases, folds accents away, and splits on anything that is not
@@ -71,7 +72,7 @@ func newUnit(id, page string, line int, body string) doc {
 	for _, tok := range tokens {
 		counts[tok]++
 	}
-	return doc{path: id, page: page, line: line, body: body, tokens: counts, length: len(tokens)}
+	return doc{path: id, page: page, line: line, body: body, tokens: counts, length: len(tokens), weight: 1}
 }
 
 // termFrequency counts a term in a document, treating the term as a prefix so

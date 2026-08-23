@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // SearchChunks ranks `### finding` blocks rather than whole pages. A page is a
@@ -25,7 +26,7 @@ func SearchChunks(memoryPath, query string) ([]SearchResult, error) {
 
 	var results []SearchResult
 	for _, d := range c.docs {
-		score := c.score(d, weights)
+		score := c.score(d, weights) * d.weight
 		if score <= 0 {
 			continue
 		}
@@ -45,22 +46,33 @@ func readChunkDocs(memoryPath string) ([]doc, error) {
 	if err != nil {
 		return nil, err
 	}
-	var units []doc
+	var chunks []Chunk
 	for _, p := range pages {
-		for _, c := range Chunks(p.path, p.body) {
-			unit := newUnit(ChunkKey(c), c.Path, c.Line, c.Text())
-			unit.display = chunkDisplay(c)
-			units = append(units, unit)
-		}
+		chunks = append(chunks, Chunks(p.path, p.body)...)
+	}
+	replaced := supersededIDs(chunks)
+	now := time.Now()
+
+	units := make([]doc, 0, len(chunks))
+	for _, c := range chunks {
+		unit := newUnit(ChunkKey(c), c.Path, c.Line, c.Text())
+		unit.display = chunkDisplay(c)
+		unit.weight = chunkWeight(c, replaced, now)
+		units = append(units, unit)
 	}
 	return units, nil
 }
 
 // chunkDisplay is what a reader sees for a hit: the block's own heading and the
-// first line of its body. The enrichment header is deliberately left out — it
+// first line of its body. The enrichment header is deliberately left out: it
 // repeats the path already printed beside the line number.
+//
+// The excerpt is drawn from the same text that was indexed, struck-through
+// spans removed. Several findings in this wiki open with the claim they go on
+// to retract, and leading a hit with it hands a reader the one sentence the
+// page exists to correct.
 func chunkDisplay(c Chunk) string {
-	body := excerpt(c.Body)
+	body := excerpt(dropStruck(c.Body))
 	if c.Heading == "" {
 		return body
 	}
