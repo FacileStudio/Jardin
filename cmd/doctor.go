@@ -200,16 +200,7 @@ var doctorCmd = &cobra.Command{
 		})
 
 		check("last sync", func() (string, bool) {
-			basePath := filepath.Join(dataDir, ".sync-base.json")
-			info, err := os.Stat(basePath)
-			if err != nil {
-				if os.IsNotExist(err) {
-					return "never synced", false
-				}
-				return err.Error(), false
-			}
-			ago := time.Since(info.ModTime()).Truncate(time.Second)
-			return fmt.Sprintf("%s ago", ago), true
+			return lastSyncAge(dataDir, time.Now())
 		})
 
 		fmt.Println()
@@ -220,6 +211,32 @@ var doctorCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+// syncStaleAfter is how long a machine may go without a completed sync before
+// doctor calls it a failure. The daemon syncs about every 60 seconds, so a full
+// day means something is stopping it: no network, no token, or a refused
+// bulk delete waiting for a human to accept it. This check used to pass at any
+// age, so a machine could sit unsynced for a week and still report itself
+// healthy, which is the state a guard that stops a sync can now create.
+const syncStaleAfter = 24 * time.Hour
+
+// lastSyncAge reports how long ago the base manifest was written and whether
+// that is recent enough to call healthy. now is a parameter so the threshold is
+// testable without waiting a day for it.
+func lastSyncAge(dataDir string, now time.Time) (string, bool) {
+	info, err := os.Stat(filepath.Join(dataDir, ".sync-base.json"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "never synced", false
+		}
+		return err.Error(), false
+	}
+	ago := now.Sub(info.ModTime()).Truncate(time.Second)
+	if ago > syncStaleAfter {
+		return fmt.Sprintf("%s ago, run 'mycelium sync' to see why", ago), false
+	}
+	return fmt.Sprintf("%s ago", ago), true
 }
 
 func init() {
