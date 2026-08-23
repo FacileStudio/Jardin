@@ -149,3 +149,13 @@ func supersededIDs(chunks []Chunk) map[string]bool {
 	}
 	return replaced
 }
+
+// DayString renders a claim's date for a reader, and the empty string when it
+// has none. Absolute rather than "4 months ago": it is what the page itself
+// says, and it does not change between two runs of the same query.
+func DayString(at time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+	return at.Format(dayLayout)
+}

@@ -52,6 +52,7 @@ type MemoryHit struct {
 	Line    int     `json:"line"`
 	Score   float64 `json:"score"`
 	Excerpt string  `json:"excerpt"`
+	Date    string  `json:"date,omitempty"`
 }
 
 // MemorySearchResponse carries the ranked hits. Degraded reports that the
@@ -229,6 +230,7 @@ func fuse(idx chunkIndex, rankings [][]string, limit int) []MemoryHit {
 			Line:    c.Line,
 			Score:   score,
 			Excerpt: excerptOf(memory.StripBlockMeta(c.Body)),
+			Date:    memory.DayString(c.Date()),
 		})
 	}
 	sort.Slice(hits, func(i, j int) bool { return betterHit(hits[i], hits[j]) })

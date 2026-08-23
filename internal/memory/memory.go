@@ -12,11 +12,18 @@ const linesPerFile = 3
 
 // SearchResult is one matching line from a memory file. Score ranks it against
 // the other results for the same query; it is not comparable across queries.
+//
+// Date is when the claim was written or last confirmed, empty when the block
+// says nothing. It is carried rather than merely scored because the decay is
+// deliberately weak: on a corpus this young it moves a score by a fraction of a
+// percent, which no reader can see. A reader who can see the date can decide
+// for themselves, which is the part that works on day one.
 type SearchResult struct {
 	Path    string `json:"path"`
 	Line    int    `json:"line"`
 	Content string `json:"content"`
 	Score   int    `json:"score"`
+	Date    string `json:"date,omitempty"`
 }
 
 // Search returns memory lines matching a query, best first. Pages are ranked

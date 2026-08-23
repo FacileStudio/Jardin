@@ -35,6 +35,7 @@ func SearchChunks(memoryPath, query string) ([]SearchResult, error) {
 			Line:    d.line,
 			Content: d.display,
 			Score:   int(score * 100),
+			Date:    d.date,
 		})
 	}
 	sortResults(results)
@@ -58,6 +59,7 @@ func readChunkDocs(memoryPath string) ([]doc, error) {
 		unit := newUnit(ChunkKey(c), c.Path, c.Line, c.Text())
 		unit.display = chunkDisplay(c)
 		unit.weight = chunkWeight(c, replaced, now)
+		unit.date = DayString(c.Date())
 		units = append(units, unit)
 	}
 	return units, nil

@@ -21,6 +21,7 @@ type doc struct {
 	tokens  map[string]int
 	length  int
 	weight  float64
+	date    string
 }
 
 // tokenize lowercases, folds accents away, and splits on anything that is not

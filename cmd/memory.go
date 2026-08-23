@@ -108,6 +108,9 @@ func printSearchResults(results []memory.SearchResult) {
 	}
 	for _, r := range shown {
 		color.New(color.FgCyan).Printf("%s:%d ", r.Path, r.Line)
+		if r.Date != "" {
+			fmt.Print(ui.Dim(r.Date + " "))
+		}
 		fmt.Println(r.Content)
 	}
 	if len(shown) < len(results) {

@@ -202,3 +202,28 @@ func TestSupersededChunkRanksBelowItsReplacement(t *testing.T) {
 func page(body, title string) string {
 	return fmt.Sprintf("---\ntitle: %s\ntype: tool\n---\n\n%s", title, body)
 }
+
+// TestSearchResultsCarryTheDate is the half of the freshness signal that works
+// on a five-day-old corpus. The decay moves scores by a fraction of a percent
+// here and no reader can see it; the date is what lets one judge for itself.
+func TestSearchResultsCarryTheDate(t *testing.T) {
+	dir := tempCorpus(t, map[string]string{
+		"tools/dated.md": page("### the gate is failOn error\n**Date**: 2026-08-21\n"+
+			"warnings do not fail the build\n", "dated"),
+		"tools/undated.md": page("### the gate is failOn error elsewhere\nwarnings do not fail\n", "undated"),
+	})
+	results, err := SearchChunks(dir, "the gate is failOn error")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]string{}
+	for _, r := range results {
+		seen[r.Path] = r.Date
+	}
+	if got := seen[filepath.FromSlash("tools/dated.md")]; got != "2026-08-21" {
+		t.Errorf("dated hit carries %q, want 2026-08-21", got)
+	}
+	if got, ok := seen[filepath.FromSlash("tools/undated.md")]; !ok || got != "" {
+		t.Errorf("undated hit carries %q, want an empty date and a result", got)
+	}
+}

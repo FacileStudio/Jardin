@@ -65,6 +65,7 @@ type remoteReply struct {
 		Line    int     `json:"line"`
 		Score   float64 `json:"score"`
 		Excerpt string  `json:"excerpt"`
+		Date    string  `json:"date"`
 	} `json:"results"`
 	Degraded bool `json:"degraded"`
 }
@@ -81,6 +82,7 @@ func (r remoteReply) results() []SearchResult {
 			Line:    hit.Line,
 			Content: hit.Excerpt,
 			Score:   int(hit.Score * remoteScoreScale),
+			Date:    hit.Date,
 		})
 	}
 	return out
