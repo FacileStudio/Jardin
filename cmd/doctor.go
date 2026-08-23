@@ -13,6 +13,7 @@ import (
 	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/FacileStudio/Mycelium/internal/daemon"
 	"github.com/FacileStudio/Mycelium/internal/memory"
+	hsync "github.com/FacileStudio/Mycelium/internal/sync"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -161,19 +162,9 @@ var doctorCmd = &cobra.Command{
 		})
 
 		check("conflicts", func() (string, bool) {
-			var conflicts []string
-			filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
-				if err != nil {
-					return nil
-				}
-				if strings.HasSuffix(info.Name(), ".conflict") {
-					rel, _ := filepath.Rel(dataDir, path)
-					conflicts = append(conflicts, rel)
-				}
-				return nil
-			})
-			if len(conflicts) > 0 {
-				return fmt.Sprintf("%d conflict(s): %s", len(conflicts), strings.Join(conflicts, ", ")), false
+			pages := hsync.ConflictBackups(dataDir)
+			if len(pages) > 0 {
+				return fmt.Sprintf("%d conflict(s): %s", len(pages), strings.Join(pages, ", ")), false
 			}
 			return "none", true
 		})

@@ -9,9 +9,9 @@ import (
 )
 
 // A genuine edit-vs-edit conflict must converge without losing either version.
-// Both edits survive: the winner under its own name, the loser as a sibling
-// .conflict file that never syncs to the server, and a second sync with no
-// further edits converges to a no-op.
+// Both edits survive: the winner under its own name, the loser mirrored under
+// .conflicts/ where it never syncs and never shows up in a directory read of
+// memory/, and a second sync with no further edits converges to a no-op.
 func TestSyncConflictKeepsBothVersions(t *testing.T) {
 	c, clientDir, serverDir := setup(t)
 	establishBase(t, c, clientDir, serverDir, "rules/a.md", "v1")
@@ -28,18 +28,18 @@ func TestSyncConflictKeepsBothVersions(t *testing.T) {
 	}
 
 	winner := read(t, clientDir, "rules/a.md")
-	if !exists(clientDir, "rules/a.md.conflict") {
+	if !exists(clientDir, ".conflicts/rules/a.md") {
 		t.Fatal("conflict backup was not written")
 	}
-	loser := read(t, clientDir, "rules/a.md.conflict")
+	loser := read(t, clientDir, ".conflicts/rules/a.md")
 
 	both := winner + "|" + loser
 	if !strings.Contains(both, "local-edit") || !strings.Contains(both, "server-edit") {
 		t.Fatalf("a version was lost: winner=%q loser=%q", winner, loser)
 	}
 
-	if exists(serverDir, "rules/a.md.conflict") {
-		t.Fatal(".conflict file leaked to the server")
+	if exists(serverDir, ".conflicts/rules/a.md") {
+		t.Fatal("the conflict copy leaked to the server")
 	}
 
 	res2, err := c.Sync(clientDir)
@@ -68,8 +68,8 @@ func TestSyncSingleWriterUsagePathTakesFresherCopy(t *testing.T) {
 	if len(res.Conflicts) != 0 {
 		t.Fatalf("single-writer path reported as a conflict: %+v", res.Conflicts)
 	}
-	if exists(clientDir, "usage/ruche/current.json.conflict") {
-		t.Fatal("single-writer path kept a .conflict backup")
+	if exists(clientDir, ".conflicts/usage/ruche/current.json") {
+		t.Fatal("single-writer path kept a conflict backup")
 	}
 	if got := read(t, clientDir, "usage/ruche/current.json"); got != `{"used":3}` {
 		t.Fatalf("fresher local copy did not win, got %q", got)
@@ -88,7 +88,9 @@ func TestSyncSingleWriterUsagePathTakesFresherCopy(t *testing.T) {
 }
 
 // A backup left by the old behaviour is this machine's own stale telemetry and
-// nothing else deletes it, so doctor would stay red forever.
+// nothing else deletes it, so doctor would stay red forever. It is written in
+// the pre-.conflicts/ layout on purpose: machines are still carrying those, and
+// the prune has to reach both.
 //
 // The sync that clears it must be an ordinary one. Once conflicts on these paths
 // are prevented the resolve path is never reached again, so cleaning up only
@@ -142,7 +144,7 @@ func TestSyncUsageRootStillConflicts(t *testing.T) {
 	if len(res.Conflicts) != 1 {
 		t.Fatalf("expected one conflict, got %+v", res.Conflicts)
 	}
-	if !exists(clientDir, "usage/shared.json.conflict") {
+	if !exists(clientDir, ".conflicts/usage/shared.json") {
 		t.Fatal("conflict backup was not written")
 	}
 }
@@ -182,7 +184,7 @@ func TestSyncDeletedLocallyButEditedOnServerKeepsTheServerCopy(t *testing.T) {
 	if len(res.Conflicts) != 1 || !strings.Contains(res.Conflicts[0], "deleted locally") {
 		t.Fatalf("conflict not reported as a local delete: %+v", res.Conflicts)
 	}
-	if exists(clientDir, "rules/a.md.conflict") {
+	if exists(clientDir, ".conflicts/rules/a.md") {
 		t.Fatal("a backup was written for a delete-vs-edit, which has only one version")
 	}
 }
@@ -216,7 +218,7 @@ func TestSyncDeletedOnServerButEditedLocallyKeepsTheLocalCopy(t *testing.T) {
 	}
 }
 
-// The losing side of an edit-vs-edit is kept as .conflict whichever side loses.
+// The losing side of an edit-vs-edit is kept whichever side loses.
 // The existing conflict test covers the local-wins direction; this pins the
 // other, where the local file is the one moved aside.
 func TestSyncRemoteWinsKeepsTheLocalCopyAsBackup(t *testing.T) {
@@ -235,7 +237,7 @@ func TestSyncRemoteWinsKeepsTheLocalCopyAsBackup(t *testing.T) {
 	if got := read(t, clientDir, "rules/a.md"); got != "server-edit" {
 		t.Fatalf("the fresher server copy did not win, got %q", got)
 	}
-	if got := read(t, clientDir, "rules/a.md.conflict"); got != "local-edit" {
+	if got := read(t, clientDir, ".conflicts/rules/a.md"); got != "local-edit" {
 		t.Fatalf("the losing local edit was not kept as a backup, got %q", got)
 	}
 	if len(res.Downloaded) != 1 {
@@ -267,7 +269,7 @@ func TestSyncSingleWriterTakesFresherServerCopy(t *testing.T) {
 	if len(res.Conflicts) != 0 {
 		t.Fatalf("single-writer path reported a conflict: %+v", res.Conflicts)
 	}
-	if exists(clientDir, "usage/ruche/current.json.conflict") {
+	if exists(clientDir, ".conflicts/usage/ruche/current.json") {
 		t.Fatal("single-writer path kept a backup")
 	}
 	if len(res.Downloaded) != 1 {

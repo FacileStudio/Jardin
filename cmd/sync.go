@@ -121,7 +121,7 @@ var syncCmd = &cobra.Command{
 		}
 		warnFrenchPages(dataDir, res)
 		if len(res.Conflicts) > 0 {
-			color.Yellow("Resolve conflicts by editing the file and deleting its .conflict backup, then sync again.")
+			color.Yellow("Resolve conflicts by editing the page, then delete its copy under .conflicts/ and sync again.")
 		}
 		return nil
 	},

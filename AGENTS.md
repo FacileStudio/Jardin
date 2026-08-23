@@ -79,7 +79,7 @@ git tag v0.x.x && git push --tags
 - Client config is YAML at `~/.mycelium.yml`; data lives under `~/.mycelium` (or `$DATA_DIR`)
 - Storage is plain markdown files synced over HTTP to a Mycelium server; auth is a Bearer token per machine, obtained via `mycelium login <url>`
 - Each adapter is a pure function `(rules + skills + machine) -> agent config`, self-registers via `init()` in `internal/adapter/`, and writes the format its agent expects
-- Sync is a three-way reconcile against a local base manifest (`~/.mycelium/.sync-base.json`): local edits push, remote edits pull, deletes propagate both ways, and a genuine edit-vs-edit conflict keeps a `<path>.conflict` backup (never silent loss). `mycelium push`/`pull` force one direction
+- Sync is a three-way reconcile against a local base manifest (`~/.mycelium/.sync-base.json`): local edits push, remote edits pull, deletes propagate both ways, and a genuine edit-vs-edit conflict keeps the losing version under `~/.mycelium/.conflicts/<path>` (never silent loss, never a marker inside the page). `mycelium push`/`pull` force one direction
 - The copy-paste master prompt shown in the dashboard lives in `apps/client/src/lib/agentPrompt.ts`
 
 ## Spaces + SSO (v0.6)

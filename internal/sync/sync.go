@@ -5,6 +5,7 @@ import "fmt"
 const (
 	manifestName = ".sync-base.json"
 	conflictExt  = ".conflict"
+	conflictDir  = ".conflicts"
 	tokensFile   = "tokens.json"
 	usagePrefix  = "usage/"
 )

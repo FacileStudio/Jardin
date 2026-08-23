@@ -32,14 +32,6 @@ func removeLocal(dataDir, p string) error {
 	return nil
 }
 
-func writeConflictCopy(dataDir, p string, data []byte) error {
-	full := filepath.Join(dataDir, filepath.FromSlash(p)) + conflictExt
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(full, data, 0o644)
-}
-
 // Push forces local files up, overwriting the server. One-directional escape
 // hatch; advances the base for everything it uploads.
 func (c *Client) Push(dataDir string) (*Result, error) {

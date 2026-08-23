@@ -61,7 +61,8 @@ and skill counts, and this week's session total.
 
 The normal path: a three-way reconcile against `~/.mycelium/.sync-base.json`. Local edits
 push, remote edits pull, deletions propagate both ways, and an edit-versus-edit conflict
-keeps a `<path>.conflict` backup rather than losing a version.
+keeps the losing version at `~/.mycelium/.conflicts/<path>` rather than dropping it. The
+copy sits outside the tree you read, keeps its real extension, and never syncs.
 
 ### `mycelium push` / `mycelium pull`
 

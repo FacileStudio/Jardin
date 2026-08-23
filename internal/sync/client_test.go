@@ -66,6 +66,7 @@ func TestSyncSkipsMachineLocalFiles(t *testing.T) {
 	write(t, clientDir, "daemon.log", "local log noise")
 	write(t, clientDir, "tokens.json", "{}")
 	write(t, clientDir, "rules/a.md.conflict", "backup")
+	write(t, clientDir, ".conflicts/rules/a.md", "the losing version")
 	write(t, clientDir, "rules/a.md", "v1")
 
 	res, err := c.Sync(clientDir)

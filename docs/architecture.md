@@ -134,8 +134,9 @@ unreachable without membership.
 
 `mycelium sync` is a three-way reconcile against `~/.mycelium/.sync-base.json`, the manifest of
 what both sides agreed on last time. Local edits push, remote edits pull, deletions
-propagate both ways, and a genuine edit-versus-edit conflict keeps a `<path>.conflict`
-backup rather than losing a version. `mycelium push` and `mycelium pull` force one direction.
+propagate both ways, and a genuine edit-versus-edit conflict keeps the losing version at
+`~/.mycelium/.conflicts/<path>` rather than dropping it. Conflict markers are never written
+into a page. `mycelium push` and `mycelium pull` force one direction.
 
 The wire format is checksums and file bodies: `GET /api/sync/tree` returns a path,
 SHA-256, size and mtime per file; `GET`, `PUT` and `DELETE /api/sync/files/*` move the

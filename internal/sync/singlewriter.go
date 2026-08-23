@@ -43,24 +43,23 @@ func (c *Client) resolveSingleWriter(r reconcile) error {
 // from sync, so they sit on disk keeping "mycelium doctor" red forever.
 //
 // This runs on every sync rather than only when a conflict is resolved. Once
-// conflicts on these paths are prevented, the resolve path stops being reached —
+// conflicts on these paths are prevented, the resolve path stops being reached,
 // so cleaning up there would only ever heal a machine that was still broken.
+//
+// Both candidate locations are removed for each page, because a machine can be
+// carrying a backup written before the move to .conflicts/ and one written
+// after, and only the layout tells them apart.
 func pruneSingleWriterConflicts(dataDir string) error {
-	root := filepath.Join(dataDir, filepath.FromSlash(usagePrefix))
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(path, conflictExt) {
-			return nil
+	for _, page := range ConflictBackups(dataDir) {
+		if !singleWriter(page) {
+			continue
 		}
-		rel, relErr := filepath.Rel(dataDir, path)
-		if relErr != nil {
-			return nil
+		legacy := filepath.Join(dataDir, filepath.FromSlash(page)) + conflictExt
+		for _, candidate := range []string{conflictPath(dataDir, page), legacy} {
+			if err := os.Remove(candidate); err != nil && !os.IsNotExist(err) {
+				return err
+			}
 		}
-		if !singleWriter(strings.TrimSuffix(filepath.ToSlash(rel), conflictExt)) {
-			return nil
-		}
-		if rmErr := os.Remove(path); rmErr != nil && !os.IsNotExist(rmErr) {
-			return rmErr
-		}
-		return nil
-	})
+	}
+	return nil
 }
