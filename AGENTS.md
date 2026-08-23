@@ -10,7 +10,27 @@ Shared agent memory — manage wiki, rules, and skills across AI coding agents a
 - **Server chassis**: [tronc](https://github.com/FacileStudio/tronc) — chi router with the
   suite's middleware stack, error envelope, structured logger, health probes, SPA handler
 - **Release**: GoReleaser + GitHub Actions (tag-triggered), Homebrew tap via FacileStudio/homebrew-tap
-- **Dependencies**: fatih/color (terminal colors), Journal SDK (log shipping)
+- **Dependencies**: fatih/color (terminal colors), Journal SDK (log shipping), go-git (the memory journal)
+
+## Shipping: a push to main is a production deploy
+
+**`git push origin main` deploys `mycelium.facile.studio`.** The Dokploy compose stack has
+autoDeploy on and rebuilds in about 20 seconds, measured. It **does not wait for CI**, so a red
+build reaches production before the check that would have caught it reports. The lefthook
+pre-push hook runs `scripts/check.sh` and is the only gate in front of that: never bypass it with
+`--no-verify` on this repo.
+
+The tag and the deployed image come from different places, and both are needed:
+
+- **A tag** (`v*`) runs `release.yml`, which is goreleaser only: platform tarballs, checksums and
+  the Homebrew tap. It **builds no container image**. This is what `facile install mycelium` and
+  `facile update` serve to a machine.
+- **A push** is what rebuilds the server. Dokploy clones without tags, which is why a running
+  container reports a short sha (`mycelium d676a63`) where a released binary reports `0.22.0`.
+
+Verify a deploy with `docker exec <container> /mycelium --version` on ruche rather than an HTTP
+request: Traefik holds the route on the old container until the new one is healthy, so a request
+made seconds after the push can answer from either.
 
 ## Key Commands
 

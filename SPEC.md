@@ -54,11 +54,18 @@ distribute (`go-git` is an ordinary Go dependency).
 
 Steps 1–3 are independent of each other and of everything below. Start anywhere in them.
 
-**Steps 1 to 10 have landed.** 1, 2 and 3 in v0.20.0; 8 and 9 in v0.21.0; 4, 5, 6, 7 and 10 on
-2026-08-23. **Steps 11 and 12 are open**, and 12 is still the largest thing on this page.
+**Steps 1 to 10 have landed and shipped in v0.22.0**, released and deployed 2026-08-23. 1, 2 and
+3 were in v0.20.0; 8 and 9 in v0.21.0; 4, 5, 6, 7 and 10 in v0.22.0. **Steps 11 and 12 are
+open**, and 12 is still the largest thing on this page.
 
 Track A is done: a page can be deleted and restored, and the history names the machine. Track B
-has one item left before consolidation, step 11.
+has one code item left before consolidation, step 11.
+
+**Read this before building on step 1.** Nothing writes the metadata block it parses. 0 of 476
+chunks in the live wiki carry an `id`, a `supersedes` or a `confirmed`, because no rule asks an
+agent to produce one. Step 10 works anyway, on the prose `**Date**:` line, and that is not a
+stopgap: it covers 329 of 476 chunks and it is what the writing convention actually mandates.
+See `ROADMAP.md` under B1 for why the block chose the wrong unit for supersession.
 
 ### 1. Per-finding metadata block  `[filet]`
 

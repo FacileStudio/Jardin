@@ -1,6 +1,6 @@
 # Roadmap
 
-Written 2026-08-22. A cold-start handoff: enough to pick up a track with no prior
+Written 2026-08-22, current as of 2026-08-23 and v0.22.0. A cold-start handoff: enough to pick up a track with no prior
 conversation. **The executable form is `SPEC.md` — exact files, exact steps, exit criteria per
 step.** This file holds the why and the ordering; the reasoning behind each item lives in the commit that
 closes it, and the research behind both tracks is in
@@ -12,14 +12,16 @@ Memory, rules, skills, flows, sessions and claims all ship. The `agents` adapter
 v0.19.0, so `~/.agents/AGENTS.md` and `~/.agents/skills/` are generated for every tool that
 follows the AGENTS.md specification.
 
-**Track A is done.** A1 and A2 landed on 2026-08-23 alongside B3, which closes every item on this
-page except B4 and B6. A page can be deleted and restored with `mycelium memory revert`, the
-history names the machine that changed it, and no agent-facing output contains the word `git`.
+**Track A is done and shipped in v0.22.0**, released and deployed on 2026-08-23. A1 and A2
+landed alongside B3, which leaves B4 and B6 as the only code items on this page. A page can be
+deleted and restored with `mycelium memory revert`, the history names the machine that changed it,
+and no agent-facing output contains the word `git`.
 
-**Memory has a history.** `internal/journal` versions `memory/`, `rules/`, `skills/` and `flows/`
-through go-git, committed inside the sync path and never blocking it. The 2026-08-19 accident,
-246 pages gone with no way back, is now recoverable at any size rather than only above the ten
-the A3 guard refuses.
+**Memory has a history.** `internal/journal` versions `memory/`, `rules/`, `skills/`, `flows/`
+and `extensions/` through go-git, committed inside the sync path and never blocking it. The
+2026-08-19 accident, 246 pages gone with no way back, is now recoverable at any size rather than
+only above the ten the A3 guard refuses. A machine with no history starts one on its next sync;
+there is no migration step.
 
 **The freshness signal reads what the corpus actually writes.** B1's metadata block turned out to
 be written by nothing: 0 chunks of 476 carry an `id` or a `supersedes`, while 315 findings carry
@@ -27,8 +29,11 @@ the prose `**Date**:` line the writing convention mandates. B3 reads the block f
 prose line second, which is the difference between a ranker that works on 329 chunks and one that
 works on none. **See the correction under B1 below: the unit B1 chose was wrong for this wiki.**
 
-## Shipped on 2026-08-23
+## Shipped on 2026-08-23 (v0.22.0)
 
+- **The release.** Four platform tarballs, checksums, Homebrew tap at 0.22.0, server on the same
+  commit, ruche on 0.22.0. **A push to main deploys production and does not wait for CI**; see
+  AGENTS.md, which is where a contributor will look.
 - **A1 and A2, the journal.** go-git over the authored tree, committed by the sync path.
   `Commit` stages four named roots rather than a caller's path list, because a caller can miss a
   file and a missed page is the accident this exists to prevent. Two commits per sync, not one:
@@ -62,22 +67,41 @@ works on none. **See the correction under B1 below: the unit B1 chose was wrong 
 
 ## Start here
 
-1. **The normative-documents question**, still open under "Not decided" below. It gates moving
-   `CLI-STANDARD.md`, `DOCS-STANDARD.md` and `MIGRATIONS.md` into mycelium, and those have been
-   local-only since the Wiki repo was deleted on 2026-08-22. It was meant to be decided before
-   Track A finished. Track A has finished, so this is now the oldest thing on the page.
-2. **B4, wiki links in ranking.** `SPEC.md` step 11. The graph exists and retrieval ignores it.
-   The smallest remaining item.
-3. **B6, consolidation.** The largest item on this page and still last.
+**1. The suite's standards exist in one file, on one machine.** This is a risk, not a roadmap
+item, and it is why the normative-documents question below is now urgent rather than tidy.
+`github.com/FacileStudio/Wiki` was deleted on 2026-08-22 and the clone removed. All 20 files,
+`CLI-STANDARD.md`, `DOCS-STANDARD.md` and `MIGRATIONS.md` among them, survive only in
+`~/backups/FacileStudio-Wiki-20260822.bundle` on ruche. Verified 2026-08-23: the bundle clones
+and the three documents are in it. Nothing else on either machine has a copy.
 
-Both questions the journal opened were answered the same day it landed. `extensions/` is
-versioned, because it is authored, it syncs and it is trust-pinned, so losing it is losing a
-page. `doctor` gained a `history` check, because a commit failure is a warning on a sync that
-still succeeds and recording can therefore stop unnoticed.
+Mycelium's memory now syncs to a server, versions itself and can be reverted, which is a better
+home than a bundle in a backup directory whatever is decided about ratification. **Getting them
+somewhere safe and deciding how they are governed are separable, and the first should not wait
+for the second.**
 
-One left, and it is older than the journal: **`node_modules/` is not in `syncSkip`.** One
-`bun install` under `extensions/models/` would sync every file of it to the server and to every
-machine. The journal's ignore file stops it being committed here; nothing stops it being synced.
+**2. The normative-documents question**, still open under "Not decided" below. It is what governs
+those documents once they are in: a descriptive wiki page is a dated observation an agent files,
+and a standard says "when a repo disagrees with this, the repo is wrong". The shape the roadmap
+proposes is flow trust applied to pages, a normative page syncing freely but not counting as
+authoritative until a human ratifies the change.
+
+**3. Nothing writes the metadata block.** B1 and B2 shipped parsers for a format no rule asks an
+agent to produce: 0 of 476 chunks carry an `id`, a `supersedes` or a `confirmed`. This is a
+change to `~/.mycelium/rules/`, not to the Go, and until it happens `Chunk.Date()` runs entirely on
+the prose fallback and B2 stays half-done forever. Smallest real item on the page. Decide first
+whether the block is wanted at all: the prose `**Date**:` line already covers 329 of 476 chunks,
+so the block only earns its keep for `supersedes`, and supersession here marks a sentence rather
+than a finding. See the correction under B1.
+
+**4. B4, wiki links in ranking.** `SPEC.md` step 11. The graph exists and retrieval ignores it.
+The smallest remaining code item, and it has a measurable exit: eval recall must not regress, and
+a page linked from a strong match should gain.
+
+**5. B6, consolidation.** `SPEC.md` step 12. The largest item on this page and still last.
+
+Everything the journal opened was closed the same day. `extensions/` is versioned, `doctor`
+gained a `history` check, and `node_modules/` is excluded from `syncSkip` on both sides so one
+`bun install` in the data directory can never reach the server.
 
 ## Track A — give memory a history
 
