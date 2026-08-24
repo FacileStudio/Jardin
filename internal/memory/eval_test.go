@@ -19,7 +19,12 @@ const (
 	// sits far under recallFloor on purpose: a handful of renamed pages must
 	// stay a loud failure that names them, and only a corpus that is essentially
 	// gone — a reset, a fresh machine — becomes a skip.
-	corpusFloor = 0.25
+	//
+	// It is EvalCorpusFloor rather than a second literal because doctor's eval
+	// check exists to predict this skip, and a doctor that disagrees with the
+	// eval reports a healthy set the eval refuses to run: the exact green tick
+	// over nothing that the check was added to catch.
+	corpusFloor = EvalCorpusFloor
 )
 
 // goldenSetPath resolves the live-wiki golden set, which lives under the data
