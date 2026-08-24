@@ -36,8 +36,11 @@ There is no \`mycelium memory add\` — edit the markdown files directly with yo
 
 **Storage gate — write only when ALL hold:** (1) it will change how a future agent acts,
 (2) it is non-obvious or annoying to rediscover, (3) it is grounded in a source or direct
-observation. Otherwise skip. Never store what is obvious from current code, re-runnable
-command output, git history, or ephemeral session state.
+observation, (4) it carries no secret. Credentials, tokens, API keys, passwords and private
+keys are refused whatever the first three say: the wiki syncs to every machine and every
+agent, and a page is retrieved into a context window by design. Otherwise skip. Never store
+what is obvious from current code, re-runnable command output, git history, or ephemeral
+session state.
 
 When you do write:
 - Pick the right topic dir; prefer updating an existing page over creating one.
@@ -45,6 +48,13 @@ When you do write:
   \`created\`, \`updated\`. Keep entries to 2-6 lines of substance.
 - Give every non-obvious claim provenance (URL, file path, or "direct observation").
   Link related pages with [[page-name]].
+- When you re-check an existing finding and it still holds, stamp it: put
+  \`<!-- confirmed: YYYY-MM-DD -->\` under that finding's \`###\` heading, nothing else in
+  the comment. Ranking reads it as the date the claim was last known good. A new finding
+  never carries it.
+- \`type: standard\` (pages under \`standards/\`) marks a normative page: it says a repo
+  that disagrees is wrong. Propose changes to those; do not lint them the way you lint a
+  dated observation.
 - Then add a one-line pointer in \`index.md\`, append a dated line to \`log.md\`, and
   \`mycelium sync\`.
 
