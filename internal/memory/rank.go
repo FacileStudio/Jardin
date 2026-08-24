@@ -22,6 +22,7 @@ type doc struct {
 	length  int
 	weight  float64
 	date    string
+	links   []string
 }
 
 // tokenize lowercases, folds accents away, and splits on anything that is not
@@ -63,8 +64,15 @@ func foldAccent(r rune) rune {
 	return r
 }
 
+// newDoc builds the whole-page unit the page-level search ranks. The body it is
+// given still carries the frontmatter, so a `[[link]]` written there is already
+// in reach, but a bare `related: [a, b]` list is not until it is parsed. A
+// duplicate between the two costs nothing: the lift is a set membership test.
 func newDoc(path, body string) doc {
-	return newUnit(path, path, 1, body)
+	d := newUnit(path, path, 1, body)
+	front, _ := frontmatter(body)
+	d.links = append(d.links, splitRelated(front.related)...)
+	return d
 }
 
 func newUnit(id, page string, line int, body string) doc {
@@ -73,7 +81,16 @@ func newUnit(id, page string, line int, body string) doc {
 	for _, tok := range tokens {
 		counts[tok]++
 	}
-	return doc{path: id, page: page, line: line, body: body, tokens: counts, length: len(tokens), weight: 1}
+	return doc{
+		path:   id,
+		page:   page,
+		line:   line,
+		body:   body,
+		tokens: counts,
+		length: len(tokens),
+		weight: 1,
+		links:  wikiLinks(body),
+	}
 }
 
 // termFrequency counts a term in a document, treating the term as a prefix so
@@ -139,6 +156,40 @@ func (c corpus) score(d doc, weights []termWeight) float64 {
 	return total
 }
 
+// rank scores every document and fuses in the wiki-link signal. It returns the
+// final scores and, for each, the ratio the link credit moved it by: the
+// page-level search scores individual lines rather than the document, so it has
+// to carry the same change one level down, and a ratio is the only form that
+// survives the change of unit.
+//
+// A document with no lexical score at all keeps a ratio of 1. Its lines score
+// zero whatever it is multiplied by, so the page-level search can reorder pages
+// the query reached and never injects one it did not.
+//
+// The ratio is capped at 1+linkShare, and the cap is load-bearing rather than
+// belt-and-braces. linkShare's ceiling is stated against a document score, and a
+// line weight is not on that scale: a page scoring 0.01 that inherits 3.0 has a
+// ratio of 301, which multiplied into its line weights buries the whole result
+// list under one linked page. Measured, uncapped, that cost the page-level set
+// recall 1.000 -> 0.979 and MRR 0.983 -> 0.962. A credit expressed in one unit
+// does not convert into another for free.
+func (c corpus) rank(weights []termWeight) ([]float64, []float64) {
+	scores := make([]float64, len(c.docs))
+	for i, d := range c.docs {
+		scores[i] = c.score(d, weights) * d.weight
+	}
+	credits := linkCredits(c.docs, scores)
+	ratios := make([]float64, len(c.docs))
+	for i := range scores {
+		ratios[i] = 1
+		if scores[i] > 0 {
+			ratios[i] = math.Min((scores[i]+credits[i])/scores[i], 1+linkShare)
+		}
+		scores[i] += credits[i]
+	}
+	return scores, ratios
+}
+
 // termWeight pairs a query term with its IDF. Weights are carried as an
 // ordered slice, never a map: scoring sums floats, float addition is not
 // associative, and Go randomises map iteration — so a map would make the same
@@ -159,7 +210,7 @@ func (c corpus) weights(terms []string) []termWeight {
 
 // bestLines picks the lines of a document that carry the most query weight, so
 // the caller sees why the page matched without opening it.
-func bestLines(d doc, weights []termWeight, limit int) []SearchResult {
+func bestLines(d doc, weights []termWeight, limit int, lift float64) []SearchResult {
 	var hits []SearchResult
 	for i, line := range strings.Split(d.body, "\n") {
 		weight := lineWeight(line, weights)
@@ -170,7 +221,7 @@ func bestLines(d doc, weights []termWeight, limit int) []SearchResult {
 			Path:    d.path,
 			Line:    i + 1,
 			Content: strings.TrimSpace(line),
-			Score:   int(weight * 100),
+			Score:   int(weight * lift * 100),
 		})
 	}
 	sortResults(hits)

@@ -43,12 +43,13 @@ func Search(memoryPath, query string) ([]SearchResult, error) {
 	c := newCorpus(docs)
 	weights := c.weights(terms)
 
+	scores, lifts := c.rank(weights)
 	var results []SearchResult
-	for _, d := range c.docs {
-		if c.score(d, weights) <= 0 {
+	for i, d := range c.docs {
+		if scores[i] <= 0 {
 			continue
 		}
-		results = append(results, bestLines(d, weights, linesPerFile)...)
+		results = append(results, bestLines(d, weights, linesPerFile, lifts[i])...)
 	}
 	sortResults(results)
 	return results, nil

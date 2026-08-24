@@ -24,17 +24,17 @@ func SearchChunks(memoryPath, query string) ([]SearchResult, error) {
 	c := newCorpus(units)
 	weights := c.weights(terms)
 
+	scores, _ := c.rank(weights)
 	var results []SearchResult
-	for _, d := range c.docs {
-		score := c.score(d, weights) * d.weight
-		if score <= 0 {
+	for i, d := range c.docs {
+		if scores[i] <= 0 {
 			continue
 		}
 		results = append(results, SearchResult{
 			Path:    d.page,
 			Line:    d.line,
 			Content: d.display,
-			Score:   int(score * 100),
+			Score:   int(scores[i] * 100),
 			Date:    d.date,
 		})
 	}
@@ -57,6 +57,7 @@ func readChunkDocs(memoryPath string) ([]doc, error) {
 	units := make([]doc, 0, len(chunks))
 	for _, c := range chunks {
 		unit := newUnit(ChunkKey(c), c.Path, c.Line, c.Text())
+		unit.links = append(unit.links, splitRelated(c.Related)...)
 		unit.display = chunkDisplay(c)
 		unit.weight = chunkWeight(c, replaced, now)
 		unit.date = DayString(c.Date())

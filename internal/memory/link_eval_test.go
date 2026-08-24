@@ -19,11 +19,18 @@ const fixtureLinkFile = "testdata/golden-links.json"
 // This is a switch rather than an assertion to invert, because the obvious
 // shape — assert the answer stays outside the top five — fails the moment the
 // feature works and blames the fixture for it.
-const linkSignalLanded = false
+const linkSignalLanded = true
 
-// linkRecallFloor is recall@evalK on the link set. It is 0.000 today by
-// construction: the answers are unreachable without following a link.
-const linkRecallFloor = 0.0
+// linkRecallFloor is recall@evalK on the link set. Measured 2026-08-24 with the
+// link credit in linkCredits: 1.000, every answer at rank 2 to 4 where all ten
+// sat at 22nd or worse before.
+//
+// It is the measurement with no margin subtracted, unlike the floors in
+// fixture_eval_test.go, and deliberately so. Those grade a corpus that grows;
+// this set is ten fixed cases over a committed corpus, so the ranker is the only
+// thing that can move it, and a case falling to sixth place is the regression
+// the floor exists to catch rather than churn to tolerate.
+const linkRecallFloor = 1.0
 
 // linkCase is a query whose answer is reachable only through the link graph.
 // Linker is the page lexical scoring does find; Expect is the page it links to.
