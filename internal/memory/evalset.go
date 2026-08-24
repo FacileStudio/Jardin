@@ -43,6 +43,11 @@ func EvalSetPath(dataDir string) string {
 //
 // An absent set is not a failure. Most machines running mycelium never touch the
 // ranker and will never have one.
+//
+// A name that escapes the wiki counts as named and never as found, so a set
+// pointing outside the tree fails the floor instead of quietly stat-ing whatever
+// it named. The set is a local file this machine owns, so this is hygiene rather
+// than a boundary, but a path from a file is still a path from a file.
 func InspectEvalSet(dataDir string) (EvalSet, error) {
 	path := EvalSetPath(dataDir)
 	data, err := os.ReadFile(path)
@@ -61,7 +66,11 @@ func InspectEvalSet(dataDir string) (EvalSet, error) {
 	for _, c := range cases {
 		for _, want := range c.Expect {
 			set.Named++
-			if _, err := os.Stat(filepath.Join(memoryDir, filepath.FromSlash(want))); err == nil {
+			rel := filepath.FromSlash(want)
+			if !filepath.IsLocal(rel) {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(memoryDir, rel)); err == nil {
 				set.Found++
 			}
 		}
