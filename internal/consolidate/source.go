@@ -110,14 +110,13 @@ func readJSONL(path, agent, fileName string, watermark time.Time) ([]Episode, er
 			Agent:     agent,
 			Timestamp: ts,
 			Text:      text,
-			Refs:      []string{filepath.ToSlash(filepath.Join(agent, fileName)) + ":" + itoa(lineNo)},
+			Refs:      []string{filepath.ToSlash(filepath.Join(agent, fileName)) + ":" + strconv.Itoa(lineNo)},
 		})
 	}
 	return episodes, scanner.Err()
 }
 
 var textKeys = map[string]bool{"message": true, "content": true, "text": true}
-var timeKeys = map[string]bool{"timestamp": true, "time": true, "created_at": true}
 
 func extractText(doc map[string]any) string {
 	var b strings.Builder
@@ -125,11 +124,22 @@ func extractText(doc map[string]any) string {
 	return b.String()
 }
 
+// collectText walks a decoded event and joins every text-bearing value it
+// finds. Object keys are visited in sorted order, never in map order: a record
+// carrying two of message/content/text at one level would otherwise assemble a
+// different Text on every run, and the whole stage — the cursor hash, the
+// similarity score, the NOOP-or-CREATE decision — assumes one line maps to one
+// stable text.
 func collectText(node any, b *strings.Builder) {
 	switch v := node.(type) {
 	case map[string]any:
-		for key, child := range v {
-			collectKeyedText(key, child, b)
+		keys := make([]string, 0, len(v))
+		for key := range v {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			collectKeyedText(key, v[key], b)
 		}
 	case []any:
 		for _, child := range v {
@@ -169,8 +179,6 @@ func extractTimestamp(doc map[string]any) (time.Time, bool) {
 	}
 	return time.Time{}, false
 }
-
-func itoa(n int) string { return strconv.Itoa(n) }
 
 // LocalEventsDir is where harnesses log episode text that stays on this
 // machine: syncSkip excludes it, so raw conversations never reach the server.

@@ -1,8 +1,10 @@
 package consolidate
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -135,5 +137,35 @@ func TestEventsSourceMissingDir(t *testing.T) {
 	episodes, err := src.Since(time.Time{})
 	if err != nil || len(episodes) != 0 {
 		t.Fatalf("missing dir should yield empty, got %v, %v", episodes, err)
+	}
+}
+
+// TestExtractTextIsDeterministic pins the sorted-key walk. A record carrying
+// two of message/content/text at one level used to assemble in Go's randomised
+// map order, so the same line produced a different Episode.Text run to run —
+// and the cursor hash, the similarity score and the NOOP-or-CREATE decision all
+// read that text.
+func TestExtractTextIsDeterministic(t *testing.T) {
+	line := `{"ts":"2026-08-24T10:00:00Z","message":"alpha","content":"bravo","text":"charlie",` +
+		`"nested":{"text":"delta","content":"echo"}}`
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(line), &doc); err != nil {
+		t.Fatal(err)
+	}
+	first := extractText(doc)
+	if strings.Count(first, "\n") != 4 {
+		t.Fatalf("every text-bearing value must survive: %q", first)
+	}
+	for i := 0; i < 200; i++ {
+		var again map[string]any
+		if err := json.Unmarshal([]byte(line), &again); err != nil {
+			t.Fatal(err)
+		}
+		if got := extractText(again); got != first {
+			t.Fatalf("extractText is not stable:\n%q\n%q", first, got)
+		}
+	}
+	if want := "bravo\nalpha\necho\ndelta\ncharlie"; first != want {
+		t.Fatalf("keys must be visited in sorted order, got %q want %q", first, want)
 	}
 }
