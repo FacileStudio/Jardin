@@ -191,6 +191,10 @@ var doctorCmd = &cobra.Command{
 			return "English only", true
 		})
 
+		check("standards", func() (string, bool) {
+			return normativeState(dataDir)
+		})
+
 		check("last sync", func() (string, bool) {
 			return lastSyncAge(dataDir, time.Now())
 		})

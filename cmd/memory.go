@@ -106,10 +106,17 @@ func printSearchResults(results []memory.SearchResult) {
 	if memorySearchLimit > 0 && len(shown) > memorySearchLimit {
 		shown = shown[:memorySearchLimit]
 	}
+	changed, err := memory.ChangedPages(config.DataDir())
+	if err != nil {
+		ui.Hint("cannot tell which normative pages changed (%v); results are unmarked", err)
+	}
 	for _, r := range shown {
 		color.New(color.FgCyan).Printf("%s:%d ", r.Path, r.Line)
 		if r.Date != "" {
 			fmt.Print(ui.Dim(r.Date + " "))
+		}
+		if changed[r.Path] {
+			color.New(color.FgYellow).Print("[changed since ratified] ")
 		}
 		fmt.Println(r.Content)
 	}
