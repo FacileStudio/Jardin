@@ -10,6 +10,19 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-08-24
+
+### Changed
+
+- **Breaking.** The name is now Mycelium, and every user-visible surface moved with it. The
+  binary is `mycelium`, the data directory is `~/.mycelium/`, the credentials file is
+  `~/.mycelium.yml`, the environment variables are `MYCELIUM_URL`, `MYCELIUM_TOKEN`,
+  `MYCELIUM_SERVER_URL`, `MYCELIUM_USAGE_TOKEN` and `MYCELIUM_VECTOR_SEARCH`, the Go module
+  path is `github.com/FacileStudio/Mycelium`, and the server answers on
+  `mycelium.facile.studio`. There is no compatibility shim: a machine set up before this
+  release has to reinstall and log in again, and a self-hosted deployment has to move its
+  data volume and update its OIDC application slug and redirect URL.
+
 ## [0.25.0] — 2026-08-24
 
 ### Added
@@ -543,6 +556,7 @@ through, and the on-disk vocabulary settled on `memory`.
 [0.7.0]: https://github.com/FacileStudio/Mycelium/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/FacileStudio/Mycelium/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/FacileStudio/Mycelium/compare/v0.5.2...v0.6.0
+[0.26.0]: https://github.com/FacileStudio/Mycelium/compare/v0.25.0...v0.26.0
 [0.5.2]: https://github.com/FacileStudio/Mycelium/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/FacileStudio/Mycelium/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/FacileStudio/Mycelium/compare/v0.4.1...v0.5.0
