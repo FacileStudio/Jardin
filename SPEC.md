@@ -349,7 +349,34 @@ and a test asserts a superseded chunk ranks below its replacement for a query ma
 
 `internal/memory/rank.go`, `internal/memory/chunk.go`
 
-**The instrument for this landed 2026-08-24. Step 11 itself is still open.**
+**Done 2026-08-24**, as `internal/memory/links.go` and `frontmatter.go`. Link recall went
+**0.000 → 1.000** on the ten-case set, every answer moving from 22nd-or-worse to rank 2–4.
+
+Two things the plan below did not anticipate, both found by measuring rather than reading:
+
+**A bounded multiplier cannot work here.** The first attempt used 1.15, matching the band B3 gave
+recency, and left link recall at **0.000**. A link is worth following precisely when the target
+scored near zero on the query's own words, and 15% of nearly zero is nearly zero. The signal is
+an **additive credit** instead: a page inherits `linkShare × the linking match's score`, with
+`linkShare = 0.30` taken from a sweep whose knee is at 0.25. Stating the ceiling against the
+lender rather than the borrower is what keeps it safe — a credited page reaches at most 0.30 of
+the score of the match that pointed at it, so it can never overtake that match.
+
+**Half the graph is in frontmatter.** 39 of 79 link spellings in the live wiki sit in `related:`,
+and `Chunks` strips frontmatter before a chunk exists, so a body-only parser sees half the edges
+and calls it the graph. `frontmatter()` now yields `related:` in all three spellings the wiki
+writes.
+
+**And a credit does not convert between units for free.** Page-level `Search` scores lines, not
+documents; passing the credit down as a raw ratio let a page scoring 0.01 that inherited 3.0 take
+a 301× line multiplier, costing that set recall 1.000 → 0.979. The ratio is capped at
+`1+linkShare`. Only the two-entry-point grading below caught it.
+
+**The live set moved 0.957 → 0.951 MRR, and that is the honest shape of this signal.** Three of
+76 cases moved, one better and two worse, all still inside the top five, so recall is untouched
+and the floor is far away. Where an answer is already reachable on its own words a link signal is
+roughly neutral and slightly costly; it pays only where an answer is not. The live set has no
+cases of the second kind, which is why the link set had to be built.
 
 `[[page-name]]` links form a graph that retrieval currently ignores. Fuse an entity/link signal
 into the score alongside BM25 and the vector half.

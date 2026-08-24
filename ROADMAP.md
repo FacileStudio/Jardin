@@ -1,6 +1,6 @@
 # Roadmap
 
-Written 2026-08-22, current as of 2026-08-23 and v0.22.0. A cold-start handoff: enough to pick up a track with no prior
+Written 2026-08-22, current as of 2026-08-24 and v0.23.0. A cold-start handoff: enough to pick up a track with no prior
 conversation. **The executable form is `SPEC.md` — exact files, exact steps, exit criteria per
 step.** This file holds the why and the ordering; the reasoning behind each item lives in the commit that
 closes it, and the research behind both tracks is in
@@ -12,8 +12,10 @@ Memory, rules, skills, flows, sessions and claims all ship. The `agents` adapter
 v0.19.0, so `~/.agents/AGENTS.md` and `~/.agents/skills/` are generated for every tool that
 follows the AGENTS.md specification.
 
-**Track A is done and shipped in v0.22.0**, released and deployed on 2026-08-23. A1 and A2
-landed alongside B3, which leaves B4 and B6 as the only code items on this page. A page can be
+**Track A is done and shipped in v0.22.0**, released and deployed on 2026-08-23. **Track B is
+done bar consolidation, shipped in v0.23.0 on 2026-08-24**: B4 closed the last ranking item and
+the rules finally ask an agent to write the one metadata field that earns its keep, which leaves
+**B6 as the only code item on this page**. A page can be
 deleted and restored with `mycelium memory revert`, the history names the machine that changed it,
 and no agent-facing output contains the word `git`.
 
@@ -29,13 +31,14 @@ the prose `**Date**:` line the writing convention mandates. B3 reads the block f
 prose line second, which is the difference between a ranker that works on 329 chunks and one that
 works on none. **See the correction under B1 below: the unit B1 chose was wrong for this wiki.**
 
-## Shipped on 2026-08-24 (branch `eval-rearm`, not pushed)
+## Shipped on 2026-08-24 (v0.23.0)
 
-**Four commits on `eval-rearm`, off `7c6b63f`.** They are deliberately not on `main`: a push to
-`main` rebuilds and swaps the production container in about 20 seconds and does not wait for CI,
-so anything landing there should be a decision rather than a reflex. Merge when you have read it.
+**B4 closed, the eval re-armed, and the standards imported.** B4's numbers and the two design
+corrections that measuring forced are under `SPEC.md` step 11; the standards are at
+`memory/standards/` in the wiki, not in this repository.
 
-**The retrieval eval was re-armed.** It had been skipping since the 2026-08-19 reset and nobody
+**The retrieval eval was re-armed** before any of that, because none of it could be graded
+otherwise. It had been skipping since the 2026-08-19 reset and nobody
 knew, so B3 and step 10 both shipped unmeasured. Four things changed:
 
 - **Both evals graded `Search`**, the page-level path. Every agent-facing caller uses
@@ -92,17 +95,21 @@ improvement. See the saturation risk in `SPEC.md`.
 
 ## Start here
 
-**1. The suite's standards exist in one file, on one machine.** This is a risk, not a roadmap
-item, and it is why the normative-documents question below is now urgent rather than tidy.
-`github.com/FacileStudio/Wiki` was deleted on 2026-08-22 and the clone removed. All 20 files,
-`CLI-STANDARD.md`, `DOCS-STANDARD.md` and `MIGRATIONS.md` among them, survive only in
-`~/backups/FacileStudio-Wiki-20260822.bundle` on ruche. Verified 2026-08-23: the bundle clones
-and the three documents are in it. Nothing else on either machine has a copy.
+**1. The suite's standards are in the wiki. Done 2026-08-24**, at `memory/standards/{cli,docs,
+migrations}.md`, with the `~/Nuage/Wiki` originals replaced by pointers.
 
-Mycelium's memory now syncs to a server, versions itself and can be reverted, which is a better
-home than a bundle in a backup directory whatever is decided about ratification. **Getting them
-somewhere safe and deciding how they are governed are separable, and the first should not wait
-for the second.**
+**The premise this item was written on was wrong, and the correction is the lesson.** It said the
+documents survived only in `~/backups/FacileStudio-Wiki-20260822.bundle`, verified 2026-08-23,
+"nothing else on either machine has a copy". A full live copy sat in `~/Nuage/Wiki` the whole
+time, reached by the symlink `~/Projects/Facile/Wiki` that the suite's own `CLAUDE.md` tells every
+agent to read. The `$HOME` search that concluded otherwise missed it because `find` does not
+follow symlinks by default. **A negative result from one search is not evidence of absence**, and
+a finding whose entire value is "nothing else has a copy" has to be held to that.
+
+So this was never a rescue from one bundle. It was two un-versioned copies diverging in opposite
+directions: the Nuage copy held an uncommitted 2026-08-10 reversal of `CLI-STANDARD.md` §2.3 rule
+7, the bundle held the 2026-08-22 revision of `DOCS-STANDARD.md` that the Nuage copy never got.
+Each file was merged from whichever side was newer per hunk.
 
 **2. The normative-documents question**, still open under "Not decided" below. It is what governs
 those documents once they are in: a descriptive wiki page is a dated observation an agent files,
@@ -110,21 +117,23 @@ and a standard says "when a repo disagrees with this, the repo is wrong". The sh
 proposes is flow trust applied to pages, a normative page syncing freely but not counting as
 authoritative until a human ratifies the change.
 
-**3. Nothing writes the metadata block.** B1 and B2 shipped parsers for a format no rule asks an
-agent to produce: 0 of 476 chunks carry an `id`, a `supersedes` or a `confirmed`. This is a
-change to `~/.mycelium/rules/`, not to the Go, and until it happens `Chunk.Date()` runs entirely on
-the prose fallback and B2 stays half-done forever. Smallest real item on the page. Decide first
-whether the block is wanted at all: the prose `**Date**:` line already covers 329 of 476 chunks,
-so the block only earns its keep for `supersedes`, and supersession here marks a sentence rather
-than a finding. See the correction under B1.
+**3. The metadata block. Closed 2026-08-24, by asking for one field instead of five.** The rules
+now tell an agent to stamp `<!-- confirmed: YYYY-MM-DD -->` under a finding it re-checks and finds
+still true, and nothing else. `date` and `source` are not asked for, because the prose `**Date**:`
+and `**Source**:` lines the convention already mandates cover them. `supersedes` is not asked for,
+because B1's own correction says it is the wrong unit. `id` existed only to be its target.
 
-**4. B4, wiki links in ranking.** `SPEC.md` step 11. The graph exists and retrieval ignores it.
-The smallest remaining code item, and **as of 2026-08-24 it is the only one with an instrument
-that can grade it**: `testdata/golden-links.json`, ten cases sitting at recall 0.000 by
-construction. See the table under SPEC step 11 for what each of the four case sets is for, and
-read the saturation risk before trusting a 1.000.
+`confirmed` earns its place by being the one field prose cannot express, and it closes B2. The
+measured effect today is 0.058% — a five-day-old corpus has almost no decay to reverse. That is
+the design working, not a disappointment: a claim at 180 days sits at 0.9250 and one stamp returns
+it to 1.0000.
 
-**5. B6, consolidation.** `SPEC.md` step 12. The largest item on this page and still last.
+**4. B4, wiki links in ranking. Done 2026-08-24.** Link recall 0.000 → 1.000. See SPEC step 11 for
+why the bounded multiplier this page recommended could not work, why half the graph turned out to
+live in frontmatter, and why the live set's MRR fell 0.006 while recall held.
+
+**5. B6, consolidation.** `SPEC.md` step 12. The largest item on this page, still last, and now
+the only code item left on it.
 
 Everything the journal opened was closed the same day. `extensions/` is versioned, `doctor`
 gained a `history` check, and `node_modules/` is excluded from `syncSkip` on both sides so one
@@ -312,8 +321,11 @@ assumed. See the correction under B1.
 The recommendation is fusing semantic similarity, BM25 and entity matching into one score. The
 graph exists and is ignored.
 
-**The measurement landed 2026-08-24; the signal has not.** Three things a worker needs before
-touching `rank.go`:
+**Done 2026-08-24**, as `internal/memory/links.go`. Recall on the link set went 0.000 → 1.000 and
+the credit is additive, not the multiplier this page assumed; SPEC step 11 carries the numbers and
+the two design corrections that measuring forced.
+
+The three notes below were written for the worker who took it, and all three held:
 
 - **Match targets against known page names, not against `[[...]]`.** Two false positives are
   planted in `testdata/corpus/tools/posix-sh-is-not-bash.md`: `[[:space:]]` in a grep fence, and
