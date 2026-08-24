@@ -60,8 +60,29 @@ usage/           <machine>/current.json latest snapshot, <YYYY-MM>.jsonl history
 `mycelium init` creates the directories and seeds `overview.md`, `index.md`, and `log.md`.
 
 Server-side state lives beside the tree and is never synced: `tokens.json`, `.users.json`,
-`.spaces.json`, `.settings.json`, `.pool-ledger.json`. On a machine, `.sync-base.json` and
-`.sessions-state.json` are likewise local-only.
+`.spaces.json`, `.settings.json`, `.pool-ledger.json`. On a machine, `.sync-base.json`,
+`.sessions-state.json`, `.flow-trust.json` and `.memory-ratified.json` are likewise local-only.
+
+## Normative pages
+
+A page carrying `type: standard` is normative: it says what a repository must do, rather than
+recording what an agent observed. `~/.mycelium/.memory-ratified.json` records, per page, the
+checksum a human accepted on this machine and the day they accepted it. `internal/memory/
+ratify.go` compares the two and reports one of four standings — `ratified`, `not ratified`,
+`CHANGED`, `MISSING`.
+
+Three properties are load-bearing:
+
+- **It gates authority, never availability.** Every page syncs, exists and ranks in whatever
+  standing it is in. `CHANGED` marks a search result and fails `doctor`; it hides nothing.
+- **Nothing is written into the page.** The state is a dotfile beside the tree, for the same
+  reason conflict markers never land in a page.
+- **The pin does not sync.** A pin made on one machine says nothing on another. If it
+  travelled, one machine accepting a wrong edit would clear the flag on every machine, which
+  is precisely the propagation the check exists to catch.
+
+The pin is content-addressed rather than event-addressed, so `mycelium memory revert` back to an
+accepted version restores `ratified` on its own.
 
 ## Request lifecycle
 

@@ -127,6 +127,56 @@ replaces is recorded first, so a revert to the wrong ref is itself revertible.
 
 Nothing reaches the other machines until the next `mycelium sync`.
 
+### `mycelium memory ratify [page...]` / `mycelium memory forget <page...>`
+
+Most of the wiki is descriptive: a dated observation an agent filed, corrected freely when
+better evidence turns up. A page carrying `type: standard` in its frontmatter is the opposite.
+It says what a repository must do, so a change to it should land deliberately rather than
+appear on every machine five minutes later.
+
+`ratify` pins such a page at the content you just read, together with the machine and the day
+you accepted it. With no arguments it prints where every normative page stands here:
+
+```sh
+mycelium memory ratify                      # standards/cli.md  CHANGED  accepted 2026-08-24 on lucy
+mycelium memory ratify standards/cli.md     # accept the version now on disk
+mycelium memory ratify --all                # accept everything unratified or changed
+```
+
+Four states, and only two of them are problems:
+
+| state | meaning |
+|---|---|
+| `ratified` | the bytes on disk are the bytes you accepted here |
+| `not ratified` | nobody has accepted this page on this machine yet |
+| `CHANGED` | you accepted it once and it has moved since |
+| `MISSING` | a page you accepted is no longer in the tree |
+
+`CHANGED` and `MISSING` fail `mycelium doctor` and are the whole point. `not ratified` passes:
+every fresh machine and every genuinely new standard starts there, and a check that failed on
+a fresh install would be a line people learn to skip.
+
+While a page is `CHANGED`, every `mycelium memory search` result from it is marked
+`[changed since ratified]`, so the state reaches the reader at the point of use rather than
+only in a report nobody ran.
+
+**Ratification never gates anything.** The page still syncs, still exists, still gets read and
+still ranks. Only its authority is in question, never its availability.
+
+**Pins never leave the machine that made them.** Accepting a change on lucy says nothing about
+ruche, which is the design rather than a limitation: if a pin travelled, one machine accepting
+a wrong edit would clear the flag everywhere, and the flag is the thing that catches the edit.
+It is the same choice `mycelium flow trust` makes, for a different reason — a flow gates
+execution, a page gates authority.
+
+The pin names content, not an event, so `mycelium memory revert` back to a version you had
+already accepted makes the page `ratified` again with no second act. Reverting to any other
+version leaves it `CHANGED`, correctly: nobody accepted that one here.
+
+`forget <page>` drops the pin for a page that is genuinely gone. A pin outlives the page it
+names — the store is authoritative, not derived — so a deleted standard reports `MISSING`
+until someone confirms the deletion was meant.
+
 ### `mycelium rules list` / `mycelium rules edit <name>`
 
 Rules are ordered policy files under `~/.mycelium/rules/`. `edit` opens one in `$EDITOR`,
