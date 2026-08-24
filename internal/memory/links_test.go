@@ -259,3 +259,35 @@ func TestRelatedSpellingsAllResolve(t *testing.T) {
 		}
 	}
 }
+
+// TestWikiLinksIgnoresQuotedNames is the fence bug: the link parser scanned the
+// raw body, so a page documenting the syntax linked to whatever it quoted. The
+// live wiki had exactly this on its retrieval-eval page.
+func TestWikiLinksIgnoresQuotedNames(t *testing.T) {
+	body := "real [[tools/mycelium]] link\n" +
+		"quoted `[[projects/mycelium]]` span\n" +
+		"```\n[[conventions/fenced]]\n```\n" +
+		"after the fence [[tools/filet]]\n"
+
+	got := wikiLinks(body)
+	want := []string{"tools/mycelium", "tools/filet"}
+	if len(got) != len(want) {
+		t.Fatalf("wikiLinks = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("link %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// TestWikiLinksSurvivesAnOddBacktick pins the failure direction. A malformed
+// line must cost that line's links, never the rest of the page's.
+func TestWikiLinksSurvivesAnOddBacktick(t *testing.T) {
+	body := "stray ` backtick [[tools/lost]]\nnext line [[tools/kept]]\n"
+
+	got := wikiLinks(body)
+	if len(got) != 1 || got[0] != "tools/kept" {
+		t.Fatalf("wikiLinks = %v, want [tools/kept]", got)
+	}
+}

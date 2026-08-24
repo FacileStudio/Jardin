@@ -39,7 +39,15 @@ const (
 // A run that never closes ends the scan rather than swallowing the rest of the
 // body, and a name spanning a newline is dropped: both shapes come from prose
 // that happens to contain brackets, not from a link.
+//
+// Code is stripped first. A page documenting this syntax writes [[a-slug]] in
+// backticks and means the characters, not an edge, and a page that quotes a
+// real page name would otherwise credit it on every query the quoting page
+// answers. The test set has always known this — its own helper drops fences and
+// says "Documentation is not a link" — while this function scanned raw, so the
+// two disagreed and only the test was right.
 func wikiLinks(body string) []string {
+	body = outsideCode(body)
 	var links []string
 	for i := 0; i < len(body); {
 		open := strings.Index(body[i:], "[[")
@@ -118,6 +126,50 @@ func appendLink(links []string, raw string) []string {
 		return links
 	}
 	return append(links, strings.ToLower(strings.TrimSuffix(name, ".md")))
+}
+
+// outsideCode returns the body with fenced blocks and inline code spans
+// removed, so nothing quoted can be read as a link.
+//
+// Fences are line-oriented and inline spans are not, which is why this is not
+// one scan: an inline span ends at the newline whatever markdown it contains,
+// because a code span cannot cross a line. An unterminated fence therefore eats
+// the rest of the body and an unterminated backtick eats the rest of its line,
+// and both are the right way to fail here. dropStruck documents the opposite
+// rule for the opposite reason: a stray marker there could delete a page from
+// the index, so it strips too little. The risk here is inventing an edge that
+// credits a page nobody pointed at, so this strips too much.
+func outsideCode(body string) string {
+	var kept []string
+	fenced := false
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			fenced = !fenced
+			continue
+		}
+		if fenced {
+			continue
+		}
+		kept = append(kept, dropInlineCode(line))
+	}
+	return strings.Join(kept, "\n")
+}
+
+// dropInlineCode removes the backtick-delimited spans of a single line. An odd
+// backtick closes at the end of the line rather than opening a span that runs
+// into the next one.
+func dropInlineCode(line string) string {
+	var out strings.Builder
+	code := false
+	for _, r := range line {
+		switch {
+		case r == '`':
+			code = !code
+		case !code:
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
 }
 
 // linkIndex maps a link name onto the page it points at. Both shapes the wiki
