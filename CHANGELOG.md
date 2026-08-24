@@ -10,6 +10,24 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-08-24
+
+### Added
+
+- Normative pages are ratified per machine. A page carrying `type: standard` is
+  pinned in `~/.mycelium/.memory-ratified.json` at the checksum a human accepted,
+  with the machine and the day. `mycelium memory ratify` accepts one, `forget`
+  closes out a deletion, `mycelium doctor` fails on a changed or missing page, and
+  `mycelium memory search` marks a result from a changed page. The pin never syncs
+  by design: a travelling pin would let one machine accepting a wrong edit clear
+  the flag everywhere, which is the propagation the check exists to catch.
+
+### Fixed
+
+- A page name quoted in backticks or inside a fenced block is no longer read as
+  a wiki link, so a page documenting the syntax stops crediting everything it
+  quotes. The eval helper had always dropped fences; the parser had not.
+
 ## [0.23.0] — 2026-08-24
 
 ### Added
