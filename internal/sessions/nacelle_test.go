@@ -98,3 +98,70 @@ func TestCollectNacelleIgnoresGarbage(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 }
+
+// TestTailNacelleReadsAFinalLineWithoutNewline covers the end of a session that
+// stopped mid-flush. collectNacelle skips a file once its size stops changing,
+// so a complete record with no trailing newline would never be counted again.
+func TestTailNacelleReadsAFinalLineWithoutNewline(t *testing.T) {
+	dir := t.TempDir()
+	path := writeNacelleTranscript(t, dir, "sess1", []string{nacelleTurn("2026-08-24T10:00:00Z", 100, 50, 0.01)})
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(nacelleTurn("2026-08-24T10:05:00Z", 7, 3, 0.02)); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	events, offset, err := tailNacelle(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 || events[1].TokensIn != 7 {
+		t.Fatalf("the unterminated final record was dropped: %+v", events)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if offset != info.Size() {
+		t.Fatalf("offset = %d, want the whole file at %d", offset, info.Size())
+	}
+	again, _, err := tailNacelle(path, offset)
+	if err != nil || len(again) != 0 {
+		t.Fatalf("a consumed record must not be counted twice: %+v %v", again, err)
+	}
+}
+
+// TestTailNacelleWaitsForATornWrite is the other half: a half-written record is
+// not JSON, so the offset must stay before it until the rest lands.
+func TestTailNacelleWaitsForATornWrite(t *testing.T) {
+	dir := t.TempDir()
+	path := writeNacelleTranscript(t, dir, "sess1", []string{nacelleTurn("2026-08-24T10:00:00Z", 100, 50, 0.01)})
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	whole := info.Size()
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	torn := nacelleTurn("2026-08-24T10:05:00Z", 7, 3, 0.02)
+	if _, err := f.WriteString(torn[:len(torn)/2]); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	events, offset, err := tailNacelle(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("a torn record must not be counted: %+v", events)
+	}
+	if offset != whole {
+		t.Fatalf("offset = %d, want it held at %d before the torn write", offset, whole)
+	}
+}

@@ -78,28 +78,48 @@ func tailNacelle(path string, offset int64) ([]Event, int64, error) {
 	reader := bufio.NewReaderSize(f, 256*1024)
 	for {
 		raw, err := reader.ReadBytes('\n')
-		if err != nil {
+		if err != nil && !completeRecord(raw) {
 			break
 		}
 		offsetNow += int64(len(raw))
-		var rec nacelleRecord
-		if json.Unmarshal(raw, &rec) != nil || rec.Kind != "turn" || rec.Usage == nil {
-			continue
+		if ev, ok := nacelleEvent(raw); ok {
+			events = append(events, ev)
 		}
-		ts, parseErr := time.Parse(time.RFC3339Nano, rec.TS)
-		if parseErr != nil {
-			continue
+		if err != nil {
+			break
 		}
-		events = append(events, Event{
-			Time:       ts,
-			Agent:      "nacelle",
-			Model:      rec.Model,
-			TokensIn:   rec.Usage.Input,
-			TokensOut:  rec.Usage.Output,
-			CacheRead:  rec.Usage.CacheRead,
-			CacheWrite: rec.Usage.CacheWrite,
-			CostTotal:  rec.Usage.Cost,
-		})
 	}
 	return events, offsetNow, nil
+}
+
+// completeRecord reports whether bytes read without a closing newline are
+// nevertheless a whole record. A session file whose last line never got its
+// newline — the writer stopped, or the process died after the record — would
+// otherwise never be counted: the offset stays before it and collectNacelle
+// skips the file for good once its size stops changing. A genuinely torn write
+// cannot parse as JSON, so it still waits for the rest.
+func completeRecord(raw []byte) bool {
+	var probe json.RawMessage
+	return len(raw) > 0 && json.Unmarshal(raw, &probe) == nil
+}
+
+func nacelleEvent(raw []byte) (Event, bool) {
+	var rec nacelleRecord
+	if json.Unmarshal(raw, &rec) != nil || rec.Kind != "turn" || rec.Usage == nil {
+		return Event{}, false
+	}
+	ts, err := time.Parse(time.RFC3339Nano, rec.TS)
+	if err != nil {
+		return Event{}, false
+	}
+	return Event{
+		Time:       ts,
+		Agent:      "nacelle",
+		Model:      rec.Model,
+		TokensIn:   rec.Usage.Input,
+		TokensOut:  rec.Usage.Output,
+		CacheRead:  rec.Usage.CacheRead,
+		CacheWrite: rec.Usage.CacheWrite,
+		CostTotal:  rec.Usage.Cost,
+	}, true
 }
