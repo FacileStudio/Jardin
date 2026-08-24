@@ -3,6 +3,7 @@ package flow
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -164,6 +165,11 @@ func TestExecuteTruncatesOversizedOutput(t *testing.T) {
 	}
 }
 
+// TestExecuteUsesWorkDir compares the directory the step reports through
+// EvalSymlinks on both sides. On macOS t.TempDir() hands back a path under
+// /var, which is a symlink to /private/var, and pwd prints the resolved form —
+// so the raw strings differ on a step that ran in exactly the right place. The
+// assertion is about the directory, never about how the platform spells it.
 func TestExecuteUsesWorkDir(t *testing.T) {
 	dir := t.TempDir()
 	run := execFlow(t, []Step{{Name: "pwd", Run: "pwd"}}, Options{WorkDir: dir})
@@ -171,8 +177,16 @@ func TestExecuteUsesWorkDir(t *testing.T) {
 	if run.WorkDir != dir {
 		t.Errorf("WorkDir = %q, want %q", run.WorkDir, dir)
 	}
-	if got := strings.TrimSpace(run.Steps[0].Stdout); got != dir {
-		t.Errorf("step ran in %q, want %q", got, dir)
+	want, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatalf("resolving %q: %v", dir, err)
+	}
+	got, err := filepath.EvalSymlinks(strings.TrimSpace(run.Steps[0].Stdout))
+	if err != nil {
+		t.Fatalf("resolving the step's directory: %v", err)
+	}
+	if got != want {
+		t.Errorf("step ran in %q, want %q", got, want)
 	}
 }
 
