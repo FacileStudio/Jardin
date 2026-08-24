@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -225,26 +224,6 @@ func (p *pipeline) write(c Candidate, res *Result) error {
 	return nil
 }
 
-// eventSources lists the agent directories under the events dir, sorted for
-// deterministic runs; a missing events dir means nothing to do.
-func eventSources(eventsDir string) ([]string, error) {
-	entries, err := os.ReadDir(eventsDir)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var agents []string
-	for _, e := range entries {
-		if e.IsDir() {
-			agents = append(agents, e.Name())
-		}
-	}
-	sort.Strings(agents)
-	return agents, nil
-}
-
 // earliestWatermark returns the oldest per-source position, so the cheap stat
 // check can only skip when every source is past the newest file change.
 func earliestWatermark(c *Cursor) (time.Time, bool) {
@@ -297,44 +276,4 @@ func saveState(dataDir string, s State) error {
 		return err
 	}
 	return os.Rename(tmp, path)
-}
-
-// mergedSourceNames lists agents present in either the synced events dir or
-// the local-only dir, sorted and deduplicated.
-func mergedSourceNames(eventsDir, dataDir string) ([]string, error) {
-	synced, err := eventSources(eventsDir)
-	if err != nil {
-		return nil, err
-	}
-	local, err := eventSources(LocalEventsDir(dataDir))
-	if err != nil {
-		return nil, err
-	}
-	seen := make(map[string]bool, len(synced)+len(local))
-	for _, a := range append(synced, local...) {
-		seen[a] = true
-	}
-	names := make([]string, 0, len(seen))
-	for a := range seen {
-		names = append(names, a)
-	}
-	sort.Strings(names)
-	return names, nil
-}
-
-// mergedEpisodes reads one agent's episodes from both the synced events dir
-// and the local-only dir (where harnesses log message text that must never
-// sync), sorted by timestamp.
-func mergedEpisodes(agent, eventsDir, dataDir string, watermark time.Time) ([]Episode, error) {
-	synced, err := (&EventsSource{Agent: agent, EventsDir: eventsDir}).Since(watermark)
-	if err != nil {
-		return nil, err
-	}
-	local, err := (&EventsSource{Agent: agent, EventsDir: LocalEventsDir(dataDir)}).Since(watermark)
-	if err != nil {
-		return nil, err
-	}
-	episodes := append(synced, local...)
-	sort.Slice(episodes, func(i, j int) bool { return episodes[i].Timestamp.Before(episodes[j].Timestamp) })
-	return episodes, nil
 }
