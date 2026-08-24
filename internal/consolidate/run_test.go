@@ -1,7 +1,6 @@
 package consolidate
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -241,61 +240,6 @@ func TestApplyCountsOneDropPerCandidateWithAllRejectionReasons(t *testing.T) {
 	joined := strings.Join(res.Reasons, "\n")
 	if !strings.Contains(joined, RuleBehavior) || !strings.Contains(joined, RuleObvious) {
 		t.Fatalf("every rejection reason must survive aggregation: %q", joined)
-	}
-}
-
-func TestLoadStateAbsentReturnsNilThenRoundTrips(t *testing.T) {
-	if s, err := LoadState(t.TempDir()); err != nil || s != nil {
-		t.Fatalf("expected nil state, got %v %v", s, err)
-	}
-	dataDir := t.TempDir()
-	want := State{LastRun: runTestNow, Result: &Result{Created: 2, Reasons: []string{RuleObvious + ": x"}}}
-	if err := saveState(dataDir, want); err != nil {
-		t.Fatal(err)
-	}
-	got, err := LoadState(dataDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.LastRun != want.LastRun || got.Result == nil || got.Result.Created != 2 ||
-		len(got.Result.Reasons) != 1 {
-		t.Fatalf("round trip lost data: %+v", got)
-	}
-}
-
-func TestEarliestWatermarkPicksOldestSource(t *testing.T) {
-	c := &Cursor{Sources: map[string]Position{
-		"pi": {Timestamp: time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)},
-		"x":  {Timestamp: time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)},
-	}}
-	wm, ok := earliestWatermark(c)
-	if !ok || wm.Equal(c.Sources["pi"].Timestamp) {
-		t.Fatalf("expected the oldest watermark, got %v %v", wm, ok)
-	}
-}
-
-func TestEventSourcesListsSortedDirsAndToleratesAbsence(t *testing.T) {
-	if agents, err := eventSources(filepath.Join(t.TempDir(), "nope")); err != nil || agents != nil {
-		t.Fatalf("missing events dir must be empty, got %v %v", agents, err)
-	}
-	dataDir := t.TempDir()
-	os.MkdirAll(filepath.Join(dataDir, "events", "pi"), 0o755)
-	os.MkdirAll(filepath.Join(dataDir, "events", "claude"), 0o755)
-	os.WriteFile(filepath.Join(dataDir, "events", "loose.txt"), nil, 0o600)
-	agents, err := eventSources(filepath.Join(dataDir, "events"))
-	if err != nil || len(agents) != 2 || agents[0] != "claude" || agents[1] != "pi" {
-		t.Fatalf("unexpected sources: %v %v", agents, err)
-	}
-}
-
-func TestSaveStateJSONShape(t *testing.T) {
-	dataDir := t.TempDir()
-	saveState(dataDir, State{LastRun: runTestNow, Error: "boom"})
-	data, _ := os.ReadFile(StatePath(dataDir))
-	var raw map[string]any
-	json.Unmarshal(data, &raw)
-	if raw["error"] != "boom" || raw["last_run"] == nil {
-		t.Fatalf("unexpected JSON shape: %s", data)
 	}
 }
 

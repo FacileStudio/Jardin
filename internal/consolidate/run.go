@@ -2,7 +2,6 @@ package consolidate
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -25,36 +24,6 @@ type Result struct {
 	Dropped    int      `json:"dropped"`
 	Reasons    []string `json:"reasons,omitempty"`
 	Skipped    string   `json:"skipped,omitempty"`
-}
-
-// State is the persisted outcome of the last run, read by doctor and used
-// for the hourly rate limit. LastRun is only stamped by full runs: a skip
-// must never push the next chance to consolidate an hour away.
-type State struct {
-	LastRun time.Time `json:"last_run"`
-	Error   string    `json:"error,omitempty"`
-	Result  *Result   `json:"result,omitempty"`
-}
-
-// StatePath is where the last-run state lives under the data dir.
-func StatePath(dataDir string) string {
-	return filepath.Join(dataDir, ".consolidate-run.json")
-}
-
-// LoadState reads the last-run state, returning nil when none exists yet.
-func LoadState(dataDir string) (*State, error) {
-	data, err := os.ReadFile(StatePath(dataDir))
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var s State
-	if err := json.Unmarshal(data, &s); err != nil {
-		return nil, err
-	}
-	return &s, nil
 }
 
 // Options tunes a run. Now is a parameter so tests never sleep; Force
@@ -85,15 +54,6 @@ func newPipeline(dataDir string, model string) *pipeline {
 		judge:   judge,
 		dataDir: dataDir,
 	}
-}
-
-func rateLimitSkip(state *State, opts Options) string {
-	now := opts.Now
-	if !opts.Force && now.Sub(state.LastRun) < hourlyLimit {
-		return fmt.Sprintf("last run %s ago is inside the %s rate limit",
-			now.Sub(state.LastRun).Truncate(time.Second), hourlyLimit)
-	}
-	return ""
 }
 
 // Run executes the whole pipeline once over the events under dataDir:
@@ -145,8 +105,25 @@ func Run(dataDir string, opts Options) (Result, error) {
 	}
 	return res, nil
 }
+
+// leaksSecret reports whether the gate refused a candidate for carrying a
+// credential, which is the one rejection that must short-circuit the judge.
+func leaksSecret(rejections []Rejection) bool {
+	for _, r := range rejections {
+		if r.Rule == RuleSecret {
+			return true
+		}
+	}
+	return false
+}
+
+// fail records the error and stamps LastRun. A skip must not push the next
+// chance to consolidate an hour away, but a failure must: the daemon ticks
+// every 60s, and a broken Ollama or an unwritable memory dir would otherwise
+// re-run the whole pipeline every minute and append a line to daemon.log each
+// time. --force still bypasses the wait.
 func (p *pipeline) fail(res Result, err error) (Result, error) {
-	if saveErr := saveState(p.dataDir, State{Error: err.Error()}); saveErr != nil {
+	if saveErr := saveState(p.dataDir, State{LastRun: p.now, Error: err.Error()}); saveErr != nil {
 		return res, fmt.Errorf("%v (also failed to record state: %v)", err, saveErr)
 	}
 	return res, err
@@ -183,13 +160,21 @@ func (p *pipeline) consolidateEpisodes(episodes []Episode, res *Result) {
 	}
 }
 
+// apply runs the gate before the judge. The judge is a network call, and
+// OLLAMA_URL can name a host that is not this machine, so candidate text that
+// the secret rule is about to reject must never leave the process first: a rule
+// that fires after the exfiltration is not a rule. Every other rejection still
+// pays for a verdict, because a run reports all of a candidate's reasons at once.
 func (p *pipeline) apply(c Candidate, res *Result) {
 	var rejections []string
-	if verdict := p.judge.Judge(p.ctx, c); verdict.Verdict != VerdictAccept {
-		rejections = append(rejections, fmt.Sprintf("judge refused durability: %q", truncate(c.Text)))
-	}
-	for _, r := range Gate(c) {
+	gated := Gate(c)
+	for _, r := range gated {
 		rejections = append(rejections, r.Error())
+	}
+	if !leaksSecret(gated) {
+		if verdict := p.judge.Judge(p.ctx, c); verdict.Verdict != VerdictAccept {
+			rejections = append(rejections, fmt.Sprintf("judge refused durability: %q", truncate(c.Text)))
+		}
 	}
 	if len(rejections) > 0 {
 		res.Dropped++
@@ -263,17 +248,4 @@ func ollamaBaseURL() string {
 		return url
 	}
 	return "http://127.0.0.1:11434"
-}
-
-func saveState(dataDir string, s State) error {
-	data, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
-	}
-	path := StatePath(dataDir)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
 }
