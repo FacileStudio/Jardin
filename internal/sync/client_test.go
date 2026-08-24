@@ -90,3 +90,18 @@ func TestSyncSkipsRunArtifacts(t *testing.T) {
 		}
 	}
 }
+
+// A .tmp file is what consolidate stages a page under before renaming it into
+// place. The rename closes the window here, but a crash inside it leaves the
+// fragment in memory/ forever, and syncing it would publish half a page to
+// every machine and index it as a whole one.
+func TestSyncSkipsHalfWrittenPages(t *testing.T) {
+	for rel, want := range map[string]bool{
+		"memory/bugs/porte.md.tmp": true,
+		"memory/bugs/porte.md":     false,
+	} {
+		if got := syncSkip(rel); got != want {
+			t.Fatalf("syncSkip(%q) = %v, want %v", rel, got, want)
+		}
+	}
+}

@@ -135,6 +135,7 @@ func syncSkip(rel string) bool {
 		strings.HasPrefix(rel, "runs/") ||
 		inPackageDir(rel) ||
 		strings.HasSuffix(rel, ".conflict") ||
+		strings.HasSuffix(rel, ".tmp") ||
 		rel == "spaces" || strings.HasPrefix(rel, "spaces"+string(os.PathSeparator)) || strings.HasPrefix(rel, "spaces/")
 }
 

@@ -8,8 +8,13 @@ import (
 )
 
 // syncSkip reports whether a path is excluded from sync: the tokens file,
-// hidden dotfiles, conflict backups, logs, flow run artifacts and installed
-// packages never travel.
+// hidden dotfiles, conflict backups, logs, half-written pages, flow run
+// artifacts and installed packages never travel.
+//
+// The .tmp suffix is what consolidate's writeFileAtomic stages a page under
+// before renaming it into place. The rename closes the window on this machine,
+// but a crash inside it leaves the fragment in memory/ forever, and without
+// this rule that fragment would sync to every machine and be indexed as a page.
 //
 // node_modules is here because extensions/models carries a package.json, so one
 // bun install inside the data directory would otherwise push every file of it
@@ -24,6 +29,7 @@ func syncSkip(rel string) bool {
 		strings.HasPrefix(rel, "local/") ||
 		inPackageDir(rel) ||
 		strings.HasSuffix(rel, conflictExt) ||
+		strings.HasSuffix(rel, tempExt) ||
 		strings.HasSuffix(rel, ".log")
 }
 
