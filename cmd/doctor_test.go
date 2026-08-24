@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/FacileStudio/Mycelium/internal/config"
+	"github.com/FacileStudio/Mycelium/internal/consolidate"
 	"github.com/FacileStudio/Mycelium/internal/memory"
 )
 
@@ -86,5 +88,33 @@ func TestLastSyncAgeFailsOnceItIsStale(t *testing.T) {
 	}
 	if _, ok := lastSyncAge(t.TempDir(), written); ok {
 		t.Fatal("a machine that never synced is not healthy")
+	}
+}
+
+func TestConsolidateHealthStates(t *testing.T) {
+	cfg := &config.MyceliumConfig{}
+	disabled := *cfg
+	off := false
+	disabled.Consolidate.Enabled = &off
+	if msg, ok := consolidateHealth(&disabled, t.TempDir(), time.Now()); !ok || msg != "disabled" {
+		t.Fatalf("disabled: %q %v", msg, ok)
+	}
+
+	dataDir := t.TempDir()
+	os.MkdirAll(filepath.Join(dataDir, "events", "pi"), 0o755)
+	if msg, ok := consolidateHealth(cfg, dataDir, time.Now()); ok || !strings.Contains(msg, "never run") {
+		t.Fatalf("never run: %q %v", msg, ok)
+	}
+
+	noEvents := t.TempDir()
+	if msg, ok := consolidateHealth(cfg, noEvents, time.Now()); !ok || !strings.Contains(msg, "no events") {
+		t.Fatalf("no events: %q %v", msg, ok)
+	}
+
+	now := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	consolidate.Run(dataDir, consolidate.Options{Now: now.Add(-2 * time.Hour)})
+	msg, ok := consolidateHealth(cfg, dataDir, now)
+	if !ok || !strings.Contains(msg, "last run 2h0m0s ago") || !strings.Contains(msg, "created") {
+		t.Fatalf("after run: %q %v", msg, ok)
 	}
 }

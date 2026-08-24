@@ -138,3 +138,34 @@ func TestInstallDueRespectsRefreshWindow(t *testing.T) {
 		t.Fatal("install must resume after the refresh window")
 	}
 }
+
+func TestRunConsolidationLogsDisabledStage(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("DATA_DIR", home)
+	os.WriteFile(filepath.Join(home, ".mycelium.yml"), []byte("consolidate:\n  enabled: false\n"), 0o600)
+
+	runConsolidation(time.Now())
+	data, err := os.ReadFile(logPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "consolidate disabled") {
+		t.Fatalf("expected a disabled line in the daemon log, got %q", data)
+	}
+}
+
+func TestAppendDaemonLogTimestampsAndAppends(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	now := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	appendDaemonLog(now, "tick %d", 7)
+	appendDaemonLog(now.Add(time.Minute), "again")
+	data, err := os.ReadFile(logPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 || !strings.HasPrefix(lines[0], "2026-08-26T12:00:00Z tick 7") {
+		t.Fatalf("unexpected log lines: %q", lines)
+	}
+}

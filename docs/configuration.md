@@ -111,6 +111,7 @@ agents:
 | `usage_token` | Last-resort store for the subscription usage token, when no OS keychain exists |
 | `rule_order` | Rules emitted first, in this order, before the rest alphabetically |
 | `agents` | Agents the daemon refreshes; empty means autodetect |
+| `consolidate` | The daemon's consolidation stage; both keys optional, see below |
 
 The file is written mode `0600`, because `usage_token` may hold a credential.
 
@@ -121,6 +122,26 @@ byte offsets.
 
 `DATA_DIR` is read by the CLI too, not just the server. `mycelium rules edit` shells out to
 `$EDITOR`.
+
+### Consolidation
+
+The daemon's consolidation stage reads recent episodes from `~/.mycelium/events/`, proposes
+candidate findings heuristically, judges their durability against a local Ollama model, and
+writes the ones that pass into `memory/`. Two keys tune it:
+
+```yaml
+consolidate:
+  judge_model: llama3.2:3b
+  enabled: true
+```
+
+| Key | What it does |
+|---|---|
+| `judge_model` | Ollama model asked the durability question for each heuristic hit. Empty means fallback mode: every candidate is accepted without a model call and only the storage gate stands between it and `memory/` |
+| `enabled` | Turns the stage on. Defaults to `true`; an absent key keeps the default, an explicit `false` turns the stage off |
+
+An unreachable Ollama is not an error either way: the judge fails open to the same
+heuristic-fallback verdict and the run continues offline.
 
 ### The server session
 

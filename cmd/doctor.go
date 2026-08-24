@@ -199,6 +199,10 @@ var doctorCmd = &cobra.Command{
 			return lastSyncAge(dataDir, time.Now())
 		})
 
+		check("consolidate", func() (string, bool) {
+			return consolidateHealth(cfg, dataDir, time.Now())
+		})
+
 		check("history", func() (string, bool) {
 			return historyState(dataDir)
 		})

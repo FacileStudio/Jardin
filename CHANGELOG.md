@@ -10,6 +10,18 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+### Added
+
+- The daemon consolidates episodes into memory. A new stage reads recent records from
+  `events/<agent>/*.jsonl`, proposes candidate findings with deterministic heuristics,
+  asks a local Ollama model whether each is still useful in 30 days (failing open to a
+  heuristic-only verdict when it is unreachable), applies the storage gate, dedupes against
+  the wiki via embeddings with a lexical fallback — superseding an existing claim only when
+  similarity, judge agreement and a newer date all agree, failing closed to NOOP otherwise —
+  and writes the survivors directly into `memory/` using the prose conventions: findings
+  appended, old claims struck through rather than deleted. A watermark cursor makes runs
+  idempotent; the stage runs at most once per hour and works fully offline.
+
 ## [0.24.0] — 2026-08-24
 
 ### Added

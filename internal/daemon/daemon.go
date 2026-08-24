@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/FacileStudio/Mycelium/internal/config"
+	"github.com/FacileStudio/Mycelium/internal/consolidate"
 	"github.com/FacileStudio/Mycelium/internal/usage"
 )
 
@@ -69,6 +70,8 @@ func Run() error {
 	if out, err := exec.Command(self, "sync").CombinedOutput(); err != nil {
 		syncErr = fmt.Errorf("sync failed: %v: %s", err, out)
 	}
+	runConsolidation(time.Now())
+
 	if !installDue(time.Now()) {
 		return syncErr
 	}
@@ -103,6 +106,46 @@ func refreshUsage(self string) {
 		return
 	}
 	exec.Command(self, "usage", "--live").Run()
+}
+
+// runConsolidation executes the episodic-to-semantic stage once per tick and
+// records what happened in the daemon log. It never fails the tick: a broken
+// Ollama or a rejected candidate is an observation, not a sync outage, so its
+// outcome lives in daemon.log (and in doctor's consolidate line) rather than
+// in Run's error.
+func runConsolidation(now time.Time) {
+	cfg, err := config.LoadMyceliumConfig()
+	if err != nil {
+		appendDaemonLog(now, "consolidate skipped: config unreadable: %v", err)
+		return
+	}
+	if !cfg.ConsolidateEnabled() {
+		appendDaemonLog(now, "consolidate disabled")
+		return
+	}
+	res, err := consolidate.Run(config.DataDir(), consolidate.Options{Now: now})
+	if err != nil {
+		appendDaemonLog(now, "consolidate failed: %v", err)
+		return
+	}
+	if res.Skipped != "" {
+		appendDaemonLog(now, "consolidate skipped: %s", res.Skipped)
+		return
+	}
+	appendDaemonLog(now, "consolidate created=%d superseded=%d noop=%d dropped=%d",
+		res.Created, res.Superseded, res.Noop, res.Dropped)
+	for _, reason := range res.Reasons {
+		appendDaemonLog(now, "consolidate dropped: %s", reason)
+	}
+}
+
+func appendDaemonLog(now time.Time, format string, args ...any) {
+	f, err := os.OpenFile(logPath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, now.Format(time.RFC3339)+" "+format+"\n", args...)
 }
 
 func installStampPath() string {

@@ -20,9 +20,18 @@ type MyceliumConfig struct {
 	// VectorSearch opts this machine into semantic memory search. It is off by
 	// default: the server half needs an embedding model, and a machine whose
 	// server has none should not pay a round trip to be told so on every query.
-	VectorSearch bool     `yaml:"vector_search,omitempty"`
-	RuleOrder    []string `yaml:"rule_order,omitempty"`
-	Agents       []string `yaml:"agents,omitempty"`
+	VectorSearch bool              `yaml:"vector_search,omitempty"`
+	RuleOrder    []string          `yaml:"rule_order,omitempty"`
+	Agents       []string          `yaml:"agents,omitempty"`
+	Consolidate  ConsolidateConfig `yaml:"consolidate,omitempty"`
+}
+
+// ConsolidateConfig tunes the daemon's episodic-to-semantic consolidation
+// stage. Enabled is a pointer so an absent key keeps the default (on) while an
+// explicit false turns the stage off.
+type ConsolidateConfig struct {
+	JudgeModel string `yaml:"judge_model,omitempty"`
+	Enabled    *bool  `yaml:"enabled,omitempty"`
 }
 
 // The environment overrides for the server session. Precedence is flag, then
@@ -52,6 +61,21 @@ func (c *MyceliumConfig) SemanticEnabled() bool {
 		return value == "1" || strings.EqualFold(value, "true")
 	}
 	return c.VectorSearch
+}
+
+// JudgeModel returns the local Ollama model used by the consolidation judge;
+// empty means fallback mode, where every heuristic candidate is accepted.
+func (c *MyceliumConfig) JudgeModel() string {
+	return strings.TrimSpace(c.Consolidate.JudgeModel)
+}
+
+// ConsolidateEnabled reports whether the daemon should run the consolidation
+// stage. Absent from the config file means on.
+func (c *MyceliumConfig) ConsolidateEnabled() bool {
+	if c.Consolidate.Enabled != nil {
+		return *c.Consolidate.Enabled
+	}
+	return true
 }
 
 func (c *MyceliumConfig) ServerURL() string {
