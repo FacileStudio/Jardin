@@ -5,11 +5,12 @@ go 1.26.1
 require (
 	github.com/FacileStudio/Journal/sdk/journal v0.0.0-20260805204822-d5d1dc94d458
 	github.com/FacileStudio/antenne-client/go v0.0.0-20260810113516-0458a301c709
-	github.com/FacileStudio/enveloppe/go v0.0.0-20260804090730-02b0f4b20c6f
+	github.com/FacileStudio/enveloppe/go v0.0.0-20260824150156-c6a22ad287ee
 	github.com/FacileStudio/tronc v0.12.0
 	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/fatih/color v1.19.0
 	github.com/go-chi/chi/v5 v5.3.1
+	github.com/go-git/go-git/v5 v5.19.2
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/term v0.44.0
@@ -25,7 +26,6 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
-	github.com/go-git/go-git/v5 v5.19.2 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
