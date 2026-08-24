@@ -23,6 +23,24 @@ func TestLocalTreeSkipsDotDirectoriesWithoutSkippingTheRoot(t *testing.T) {
 	}
 }
 
+// Ratification is per machine, and the only thing keeping it that way is the
+// leading dot on the store's name. If it ever synced, one machine accepting a
+// changed standard would clear the flag on every other machine, which is the
+// half of the design that catches a wrong edit propagating.
+func TestRatificationsNeverSync(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "memory/index.md", "# Index")
+	write(t, dir, ".memory-ratified.json", `{"standards/cli.md":{"checksum":"sha256:x"}}`)
+
+	entries, err := LocalTree(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Path != "memory/index.md" {
+		t.Fatalf("ratifications must stay on the machine that made them, got %+v", entries)
+	}
+}
+
 // syncSkip already excluded every one of these file by file, so the tree came
 // out right either way. What was wrong was the walk reading .git to build a
 // list it then threw away, which gets worse with every commit the journal adds.
