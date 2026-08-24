@@ -74,12 +74,16 @@ func tailNacelle(path string, offset int64) ([]Event, int64, error) {
 	}
 
 	var events []Event
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 256*1024), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Bytes()
+	offsetNow := offset
+	reader := bufio.NewReaderSize(f, 256*1024)
+	for {
+		raw, err := reader.ReadBytes('\n')
+		if err != nil {
+			break
+		}
+		offsetNow += int64(len(raw))
 		var rec nacelleRecord
-		if json.Unmarshal(line, &rec) != nil || rec.Kind != "turn" || rec.Usage == nil {
+		if json.Unmarshal(raw, &rec) != nil || rec.Kind != "turn" || rec.Usage == nil {
 			continue
 		}
 		ts, parseErr := time.Parse(time.RFC3339Nano, rec.TS)
@@ -97,9 +101,5 @@ func tailNacelle(path string, offset int64) ([]Event, int64, error) {
 			CostTotal:  rec.Usage.Cost,
 		})
 	}
-	newOffset, seekErr := f.Seek(0, io.SeekCurrent)
-	if seekErr != nil {
-		return events, offset, seekErr
-	}
-	return events, newOffset, scanner.Err()
+	return events, offsetNow, nil
 }
