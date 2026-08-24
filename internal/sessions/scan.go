@@ -39,6 +39,11 @@ func scanLocked(dataDir, machine, claudeDir string, now time.Time) (*ScanResult,
 		return nil, err
 	}
 	events = append(events, canonicalEvents...)
+	nacelleEvents, err := collectNacelle(nacelleDir(), state)
+	if err != nil {
+		return nil, err
+	}
+	events = append(events, nacelleEvents...)
 	sealed := fold(state, machine, events, now)
 	if err := appendBlocks(dataDir, machine, sealed); err != nil {
 		return nil, err
@@ -127,4 +132,13 @@ func DefaultClaudeDir() string {
 		return ""
 	}
 	return filepath.Join(home, ".claude")
+}
+
+// nacelleDir is the user's Nacelle transcript directory.
+func nacelleDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".nacelle")
 }
