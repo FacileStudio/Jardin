@@ -171,3 +171,9 @@ func extractTimestamp(doc map[string]any) (time.Time, bool) {
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+// LocalEventsDir is where harnesses log episode text that stays on this
+// machine: syncSkip excludes it, so raw conversations never reach the server.
+func LocalEventsDir(dataDir string) string {
+	return filepath.Join(dataDir, "local", "events")
+}

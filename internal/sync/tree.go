@@ -21,6 +21,7 @@ func syncSkip(rel string) bool {
 	return rel == tokensFile ||
 		strings.HasPrefix(rel, ".") ||
 		strings.HasPrefix(rel, "runs/") ||
+		strings.HasPrefix(rel, "local/") ||
 		inPackageDir(rel) ||
 		strings.HasSuffix(rel, conflictExt) ||
 		strings.HasSuffix(rel, ".log")

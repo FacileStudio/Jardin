@@ -298,3 +298,8 @@ func TestSaveStateJSONShape(t *testing.T) {
 		t.Fatalf("unexpected JSON shape: %s", data)
 	}
 }
+
+func TestMain(m *testing.M) {
+	os.Setenv("OLLAMA_URL", "http://127.0.0.1:1")
+	os.Exit(m.Run())
+}
