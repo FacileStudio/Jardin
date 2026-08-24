@@ -2,10 +2,9 @@
 
 One brain for all your AI coding agents, synced across every machine.
 
-Mycelium (French for *garden*) keeps a single canonical store of agent memory, rules, and
-skills, generates the native config each agent expects, and syncs the whole garden over
-HTTP. Teach one agent something on one machine, and every other agent on every other
-machine knows it too.
+Mycelium keeps a single canonical store of agent memory, rules, and skills, generates the
+native config each agent expects, and syncs the whole store over HTTP. Teach one agent
+something on one machine, and every other agent on every other machine knows it too.
 
 Live at [mycelium.facile.studio](https://mycelium.facile.studio).
 
@@ -73,11 +72,11 @@ brew install FacileStudio/tap/mycelium
 Then set up this machine:
 
 ```sh
-mycelium init                                # scaffold ~/.mycelium
+mycelium init                                  # scaffold ~/.mycelium
 mycelium login https://mycelium.facile.studio  # opens a browser to authorize this machine
-mycelium sync                                # pull the shared brain
-mycelium install --all                       # generate config for every agent
-mycelium daemon install                      # optional: background sync
+mycelium sync                                  # pull the shared brain
+mycelium install --all                         # generate config for every agent
+mycelium daemon install                        # optional: background sync
 ```
 
 Open the dashboard and copy the master prompt from **Settings → Connect your agents** into
@@ -93,9 +92,9 @@ bridges Pi into Mycelium's session tracking:
 # It is auto-discovered on next pi start (no install needed)
 
 # Mycelium's canonical event store collects events from every agent:
-ls ~/.mycelium/events/pi/   # monthly JSONL shards
-mycelium sessions scan       # folds events into sealed blocks
-mycelium sessions            # show sessions from all agents
+ls ~/.mycelium/events/pi/  # monthly JSONL shards
+mycelium sessions scan     # folds events into sealed blocks
+mycelium sessions          # show sessions from all agents
 ```
 
 The extension hooks into pi's `message_end`, `before_agent_start`, and

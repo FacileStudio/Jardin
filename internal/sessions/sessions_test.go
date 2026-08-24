@@ -92,7 +92,7 @@ func TestFoldMergesCaseVariants(t *testing.T) {
 func TestRepoNameFromRemote(t *testing.T) {
 	cases := map[string]string{
 		"git@github.com:FacileStudio/GFConseil.git": "GFConseil",
-		"https://github.com/FacileStudio/Mycelium":    "Mycelium",
+		"https://github.com/FacileStudio/Mycelium":  "Mycelium",
 		"https://github.com/owner/repo.name.git":    "repo.name",
 		"ssh://git@host.com/owner/Repo/":            "Repo",
 		"":                                          "",

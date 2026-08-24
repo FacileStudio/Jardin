@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/FacileStudio/Journal/sdk/journal"
 	"github.com/FacileStudio/Mycelium/internal/env"
 	"github.com/FacileStudio/Mycelium/internal/memory"
 	"github.com/FacileStudio/Mycelium/internal/server"
-	"github.com/FacileStudio/Journal/sdk/journal"
 	"github.com/FacileStudio/tronc/logger"
 	"github.com/FacileStudio/tronc/spa"
 	"github.com/spf13/cobra"

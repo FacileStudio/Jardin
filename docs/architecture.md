@@ -6,9 +6,9 @@ How the CLI, the server, and the markdown tree fit together, and what happens on
 
 ```
 Internet ──▶ Traefik ──▶ mycelium serve (:8420) ──┬──▶ /health, /ready   liveness + readiness
-                                                 ├──▶ /api/health      same, under the API
-                                                 ├──▶ /api/*           handlers
-                                                 └──▶ everything else  SvelteKit build
+                                                   ├──▶ /api/health      same, under the API
+                                                   ├──▶ /api/*           handlers
+                                                   └──▶ everything else  SvelteKit build
                                                                        │
                                                               $DATA_DIR (a volume)
                                                               markdown + JSON state
