@@ -510,3 +510,27 @@ one-time one.
   currently supplies for free, add naming and placement ceremony to every agent write, and cannot
   be A/B tested because all 65 golden cases name page paths.
 - **Any agent-facing git verb.** No `memory commit`, no `--no-commit`, no "remember to commit".
+
+### 13. Normative page ratification  `[filet]`
+
+**Done 2026-08-24.**
+
+`internal/memory/ratify.go`, `cmd/memory_ratify.go`, `cmd/doctor.go` (one check line),
+`cmd/memory.go` (search marking), `internal/sync/tree_test.go` (the store never syncs).
+
+**Store.** `~/.mycelium/.memory-ratified.json`, `{page: {checksum, machine, date}}`, keyed by path
+relative to `memory/`. A dotfile, so `syncSkip` already excludes it. Atomic temp-and-rename at
+0600. A corrupt store is an error, never an empty map: "nothing is known" and "nothing is
+ratified" look identical downstream and only one of them is a problem.
+
+**Exit criteria, all met.**
+
+- A page carrying `type: standard` that nobody ratified reports `not ratified` and passes doctor.
+- Ratifying then editing reports `CHANGED`, fails doctor, and marks every search result from it.
+- Restoring the accepted content returns it to `ratified` with no second ratification.
+- Restoring a version never accepted here stays `CHANGED`.
+- A ratified page that is deleted reports `MISSING` until `mycelium memory forget`.
+- `LocalTree` excludes the store, so a pin never reaches another machine.
+- Ratifying writes nothing into the page.
+- No agent-facing command, flag or output contains the word `git`.
+- `filet check .` exit 0 with no new finding categories; `sh scripts/check.sh` passes.

@@ -355,6 +355,14 @@ consolidation happens only when an agent chooses to write a synthesis — one pa
 
 ## Decided, do not relitigate
 
+- **Ratification is per machine and never syncs.** A travelling pin would let one machine accepting
+  a wrong edit clear the flag everywhere, which is the propagation the check exists to catch. Do
+  not "fix" it by syncing `.memory-ratified.json`.
+- **Only `type: standard` pages are pinned.** Pinning every page reproduces the documented
+  trust-on-first-use failure: a warning that fires on legitimate edits gets clicked through by
+  week two.
+- **Agents never ratify.** An agent ratifying its own edit is the signal deleting itself.
+
 - **Not CRDTs.** They guarantee convergence without conflicts, and that is the wrong goal here.
   Mycelium stores claims: a CRDT merges "X is true" and "X is false" into one page and calls it
   converged. The `[SUPERSEDED by: ...]` convention exists precisely because contradiction needs a
@@ -397,41 +405,41 @@ consolidation happens only when an agent chooses to write a synthesis — one pa
   holding genuinely unrelated findings — which is "split this page in two", not "split every
   claim into a file".
 
-## Not decided
+## Decided 2026-08-24 — normative documents
 
-### Does mycelium hold normative documents, and if so under what rules?
+### Yes, under ratification. Decided and shipped 2026-08-24.
 
-Mycelium's memory is **descriptive**: dated observations carrying provenance, written mostly by
-agents, synced without ceremony. A standard is **normative**: it says "when a repo disagrees
-with this file, the repo is wrong", and a change to it should land deliberately rather than
-appear on every machine five minutes later.
+A page carrying `type: standard` is pinned per machine in `~/.mycelium/.memory-ratified.json` at
+the checksum a human accepted, with the machine and day they accepted it. Four standings:
+`ratified`, `not ratified`, `CHANGED`, `MISSING`. `mycelium memory ratify` accepts, `forget` closes
+out a deletion, `doctor` fails on CHANGED and MISSING, and `memory search` marks a CHANGED result
+`[changed since ratified]`.
 
-Until 2026-08-22 the suite kept those apart by storing standards in a separate git repo. That
-repo has been deleted and its documents are local-only, pending a decision here. Nothing in
-mycelium's current model distinguishes the two kinds of page, which means an agent editing a
-standard looks exactly like an agent filing a gotcha.
+**It is smaller than this page imagined, deliberately.** The proposed shape was flow trust applied
+to pages, meaning a refusal. There is nothing to refuse: blocking sync is forbidden and blocking
+reads is wrong, so what a normative page actually wants is a label plus the three places it shows
+up. Ratification gates authority, never availability.
 
-The shape that probably fits already exists in this codebase: **flow trust**. A flow arriving
-over sync is refused until a human approves it on the machine that runs it, and an edited flow
-re-enters `CHANGED`. A normative page wants the same treatment — it syncs freely, but a changed
-one is not presented as authoritative until someone ratifies it.
+**The pin does not sync, and that is the decision.** Flows chose per-machine trust to gate
+execution. A page gates authority and lands in the same place for a different reason: a travelling
+pin would let one machine accepting a wrong edit clear the flag on every machine, and that
+propagation is the accident this exists to catch. The cost is that each machine ratifies for
+itself; the benefit is that an agent which edits *and* ratifies on lucy still leaves ruche flagged.
 
-This gates the migration of `CLI-STANDARD.md`, `DOCS-STANDARD.md` and `MIGRATIONS.md` into
-mycelium, so it wants deciding before Track A finishes rather than after.
+**The pin names content, not an event.** `mycelium memory revert` back to an accepted version
+restores `ratified` on its own; reverting to any other version stays CHANGED, because nobody
+accepted that one here.
 
-**Call it a bet, because it is one.** OWASP prescribes write-path provenance and source
-isolation, and the memory-poisoning literature agrees — while stating plainly that these
-"remain theoretical recommendations rather than tested implementations". Nobody has measured a
-trust gate. It is the only remaining option once detection is ruled out, which makes it
-reasonable, not proven.
+**What it does not do**, stated plainly: it stops nothing. An agent with filesystem access can edit
+a page and ratify it on that same machine. It does not detect that a claim is false, only that it
+moved. And the good-faith case remains unmeasured: every number in the poisoning literature is an
+adversarial attack-success rate, so this is transfer, not evidence.
 
-**And the threat model here is milder than the papers'.** They assume an adversary. Mycelium's
-realistic risk is an agent writing a wrong claim in good faith — on 2026-08-22 an agent asserted
-"api.md is exempt from the docs ceiling" three times and built a design argument on it, from a
-stale line in another repo's ROADMAP. That is textbook weak-signal poisoning with nobody
-attacking. Against accidental poisoning provenance works far better than the adversarial numbers
-suggest, because the agent is not hiding: it cites a source, and the source can be checked.
-Checking the source is what caught that one.
+Rejected on the way: cryptographic signing (Sigstore, in-toto and TUF solve publisher-to-many
+distribution over an untrusted channel, which this is not), review gates (a required reviewer with
+a population of one is latency, not governance), and `status: accepted` in frontmatter, which is
+self-asserted by the same agent that wrote the page and so carries exactly the teeth
+`type: standard` had before this.
 
 ## Exit criteria
 
