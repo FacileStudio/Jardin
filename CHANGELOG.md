@@ -10,6 +10,8 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-08-24
+
 ### Added
 
 - The daemon consolidates episodes into memory. A new stage reads recent records from
@@ -21,6 +23,43 @@ records what shipped rather than what was written down at the time.
   and writes the survivors directly into `memory/` using the prose conventions: findings
   appended, old claims struck through rather than deleted. A watermark cursor makes runs
   idempotent; the stage runs at most once per hour and works fully offline.
+
+- Nacelle transcripts count toward usage. `sessions scan` tails
+  `~/.nacelle/sessions/*.jsonl` alongside the Claude ones, reading only `turn` records
+  because `done` repeats the run total and would double every figure.
+
+- Episodes can stay on one machine. Anything under `local/` is excluded from sync, so a
+  harness can log raw conversation text to `local/events/<agent>/` and have consolidation
+  read it without the text ever reaching the server.
+
+### Fixed
+
+- Consolidation no longer overwrites a wiki page. A new finding whose title kebabbed onto
+  an existing filename replaced that page whole, including anything a human had written in
+  it — the deduper only reports a match above its weak-similarity floor, so a page can
+  exist that the decision knows nothing about. A collision appends now, like every other
+  write in the stage. Superseding also strikes each paragraph separately, because one `~~`
+  pair around a two-paragraph claim renders as half retracted and half still standing.
+
+- A candidate carrying a credential no longer reaches the judge. The gate ran after the
+  round trip, and `OLLAMA_URL` can name a host that is not this machine, so the secret rule
+  fired only once the text had already left the process.
+
+- The same event line always produces the same text. Object keys were walked in map order,
+  so a record carrying two of `message`/`content`/`text` assembled differently on every run
+  — and the cursor hash, the similarity score and the create-or-noop decision all read it.
+
+- Half-written pages stay off the wire. A crash between writing `<page>.md.tmp` and
+  renaming it left the fragment in `memory/` forever, and sync would have published it to
+  every machine and indexed it as a whole page.
+
+- A Nacelle record written without its trailing newline is counted. The offset stayed
+  before it and the file was skipped for good once its size stopped changing; a torn write
+  still waits for the rest, since it cannot parse as whole JSON.
+
+- A failed consolidation run stamps its timestamp, so a broken Ollama or an unwritable
+  memory directory no longer re-runs the whole pipeline on every 60-second daemon tick.
+  `--force` still bypasses the wait.
 
 ## [0.24.0] — 2026-08-24
 
