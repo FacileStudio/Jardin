@@ -36,20 +36,26 @@ func (g *Gemini) TargetPaths() []string {
 // only each skill's name and description at startup, and pulls the body in
 // when the model calls activate_skill. Same SKILL.md the claude, codex and
 // opencode adapters already write, so nothing here converts.
+//
+// It also declares mycelium's MCP server in ~/.gemini/settings.json, under
+// the top-level mcpServers object the CLI reads. Not the neighbouring mcp
+// object: that one holds allow and deny lists of server names, and a server
+// definition placed there is silently ignored.
 func (g *Gemini) Generate(input Input) (*Output, error) {
+	out := &Output{Files: make(map[string]string)}
+	home, _ := os.UserHomeDir()
+
+	settings := filepath.Join(home, ".gemini", "settings.json")
+	input.MCPTools = declareMCPServer(out, settings, "mcpServers", mcpStdioServer())
+
 	var sections []string
 
-	for _, rule := range input.Rules {
-		sections = append(sections, strings.TrimSpace(rule.Content))
-	}
+	sections = append(sections, ruleSections(input)...)
 
 	if input.Machine != "" {
 		sections = append(sections, strings.TrimSpace(input.Machine))
 	}
 
-	out := &Output{Files: make(map[string]string)}
-
-	home, _ := os.UserHomeDir()
 	geminiMd := filepath.Join(home, ".gemini", "GEMINI.md")
 	out.Files[geminiMd] = strings.Join(sections, "\n\n---\n\n") + "\n"
 

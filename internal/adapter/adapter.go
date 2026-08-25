@@ -17,6 +17,18 @@ type Input struct {
 	Skills      []cell.NamedFile
 	Machine     string
 	MachineName string
+
+	// MCPTools reports whether the agent being generated for can call
+	// mycelium's MCP tools instead of shelling out to the binary.
+	//
+	// The adapter is the authority on this, not the caller: whether
+	// search_memory reaches the model is a property of the assistant's
+	// config format, which is exactly what an adapter knows and install
+	// does not. It sets the field on its own copy before rendering.
+	//
+	// The zero value is the CLI-only agent, so an adapter that declares no
+	// MCP server keeps generating what it generated before.
+	MCPTools bool
 }
 
 // Output is the generated config keyed by absolute target path.

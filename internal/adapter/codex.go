@@ -30,9 +30,7 @@ func (c *Codex) Generate(input Input) (*Output, error) {
 
 	sections = append(sections, recapReminder)
 
-	for _, rule := range input.Rules {
-		sections = append(sections, strings.TrimSpace(rule.Content))
-	}
+	sections = append(sections, ruleSections(input)...)
 
 	if input.Machine != "" {
 		sections = append(sections, strings.TrimSpace(input.Machine))

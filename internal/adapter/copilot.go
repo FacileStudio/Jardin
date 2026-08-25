@@ -20,9 +20,7 @@ func (c *Copilot) TargetPaths() []string {
 func (c *Copilot) Generate(input Input) (*Output, error) {
 	var sections []string
 
-	for _, rule := range input.Rules {
-		sections = append(sections, strings.TrimSpace(rule.Content))
-	}
+	sections = append(sections, ruleSections(input)...)
 
 	if input.Machine != "" {
 		sections = append(sections, strings.TrimSpace(input.Machine))

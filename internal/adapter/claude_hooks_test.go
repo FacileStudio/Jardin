@@ -32,7 +32,7 @@ func TestInstallHooksCreatesSettings(t *testing.T) {
 	if written == "" {
 		t.Fatal("expected settings path")
 	}
-	if strings.Join(added, ", ") != "SessionStart recap hook, status line" {
+	if strings.Join(added, ", ") != "SessionStart recap hook, status line, MCP server" {
 		t.Fatalf("added = %q", added)
 	}
 	settings := readSettings(t, home)
@@ -61,7 +61,7 @@ func TestInstallHooksKeepsUserStatusLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(added, ", ") != "SessionStart recap hook" {
+	if strings.Join(added, ", ") != "SessionStart recap hook, MCP server" {
 		t.Fatalf("added = %q", added)
 	}
 	line := readSettings(t, home)["statusLine"].(map[string]any)
@@ -85,7 +85,7 @@ func TestInstallHooksReportsStatusLineOnly(t *testing.T) {
 	if written == "" {
 		t.Fatal("expected settings path")
 	}
-	if strings.Join(added, ", ") != "status line" {
+	if strings.Join(added, ", ") != "status line, MCP server" {
 		t.Fatalf("added = %q", added)
 	}
 }
@@ -135,6 +135,9 @@ func TestInstallHooksIdempotent(t *testing.T) {
 	}
 }
 
+// TestInstallHooksLeavesCorruptFileAlone pins the refusal per file, not per
+// run: unreadable settings.json must survive, and must not take the MCP
+// declaration in the separate ~/.claude.json down with it.
 func TestInstallHooksLeavesCorruptFileAlone(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -142,9 +145,12 @@ func TestInstallHooksLeavesCorruptFileAlone(t *testing.T) {
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "settings.json"), []byte("{not json"), 0o644)
 
-	written, added, err := (&Claude{}).InstallHooks()
-	if err != nil || written != "" || added != nil {
-		t.Fatalf("corrupt settings must be skipped, got written=%q added=%q err=%v", written, added, err)
+	_, added, err := (&Claude{}).InstallHooks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(added, ", ") != "MCP server" {
+		t.Fatalf("corrupt settings must be skipped, got added=%q", added)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, "settings.json"))
 	if !strings.Contains(string(data), "{not json") {
