@@ -18,7 +18,6 @@
 	import { AGENT_PROMPT } from '$lib/agentPrompt';
 
 	let tokens: TokenInfo[] = $state([]);
-	const apiTokens = $derived(tokens.filter((t) => t.name !== 'session'));
 
 	let createOpen = $state(false);
 	let creating = $state(false);
@@ -129,7 +128,7 @@
 			<Button icon={icons.plus} onclick={openCreate}>New token</Button>
 		{/snippet}
 
-		{#if apiTokens.length === 0}
+		{#if tokens.length === 0}
 			<Alert tone="info">
 				No tokens yet. The CLI needs one before a machine can sync with this brain.
 			</Alert>
@@ -145,7 +144,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each apiTokens as token (token.name)}
+					{#each tokens as token (token.name)}
 						<tr>
 							<td class="font-fc-mono font-medium text-fc-fg">{token.name}</td>
 							<td>

@@ -107,11 +107,25 @@ func (s *Server) mintToken(name, scope, email string) (string, error) {
 	return token, nil
 }
 
+// isLoginSession reports whether an entry is a browser or CLI login rather
+// than a token somebody created and manages.
+//
+// The test is expiry, not the name. Sessions are the only entries minted with
+// one — a machine token does not expire and an API token does not either — so
+// this keeps holding when a third kind of login arrives under a fourth name
+// prefix. The page that got this wrong compared the whole name against
+// "session", which matched none of "session:<email>" or "cli:<email>", so
+// every login ever made was listed as an API token.
+func isLoginSession(t TokenInfo) bool { return t.ExpiresAt != "" }
+
 func (s *Server) tokensList(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	list := make([]TokenInfo, 0, len(s.tokens))
 	for _, t := range s.tokens {
+		if isLoginSession(t) {
+			continue
+		}
 		list = append(list, TokenInfo{Name: t.Name, Scope: t.Scope, CreatedAt: t.CreatedAt, LastSeen: t.LastSeen})
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name })

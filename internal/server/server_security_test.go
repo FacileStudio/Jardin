@@ -243,3 +243,45 @@ func TestSafeNameOnRules(t *testing.T) {
 		}
 	})
 }
+
+// TestTokensListOmitsLoginSessions pins the API side of a confusing page: the
+// dashboard lists what a person created and manages, and a browser or CLI
+// login is neither. The page used to filter these itself and compared the
+// whole name against "session", which matches neither "session:<email>" nor
+// "cli:<email>", so every login anyone had ever made was rendered as an API
+// token with a revoke button next to it.
+func TestTokensListOmitsLoginSessions(t *testing.T) {
+	s := New(t.TempDir(), "secret")
+	h := s.Handler()
+
+	adminToken := loginAs(t, h, "secret", "")
+	loginAs(t, h, "secret", "lucy")
+	if _, err := s.mintSessionToken("yann@facile.studio", "admin"); err != nil {
+		t.Fatalf("minting a browser session: %v", err)
+	}
+	if _, err := s.mintNamedSession("cli:yann@facile.studio", "yann@facile.studio", "user"); err != nil {
+		t.Fatalf("minting a CLI session: %v", err)
+	}
+
+	w := doReq(t, h, rawCall{Method: "GET", Target: "/api/tokens", Token: adminToken, Body: nil})
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/tokens: got %d", w.Code)
+	}
+	var list []TokenInfo
+	if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	machine := false
+	for _, entry := range list {
+		if strings.HasPrefix(entry.Name, "session:") || strings.HasPrefix(entry.Name, "cli:") {
+			t.Errorf("a login session reached the tokens list: %q", entry.Name)
+		}
+		if entry.Name == "lucy" {
+			machine = true
+		}
+	}
+	if !machine {
+		t.Error("the machine token is what this page is for and it went missing")
+	}
+}
