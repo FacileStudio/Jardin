@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/FacileStudio/Mycelium/internal/config"
+	"github.com/FacileStudio/Mycelium/internal/daemon"
 	"github.com/FacileStudio/Mycelium/internal/flow"
 	"github.com/FacileStudio/Mycelium/internal/sessions"
 	"github.com/spf13/cobra"
@@ -36,7 +37,7 @@ var recapCmd = &cobra.Command{
 		}
 
 		project := sessions.ResolveProject(cwd)
-		recap := joinSections(sessions.Recap(config.DataDir(), project, time.Now()), flowRecap())
+		recap := joinSections(syncRecap(), sessions.Recap(config.DataDir(), project, time.Now()), flowRecap())
 		if recap == "" {
 			return nil
 		}
@@ -62,6 +63,19 @@ func joinSections(parts ...string) string {
 		}
 	}
 	return strings.Join(kept, "\n\n")
+}
+
+// syncRecap tells an agent that the wiki it is about to read is not the wiki
+// the rest of the fleet has. It stays silent while sync is healthy: this runs
+// at the start of every session, and a line that appears every time is a line
+// nobody reads by the third one. It asks doctor's own helper rather than
+// carrying a second copy of the threshold, so the two can never disagree.
+func syncRecap() string {
+	msg, ok := lastSyncAge(config.DataDir(), time.Now(), syncStaleAfter(daemon.Installed()))
+	if ok {
+		return ""
+	}
+	return "Mycelium sync is stale: " + msg + ". This machine's wiki may be behind the fleet."
 }
 
 func flowRecap() string {

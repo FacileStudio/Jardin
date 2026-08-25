@@ -79,15 +79,23 @@ func TestLastSyncAgeFailsOnceItIsStale(t *testing.T) {
 	if err := os.Chtimes(base, written, written); err != nil {
 		t.Fatal(err)
 	}
+	stale := syncStaleAfter(true)
 
-	if _, ok := lastSyncAge(dir, written.Add(time.Hour)); !ok {
-		t.Fatal("an hour old is a working machine, not a failure")
+	if _, ok := lastSyncAge(dir, written.Add(stale-time.Second), stale); !ok {
+		t.Fatal("under the threshold is a working machine, not a failure")
 	}
-	if _, ok := lastSyncAge(dir, written.Add(syncStaleAfter+time.Minute)); ok {
-		t.Fatal("past the threshold the check must fail, not just report the number")
+	msg, ok := lastSyncAge(dir, written.Add(stale+time.Second), stale)
+	if ok {
+		t.Fatalf("past the threshold the check must fail, not just report the number: %q", msg)
 	}
-	if _, ok := lastSyncAge(t.TempDir(), written); ok {
+	if !strings.Contains(msg, "mycelium sync") {
+		t.Fatalf("a failed check must name the fix, got %q", msg)
+	}
+	if _, ok := lastSyncAge(t.TempDir(), written, stale); ok {
 		t.Fatal("a machine that never synced is not healthy")
+	}
+	if _, ok := lastSyncAge(dir, written.Add(stale+time.Second), manualSyncStaleAfter); !ok {
+		t.Fatal("the same age with no daemon installed is a manual sync, not a failure")
 	}
 }
 
