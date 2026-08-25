@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -159,5 +160,29 @@ func TestSyncCountsBothDirectionsAgainstOneLimit(t *testing.T) {
 		if !exists(serverDir, p) {
 			t.Fatalf("%s was deleted on the server despite the refusal", p)
 		}
+	}
+}
+
+// The server holding almost nothing is what both wipes had in common, and the
+// reconcile already knows it: the two trees it just fetched are the answer. A
+// refusal that leaves the counts out sends the reader off to fetch the tree by
+// hand before they can tell a cleanup from a broken server.
+func TestRefusalReportsHowManyFilesEachSideHolds(t *testing.T) {
+	c, clientDir, serverDir := setup(t)
+	paths := seedPages(t, c, clientDir, serverDir, 11)
+	removeFrom(t, serverDir, paths)
+
+	_, err := c.Sync(clientDir)
+	var refusal *BulkDeleteError
+	if !errors.As(err, &refusal) {
+		t.Fatalf("expected a BulkDeleteError, got %v", err)
+	}
+	if refusal.LocalFiles != 11 || refusal.RemoteFiles != 0 {
+		t.Fatalf("expected 11 files here against an empty server, got %d here and %d there",
+			refusal.LocalFiles, refusal.RemoteFiles)
+	}
+	got := refusal.Inventory()
+	if !strings.Contains(got, "holds 0 files") || !strings.Contains(got, "holds 11") {
+		t.Fatalf("the inventory must name both counts, got %q", got)
 	}
 }

@@ -24,9 +24,26 @@ const MaxSilentDeletes = 10
 // machine pulls from are different accidents. Nothing was written either way:
 // no file was deleted on either side, nothing was uploaded, and the base was
 // left as it was.
+//
+// LocalFiles and RemoteFiles are how many files each side held when the plan
+// was made. Both wipes so far were a server that had come back empty, and that
+// reads straight off these two numbers: a refusal against a server holding
+// almost nothing is a broken server, not a cleanup somebody meant. They are
+// counted from the trees the reconcile already fetched, so naming them in the
+// refusal costs no extra request.
 type BulkDeleteError struct {
-	Local  []string
-	Remote []string
+	Local       []string
+	Remote      []string
+	LocalFiles  int
+	RemoteFiles int
+}
+
+// Inventory states what each side actually holds. It is the one line that
+// separates a deliberate cleanup from a server that lost its data volume, so
+// every refusal prints it whoever is reading.
+func (e *BulkDeleteError) Inventory() string {
+	return fmt.Sprintf("The server holds %d files and this machine holds %d",
+		e.RemoteFiles, e.LocalFiles)
 }
 
 // Total is how many files the refused reconcile would have destroyed, which is
@@ -135,8 +152,12 @@ func (c *Client) Sync(dataDir string) (*Result, error) {
 // and a refusal can leave both trees exactly as it found them. The plan is
 // returned as the error it would become, so the refusal and the plan cannot
 // end up describing different things.
+//
+// It records how big each side is on the way past. The maps are the trees, so
+// the counts that explain the refusal come from the same snapshot the plan was
+// built from and cannot disagree with it.
 func plannedDeletes(paths []string, local, remote map[string]FileEntry, base map[string]string) *BulkDeleteError {
-	plan := &BulkDeleteError{}
+	plan := &BulkDeleteError{LocalFiles: len(local), RemoteFiles: len(remote)}
 	for _, p := range paths {
 		switch {
 		case deletesLocal(local[p], remote[p], base[p]):

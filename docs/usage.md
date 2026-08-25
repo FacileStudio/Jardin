@@ -71,7 +71,7 @@ state with the server's. Use them when you know which side is right.
 
 ```sh
 mycelium sync
-mycelium pull
+mycelium pull   # terminal only: it overwrites local files with the server's
 ```
 
 ### `mycelium spaces list` / `mycelium spaces use`

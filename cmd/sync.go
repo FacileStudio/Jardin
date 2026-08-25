@@ -64,39 +64,6 @@ func warnFrenchPages(dataDir string, res *hsync.Result) {
 	ui.Hint("first at %s:%d — see 'mycelium doctor' for the whole corpus", findings[0].Path, findings[0].Line)
 }
 
-// bulkDeleteListLimit caps how many paths a refusal prints. A refused sync can
-// name hundreds of files and the daemon pipes this straight into its failure
-// report, so the list is trimmed to something a human can actually read.
-const bulkDeleteListLimit = 10
-
-// reportBulkDelete explains a refused sync: how many files would go, which ones
-// and in which direction, that nothing has changed yet, and the one flag that
-// accepts the removals. Cobra would print the same error again after this, so
-// it is silenced and this block is the whole message.
-func reportBulkDelete(cmd *cobra.Command, refusal *hsync.BulkDeleteError) {
-	cmd.SilenceErrors = true
-	ui.Error("%v", refusal)
-	listDeletions("removed here", refusal.Local)
-	listDeletions("removed on the server", refusal.Remote)
-	ui.ErrorHint("Nothing was deleted. Run 'mycelium sync --force' to accept these removals.")
-}
-
-// listDeletions names the files one direction of a refusal would destroy. It
-// stays on stderr with the error it belongs to, so redirecting one stream never
-// separates the count from the paths that explain it.
-func listDeletions(what string, paths []string) {
-	if len(paths) == 0 {
-		return
-	}
-	ui.ErrorHint("%s:", what)
-	for _, p := range paths[:min(len(paths), bulkDeleteListLimit)] {
-		ui.ErrorHint("  %s", p)
-	}
-	if extra := len(paths) - bulkDeleteListLimit; extra > 0 {
-		ui.ErrorHint("  and %d more", extra)
-	}
-}
-
 // recordHistory files one operation in the local history, so a page this sync
 // is about to overwrite or delete can still be recovered afterwards.
 //
@@ -155,17 +122,24 @@ var syncCmd = &cobra.Command{
 	Short:        "Reconcile local and server changes (push + pull + deletes)",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		interactive := interactiveTerminal()
+		force, _ := cmd.Flags().GetBool("force")
+		if force {
+			if err := requireTerminal(cmd, interactive, forceNeedsTerminal); err != nil {
+				return err
+			}
+		}
 		client, dataDir, err := syncClient()
 		if err != nil {
 			return err
 		}
-		client.AllowBulkDelete, _ = cmd.Flags().GetBool("force")
+		client.AllowBulkDelete = force
 		recordLocalEdits(dataDir)
 		res, err := client.Sync(dataDir)
 		if err != nil {
 			var refusal *hsync.BulkDeleteError
 			if errors.As(err, &refusal) {
-				reportBulkDelete(cmd, refusal)
+				reportBulkDelete(cmd, interactive, refusal)
 			}
 			return err
 		}
@@ -205,10 +179,18 @@ var pushCmd = &cobra.Command{
 	},
 }
 
+// pullCmd overwrites this machine's files with the server's, so it is the same
+// power --force grants and is gated the same way. Push is deliberately not:
+// sending local content up destroys nothing here, and it is what put the wiki
+// back after the 2026-08-25 wipe.
 var pullCmd = &cobra.Command{
-	Use:   "pull",
-	Short: "Force server changes down, overwriting local",
+	Use:          "pull",
+	Short:        "Force server changes down, overwriting local",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := requireTerminal(cmd, interactiveTerminal(), pullNeedsTerminal); err != nil {
+			return err
+		}
 		client, dataDir, err := syncClient()
 		if err != nil {
 			return err
@@ -229,7 +211,7 @@ var pullCmd = &cobra.Command{
 
 func init() {
 	syncCmd.Flags().Bool("force", false,
-		fmt.Sprintf("Accept a sync that would delete more than %d files", hsync.MaxSilentDeletes))
+		fmt.Sprintf("Accept a sync that would delete more than %d files (terminal only)", hsync.MaxSilentDeletes))
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(pushCmd)
 	rootCmd.AddCommand(pullCmd)
