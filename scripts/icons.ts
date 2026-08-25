@@ -72,10 +72,16 @@ for (const [name, size] of [['apple-touch-icon.png', 180], ['icon-192.png', 192]
 }
 
 // --- favicon.ico: 16/32/48, 32bpp BMP entries, matching what it replaces ---
+//
+// The two facts this loop turns on: resvg hands back RGBA rows top-down, and a
+// BMP inside an ICO stores its rows bottom-up in BGRA. So the row index is
+// mirrored and the channels are swapped on the way across. Get either wrong and
+// the icon renders upside down or with red and blue traded, which is easy to
+// miss at 16px.
 const sizes = [16, 32, 48]
 const images = sizes.map((s) => {
   const r = render(markSvg, s)
-  const px = r.pixels as unknown as Buffer // RGBA, top-down
+  const px = r.pixels as unknown as Buffer
   const rowXor = s * 4
   const andRow = Math.ceil(s / 32) * 4
   const header = Buffer.alloc(40)
@@ -84,7 +90,7 @@ const images = sizes.map((s) => {
   header.writeUInt32LE(rowXor * s + andRow * s, 20)
   const xor = Buffer.alloc(rowXor * s)
   for (let y = 0; y < s; y++) {
-    const src = (s - 1 - y) * rowXor // BMP is bottom-up
+    const src = (s - 1 - y) * rowXor
     for (let x = 0; x < s; x++) {
       const i = src + x * 4, o = y * rowXor + x * 4
       xor[o] = px[i + 2]; xor[o + 1] = px[i + 1]; xor[o + 2] = px[i]; xor[o + 3] = px[i + 3]
