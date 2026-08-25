@@ -128,7 +128,8 @@ Three ways in:
   a user code, and polls `POST /api/auth/device/poll` every 5 seconds. An admin approves it
   from `/authorize` in the dashboard. Codes live 10 minutes, at most 256 pending at a time,
   and a token is handed out exactly once — polling after approval consumes the request.
-- **OIDC.** `GET /api/auth/oidc` sets a state cookie and redirects to Authentik. The
+- **OIDC.** `GET /api/auth/oidc` sets a state cookie and redirects to the identity
+  provider. The
   callback verifies the ID token, requires an `email` claim, upserts the user into
   `.users.json` (the first user ever seen becomes admin), mints a session, and hands it to
   the SPA in the URL fragment of the success URL. Provider discovery is lazy, so the server
@@ -401,6 +402,9 @@ heuristic-fallback mode works fully offline.
   watermark defaults to now, so there is no surprise backfill. The same emitter, ledger and
   settings block also publish `usage_alert.created` when a subscription window crosses its
   configured threshold — see [Threshold alerts on the Antenne](#threshold-alerts-on-the-antenne).
-- **Porte.** SSO federates to Authentik at `porte.facile.studio` over standard OIDC.
+- **Registre.** SSO federates to registre at `sso.facile.studio` over standard OIDC.
+  Mycelium is registre's first consumer: it authenticates as the `mycelium`
+  application client, and the redirect it is registered under is exact-match, so
+  `OIDC_REDIRECT_URL` has to keep the `/api` prefix this server mounts its API on.
 
 Back to the [documentation index](README.md).

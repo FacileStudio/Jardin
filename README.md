@@ -130,7 +130,7 @@ configuration from the environment, once, at startup.
 | `APP_ENV` | `development`, `staging`, or `production` |
 | `PASSWORD` | Shared password for `mycelium login --password` |
 | `DATA_DIR` | Where the markdown tree lives, default `~/.mycelium` |
-| `OIDC_ISSUER` | Authentik issuer URL; setting it makes the client credentials required |
+| `OIDC_ISSUER` | Issuer URL of the identity provider; setting it makes the client credentials required |
 | `SSO_ONLY` | Disables password login, requires `OIDC_ISSUER` |
 
 Full reference: [docs/configuration.md](docs/configuration.md).

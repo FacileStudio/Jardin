@@ -19,7 +19,7 @@ deliberate — a half-configured server is worse than one that refuses to boot.
 | `PASSWORD` | conditional | — | Shared password for `mycelium login --password` |
 | `CORS_ALLOWED_ORIGINS` | no | — | Comma-separated origins. Empty denies every cross-origin browser caller |
 | `SSO_ONLY` | no | `false` | Disables password login entirely. Requires `OIDC_ISSUER` |
-| `OIDC_ISSUER` | no | — | Authentik issuer URL. Setting it turns SSO on and makes the three below required |
+| `OIDC_ISSUER` | no | — | Issuer URL of the identity provider. Setting it turns SSO on and makes the three below required |
 | `OIDC_CLIENT_ID` | conditional | — | Required once `OIDC_ISSUER` is set |
 | `OIDC_CLIENT_SECRET` | conditional | — | Required once `OIDC_ISSUER` is set |
 | `OIDC_REDIRECT_URL` | conditional | — | Required once `OIDC_ISSUER` is set. Points at `/api/auth/oidc/callback` |

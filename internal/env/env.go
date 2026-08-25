@@ -34,7 +34,8 @@ type Embedding struct {
 	QdrantURL   string
 }
 
-// OIDC is the Authentik client configuration. A nil *OIDC means SSO is dormant.
+// OIDC is the identity provider client configuration. A nil *OIDC means SSO
+// is dormant.
 type OIDC struct {
 	Issuer       string
 	ClientID     string

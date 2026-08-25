@@ -15,7 +15,7 @@ import (
 
 // stubIdP is the smallest thing go-oidc will accept as a provider: discovery,
 // a JWKS, and a token endpoint that returns a signed id_token. It exists so the
-// CLI flow can be driven end to end without Authentik, and it is hand-rolled
+// CLI flow can be driven end to end without a real identity provider, and it is hand-rolled
 // rather than pulled from a library because a JWT is three base64 segments and
 // a signature.
 func stubIdP(t *testing.T, clientID, email string) *httptest.Server {
