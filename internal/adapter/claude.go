@@ -123,10 +123,51 @@ func declareClaudeMCP(home string) (bool, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return false, err
 	}
-	if err := os.WriteFile(path, []byte(merged), 0o600); err != nil {
+	if err := writeConfigAtomically(path, merged); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// writeConfigAtomically replaces a file without ever leaving it truncated.
+//
+// os.WriteFile opens with O_TRUNC, so the target is empty from that call until
+// the bytes land. On an ordinary generated file that window costs nothing. This
+// target is ~/.claude.json, which holds the account record and every project's
+// history, is not regenerable, and is rewritten by any session that happens to
+// be running. A crash inside the window loses all of it.
+//
+// The temp file is made in the same directory so the rename cannot cross a
+// filesystem, and 0600 is set explicitly because os.CreateTemp's mode is what a
+// reader of this function would otherwise have to go and check.
+//
+// This closes the truncation window. It narrows but does not close the
+// lost-update one: a session writing between the read above and this rename
+// still has its version replaced, and only a lock both writers honour would
+// fix that. The merge runs at most once per install, when the declarations
+// actually change, which is what keeps the remaining exposure small.
+func writeConfigAtomically(path, content string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+
+	if _, err := tmp.WriteString(content); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // installClaudeSettings merges the recap hook and the status line into

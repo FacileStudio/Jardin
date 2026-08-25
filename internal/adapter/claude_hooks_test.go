@@ -157,3 +157,39 @@ func TestInstallHooksLeavesCorruptFileAlone(t *testing.T) {
 		t.Fatal("corrupt file must not be overwritten")
 	}
 }
+
+// TestTheAccountRecordIsNeverLeftTruncated pins the property that made this
+// write worth changing. os.WriteFile opens with O_TRUNC, so a crash between the
+// open and the last byte leaves ~/.claude.json empty, and it holds the account
+// record and every project's history. Writing through a temp file and renaming
+// means a reader sees either the old file or the new one, never nothing.
+func TestTheAccountRecordIsNeverLeftTruncated(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "claude.json")
+	if err := os.WriteFile(path, []byte(`{"numStartups":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeConfigAtomically(path, `{"numStartups":2}`); err != nil {
+		t.Fatalf("atomic write: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"numStartups":2}` {
+		t.Errorf("content = %q", data)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Errorf("mode = %v, want 0600: this file carries the account record", info.Mode().Perm())
+	}
+	leftovers, _ := filepath.Glob(filepath.Join(dir, "claude.json.*"))
+	if len(leftovers) != 0 {
+		t.Errorf("temp files left behind: %v", leftovers)
+	}
+}
