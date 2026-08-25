@@ -31,7 +31,7 @@ func stepCount(n int) string {
 }
 
 func flowRecapLine(f *flow.Flow, width int) string {
-	line := fmt.Sprintf("  %-*s  %-8s %-10s", width, f.Name, stepCount(len(f.Steps)), trustState(f))
+	line := fmt.Sprintf("  %-*s  %-8s %-10s", width, f.Name, stepCount(len(f.Steps)), flow.TrustState(f))
 	if f.Description != "" {
 		return line + "  " + f.Description
 	}
@@ -62,7 +62,7 @@ func flowListRows(flows []*flow.Flow) []flowListRow {
 	rows := make([]flowListRow, 0, len(flows))
 	for _, f := range flows {
 		rows = append(rows, flowListRow{
-			Name: f.Name, Description: f.Description, Steps: len(f.Steps), Checksum: f.Checksum, Trust: trustState(f),
+			Name: f.Name, Description: f.Description, Steps: len(f.Steps), Checksum: f.Checksum, Trust: flow.TrustState(f),
 		})
 	}
 	return rows
@@ -124,20 +124,6 @@ func printQuery(runs []*flow.Run) {
 			line += "  " + ui.Dim("at "+strings.Join(failed, ", "))
 		}
 		fmt.Println(line)
-	}
-}
-
-func trustState(f *flow.Flow) string {
-	pinned, err := flow.TrustedChecksum(f.Name)
-	switch {
-	case err != nil:
-		return "unknown"
-	case pinned == "":
-		return "not pinned"
-	case pinned == f.Checksum:
-		return "trusted"
-	default:
-		return "CHANGED"
 	}
 }
 

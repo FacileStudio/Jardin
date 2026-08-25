@@ -11,7 +11,7 @@
 // hint the client may ignore: the spec requires clients to "consider tool
 // annotations to be untrusted". They shape a permission prompt and nothing
 // else. The gate that actually stops a flow from running is the trust pin,
-// checked on every run_flow call in trust.go.
+// which runFlow checks through flow.IsTrusted before it starts anything.
 package mcpserver
 
 import (

@@ -13,6 +13,17 @@ import (
 
 const trustFile = ".flow-trust.json"
 
+// The four answers to "has this machine approved this flow?", spelled the way
+// "mycelium flow list --json" has always spelled them. The strings are a public
+// contract of the CLI, and a model reading them over MCP asks a human for help
+// in the same words, so both surfaces have to say one word for one thing.
+const (
+	TrustTrusted   = "trusted"
+	TrustNotPinned = "not pinned"
+	TrustChanged   = "CHANGED"
+	TrustUnknown   = "unknown"
+)
+
 // TrustPath returns the file pinning each flow name to the checksum this
 // machine accepted. It is a dotfile, so sync never carries it and trust stays
 // per machine.
@@ -40,6 +51,26 @@ func IsTrusted(f *Flow) (bool, error) {
 		return false, nil
 	}
 	return subtle.ConstantTimeCompare([]byte(pinned), []byte(f.Checksum)) == 1, nil
+}
+
+// TrustState reports what this machine's pin store says about a flow, as one of
+// TrustTrusted, TrustNotPinned, TrustChanged or TrustUnknown.
+//
+// An unreadable store reads as TrustUnknown and never as TrustTrusted: callers
+// turn this answer into "runnable", and guessing in the permissive direction
+// would advertise a flow as ready to run when nothing here has approved it.
+func TrustState(f *Flow) string {
+	pinned, err := TrustedChecksum(f.Name)
+	switch {
+	case err != nil:
+		return TrustUnknown
+	case pinned == "":
+		return TrustNotPinned
+	case pinned == f.Checksum:
+		return TrustTrusted
+	default:
+		return TrustChanged
+	}
 }
 
 // Trust pins a flow's current checksum, leaving every other entry alone.

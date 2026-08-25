@@ -177,3 +177,54 @@ func TestPruneDropsPinsWithNoFlowFile(t *testing.T) {
 		t.Fatalf("prune must drop a pin whose flow is gone, got %q", sum)
 	}
 }
+
+// TrustState is where four surfaces get the same answer: "mycelium flow list",
+// its --json rows, the session recap and the MCP inventory. The words are the
+// contract, so they are spelled out here instead of compared to the constants
+// that produce them — otherwise a rename would keep this test green while
+// breaking every script and model that reads them.
+func TestTrustStateNamesEachOutcomeInTheVocabularyTheCLIPublishes(t *testing.T) {
+	trustDir(t)
+	pinned := flowFixture("deploy", "sha256:aaa")
+	if err := Trust(pinned); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		why  string
+		f    *Flow
+		want string
+	}{
+		{"pinned at exactly this content", pinned, "trusted"},
+		{"never pinned on this machine", flowFixture("ghost", "sha256:aaa"), "not pinned"},
+		{"edited since it was pinned", flowFixture("deploy", "sha256:bbb"), "CHANGED"},
+	}
+	for _, c := range cases {
+		if got := TrustState(c.f); got != c.want {
+			t.Errorf("%s: TrustState = %q, want %q", c.why, got, c.want)
+		}
+	}
+}
+
+// The fail-closed half, and the reason this function is not a formatting
+// detail: callers turn its answer into "runnable", so a store nobody can parse
+// has to read as unknown. Answering trusted would offer a model a flow that no
+// human on this machine ever approved.
+func TestTrustStateReadsAnUnparseableStoreAsUnknownRatherThanTrusted(t *testing.T) {
+	trustDir(t)
+	f := flowFixture("deploy", "sha256:aaa")
+	if err := Trust(f); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(TrustPath(), []byte("{not json"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	got := TrustState(f)
+	if got == "trusted" {
+		t.Fatal("an unreadable trust store must never read as trusted")
+	}
+	if got != "unknown" {
+		t.Fatalf("TrustState = %q, want %q", got, "unknown")
+	}
+}

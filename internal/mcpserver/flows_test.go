@@ -118,8 +118,8 @@ func TestListFlowsReportsTrustAsAFieldRatherThanAColumnOfText(t *testing.T) {
 	decode(t, res, &out)
 
 	want := map[string]flowSummary{
-		"pinned":   {Name: "pinned", Steps: 1, Trust: trustTrusted, Runnable: true},
-		"unpinned": {Name: "unpinned", Steps: 1, Trust: trustNotPinned, Runnable: false},
+		"pinned":   {Name: "pinned", Steps: 1, Trust: flow.TrustTrusted, Runnable: true},
+		"unpinned": {Name: "unpinned", Steps: 1, Trust: flow.TrustNotPinned, Runnable: false},
 	}
 	if len(out.Flows) != len(want) {
 		t.Fatalf("list_flows returned %d flows, want %d", len(out.Flows), len(want))
@@ -170,5 +170,40 @@ func TestRunOutputSaysSoWhenTheRunCouldNotBeRecorded(t *testing.T) {
 	}
 	if !strings.Contains(out.Note, "read-only file system") {
 		t.Errorf("Note = %q, want it to carry the save failure", out.Note)
+	}
+}
+
+// Runnable is the field a model acts on, and an unreadable pin store is the one
+// case where the honest answer costs nothing and the optimistic one costs a
+// wasted turn arguing with a refusal. A store nobody can parse has approved
+// nothing, so nothing here is runnable.
+func TestListFlowsCallsNothingRunnableWhenThePinStoreCannotBeRead(t *testing.T) {
+	isolate(t)
+	writeFlow(t, "pinned", "true")
+	f, err := flow.Load("pinned")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := flow.Trust(f); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(flow.TrustPath(), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "list_flows"})
+	if err != nil {
+		t.Fatalf("list_flows: %v", err)
+	}
+	var out listFlowsOutput
+	decode(t, res, &out)
+
+	for _, got := range out.Flows {
+		if got.Runnable {
+			t.Errorf("%s is offered as runnable while the pin store is unreadable", got.Name)
+		}
+		if got.Trust != "unknown" {
+			t.Errorf("%s trust = %q, want %q", got.Name, got.Trust, "unknown")
+		}
 	}
 }
