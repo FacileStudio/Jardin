@@ -73,3 +73,37 @@ func runFlowTool() *mcp.Tool {
 		},
 	}
 }
+
+// publishReportTool declares the one tool that produces something for a human
+// rather than for the model.
+//
+// The description carries the trigger as well as the behaviour, because this is
+// the only text guaranteed to be in front of a model at the moment it decides.
+// It says what a report is not, twice: not a link, and not a finding. Both are
+// mistakes the word invites, and a rule nobody reads cannot correct either.
+//
+// IdempotentHint is true because the identifier comes from the title: recording
+// the same page twice replaces it rather than leaving two. OpenWorldHint is
+// false because nothing here leaves this machine's filesystem.
+func publishReportTool() *mcp.Tool {
+	return &mcp.Tool{
+		Name:  "publish_report",
+		Title: "Publish a report",
+		Description: "Record a self-contained HTML page in the synced tree and return the path it " +
+			"landed at, so a page produced on a headless machine opens on the machine the human is " +
+			"sitting at. It is stored, never hosted: there is no URL and no link to hand anybody.\n\n" +
+			"Use it when the answer is structural rather than linear: a comparison across many items, " +
+			"a timeline, a graph, a table wider than a terminal. Answer in the conversation first and " +
+			"record a report as an attachment to that answer, never in place of it. A finding belongs " +
+			"in the wiki as text; a report is the picture of one, and it expires in 30 days.\n\n" +
+			"The page must carry everything it needs inline, because a file opened from disk cannot " +
+			"fetch its siblings. The document's <title> becomes the report's name, so recording the " +
+			"same title twice replaces it rather than piling up copies.",
+		Annotations: &mcp.ToolAnnotations{
+			ReadOnlyHint:    false,
+			DestructiveHint: hint(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   hint(false),
+		},
+	}
+}

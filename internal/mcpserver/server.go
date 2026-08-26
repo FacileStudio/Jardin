@@ -1,4 +1,5 @@
-// Package mcpserver exposes mycelium's wiki and its recorded flows to an agent
+// Package mcpserver exposes mycelium's wiki, its recorded flows and its report
+// store to an agent
 // as MCP tools, spoken over stdio.
 //
 // Stdio is not a default here, it is the only transport that can work. run_flow
@@ -24,7 +25,7 @@ import (
 // refer to this server.
 const serverName = "mycelium"
 
-// New builds the server with its three tools bound to in-process calls into
+// New builds the server with its four tools bound to in-process calls into
 // internal/memory and internal/flow.
 //
 // In process rather than shelling out to the mycelium binary: a subprocess puts
@@ -36,6 +37,7 @@ func New(version string) *mcp.Server {
 	mcp.AddTool(s, searchMemoryTool(), searchMemory)
 	mcp.AddTool(s, listFlowsTool(), listFlows)
 	mcp.AddTool(s, runFlowTool(), runFlow)
+	mcp.AddTool(s, publishReportTool(), publishReport)
 	return s
 }
 

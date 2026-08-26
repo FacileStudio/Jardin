@@ -68,15 +68,15 @@ func resultText(res *mcp.CallToolResult) string {
 	return b.String()
 }
 
-// Three tools, always the same three, always in the same order. The spec asks
-// for stable ordering so a client can cache the list, and a fourth tool
+// Four tools, always the same four, always in the same order. The spec asks
+// for stable ordering so a client can cache the list, and a fifth tool
 // appearing here should be a decision somebody made rather than a surprise.
-func TestToolsListReturnsExactlyTheThreeToolsInAStableOrder(t *testing.T) {
+func TestToolsListReturnsExactlyTheFourToolsInAStableOrder(t *testing.T) {
 	var names []string
 	for _, tool := range listTools(t) {
 		names = append(names, tool.Name)
 	}
-	want := []string{"list_flows", "run_flow", "search_memory"}
+	want := []string{"list_flows", "publish_report", "run_flow", "search_memory"}
 	if !reflect.DeepEqual(names, want) {
 		t.Errorf("tools/list = %v, want %v", names, want)
 	}
@@ -88,9 +88,10 @@ func TestToolsListReturnsExactlyTheThreeToolsInAStableOrder(t *testing.T) {
 // left unset, so "we forgot" and "we meant it" look identical on the wire.
 func TestEveryToolSetsAllFourAnnotationsExplicitly(t *testing.T) {
 	want := map[string]*mcp.ToolAnnotations{
-		"search_memory": {ReadOnlyHint: true, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
-		"list_flows":    {ReadOnlyHint: true, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
-		"run_flow":      {ReadOnlyHint: false, DestructiveHint: hint(true), IdempotentHint: false, OpenWorldHint: hint(true)},
+		"search_memory":  {ReadOnlyHint: true, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
+		"list_flows":     {ReadOnlyHint: true, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
+		"run_flow":       {ReadOnlyHint: false, DestructiveHint: hint(true), IdempotentHint: false, OpenWorldHint: hint(true)},
+		"publish_report": {ReadOnlyHint: false, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
 	}
 	for _, tool := range listTools(t) {
 		if tool.Annotations == nil {
