@@ -1,29 +1,21 @@
 package sessions
 
 import (
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"syscall"
+
+	"github.com/FacileStudio/Mycelium/internal/lockfile"
 )
 
-// lockScan takes an exclusive flock so a manual scan and a daemon tick can
-// never interleave appends into the same shard. Non-blocking: the loser
-// reports instead of queueing a redundant scan behind the winner.
+const scanLockName = ".sessions.lock"
+
+// lockScan takes an exclusive lock so a manual scan and a daemon tick can never
+// interleave appends into the same shard. It does not wait: the loser reports
+// instead of queueing a redundant scan behind the winner.
 func lockScan(dataDir string) (func(), error) {
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(filepath.Join(dataDir, ".sessions.lock"), os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		f.Close()
+	release, err := lockfile.Take(dataDir, scanLockName, 0)
+	if errors.Is(err, lockfile.ErrHeld) {
 		return nil, fmt.Errorf("another scan is already running")
 	}
-	return func() {
-		syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-		f.Close()
-	}, nil
+	return release, err
 }
