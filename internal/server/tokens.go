@@ -48,7 +48,7 @@ func (s *Server) loadTokens() {
 		hash := key
 		if info.Scope == "" {
 			hash = hashToken(key)
-			if info.Name == "session" {
+			if info.Name == passwordSessionName {
 				info.Scope = scopeAdmin
 			} else {
 				info.Scope = scopeSync
@@ -107,6 +107,12 @@ func (s *Server) mintToken(name, scope, email string) (string, error) {
 	return token, nil
 }
 
+// passwordSessionName is what a browser session from a password login is
+// called. Every other login names itself after the account behind it; this one
+// predates there being accounts, and loadTokens still reads the name to give a
+// pre-scope entry its admin scope back.
+const passwordSessionName = "session"
+
 // isLoginSession reports whether an entry is a browser or CLI login rather
 // than a token somebody created and manages.
 //
@@ -116,6 +122,10 @@ func (s *Server) mintToken(name, scope, email string) (string, error) {
 // prefix. The page that got this wrong compared the whole name against
 // "session", which matched none of "session:<email>" or "cli:<email>", so
 // every login ever made was listed as an API token.
+//
+// The invariant is enforced at the mint sites rather than patched here: see
+// mintLogin, which is where the password path started issuing an expiry so
+// this predicate could stay one field wide.
 func isLoginSession(t TokenInfo) bool { return t.ExpiresAt != "" }
 
 func (s *Server) tokensList(w http.ResponseWriter, r *http.Request) {

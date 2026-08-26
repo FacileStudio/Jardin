@@ -195,14 +195,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name := strings.TrimSpace(req.Machine)
-	scope := scopeSync
-	if name == "" {
-		name = "session"
-		scope = scopeAdmin
-	}
-
-	token, err := s.mintToken(name, scope, "")
+	token, err := s.mintLogin(strings.TrimSpace(req.Machine))
 	if err != nil {
 		s.Log.Error("login: token generation failed", slog.Any("error", err))
 		httpjson.WriteError(w, apierrors.Internal("internal error", err))
@@ -210,6 +203,23 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpjson.WriteJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+// mintLogin issues what a password login is asking for: a machine token when
+// the caller named a machine, and a browser session when it did not.
+//
+// The browser half goes through mintNamedSession so it carries an expiry and
+// evicts the session it replaces, exactly as every OIDC session already does.
+// That is what makes "a login session is the entry with an expiry" true rather
+// than nearly true. Until it did, this path minted an admin credential that
+// never expired, and the tokens page listed it as an API token with a revoke
+// button beside it — the half of the 2026-08-25 fix that was missed, because
+// the names it looked for were the two the OIDC path writes.
+func (s *Server) mintLogin(machine string) (string, error) {
+	if machine != "" {
+		return s.mintToken(machine, scopeSync, "")
+	}
+	return s.mintNamedSession(passwordSessionName, "", scopeAdmin)
 }
 
 type rateLimiter struct {
