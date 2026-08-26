@@ -13,10 +13,15 @@ import (
 // before doctor calls it a failure. A heartbeat threshold belongs to the
 // cadence that produces it, never to a round human number: against a 60s timer
 // the old 24h constant let sync fail for twenty hours on 2026-08-25 while
-// doctor printed a green tick beside "19h43m36s ago". Ten ticks still absorbs
-// a network blip or a machine waking from sleep, and it surfaces a stopped
-// daemon in the session that follows it rather than the next day.
-const staleSyncTicks = 10
+// doctor printed a green tick beside "19h43m36s ago".
+//
+// Thirty ticks, not ten. recap prints this line unbidden at the start of every
+// session, and ten minutes is shorter than a lunch break, a train tunnel or a
+// closed laptop lid — so on anything but an always-on machine the line would
+// appear on most mornings, and a warning that common is one nobody reads by
+// the third time. Half an hour still surfaces a stopped daemon within the hour
+// and still clears itself one tick after the machine is back.
+const staleSyncTicks = 30
 
 // manualSyncStaleAfter applies when no background service is installed. Syncing
 // is then something a human does when they think of it, so the gap between two
