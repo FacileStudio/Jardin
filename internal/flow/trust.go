@@ -59,6 +59,11 @@ func IsTrusted(f *Flow) (bool, error) {
 // An unreadable store reads as TrustUnknown and never as TrustTrusted: callers
 // turn this answer into "runnable", and guessing in the permissive direction
 // would advertise a flow as ready to run when nothing here has approved it.
+//
+// The checksums are compared the way IsTrusted compares them. Nothing here
+// gates execution, so the constant time buys no security; it means a reader
+// who finds two comparisons of the same two values does not have to work out
+// which of them is the gate before trusting either.
 func TrustState(f *Flow) string {
 	pinned, err := TrustedChecksum(f.Name)
 	switch {
@@ -66,7 +71,7 @@ func TrustState(f *Flow) string {
 		return TrustUnknown
 	case pinned == "":
 		return TrustNotPinned
-	case pinned == f.Checksum:
+	case subtle.ConstantTimeCompare([]byte(pinned), []byte(f.Checksum)) == 1:
 		return TrustTrusted
 	default:
 		return TrustChanged
