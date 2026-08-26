@@ -43,6 +43,23 @@ type Adapter interface {
 	TargetPaths() []string
 }
 
+// MCPDeclarer is an adapter that can hand its agent mycelium's MCP server.
+//
+// Optional, the way HookInstaller is. An adapter that does not implement it
+// declares nothing and its agent is told to shell out to the binary instead,
+// which is codex's deliberate case: its MCP servers live in TOML and nothing
+// here writes TOML.
+//
+// The adapter owns the answer because the file and the key are a property of
+// the assistant's config format, and that is the one thing an adapter knows
+// that nothing else in this package does.
+type MCPDeclarer interface {
+	// MCPTarget returns the config file to declare the server in and the key
+	// inside it, or an empty path when this machine holds none that can be
+	// touched safely.
+	MCPTarget() (path, key string)
+}
+
 // HookInstaller is an adapter that can also install its own commit hooks.
 type HookInstaller interface {
 	InstallHooks() (string, []string, error)

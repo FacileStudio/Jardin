@@ -31,7 +31,7 @@ func (c *Claude) Generate(input Input) (*Output, error) {
 	out := &Output{Files: make(map[string]string)}
 	home, _ := os.UserHomeDir()
 
-	input.MCPTools = canDeclareMCP(claudeConfig(home), "mcpServers")
+	input.MCPTools = canDeclareMCP(c.MCPTarget())
 
 	var sections []string
 
@@ -59,6 +59,12 @@ func (c *Claude) Generate(input Input) (*Output, error) {
 // object inside the same file, which is local scope and keyed per directory.
 func claudeConfig(home string) string {
 	return filepath.Join(home, ".claude.json")
+}
+
+// MCPTarget names Claude Code's user-scope MCP config.
+func (c *Claude) MCPTarget() (string, string) {
+	home, _ := os.UserHomeDir()
+	return claudeConfig(home), "mcpServers"
 }
 
 // InstallHooks merges a SessionStart hook running `mycelium recap` and a
@@ -115,8 +121,8 @@ func (c *Claude) InstallHooks() (string, []string, error) {
 // created 0600 rather than 0644 on the chance it is not there yet: it carries
 // the account record, and os.WriteFile applies a mode only on creation.
 func declareClaudeMCP(home string) (bool, error) {
-	path := claudeConfig(home)
-	merged, changed, ok := mergeMCPServers(path, "mcpServers", mcpStdioServer())
+	path, key := (&Claude{}).MCPTarget()
+	merged, changed, ok := mergeMCPServers(path, key, mcpStdioServer())
 	if !ok || !changed {
 		return false, nil
 	}

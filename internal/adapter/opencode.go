@@ -33,8 +33,8 @@ func (o *Opencode) Generate(input Input) (*Output, error) {
 	out := &Output{Files: make(map[string]string)}
 	home, _ := os.UserHomeDir()
 
-	if config, ok := opencodeConfig(home); ok {
-		input.MCPTools = declareMCPServer(out, config, "mcp", mcpLocalServer())
+	if config, key := o.MCPTarget(); config != "" {
+		input.MCPTools = declareMCPServer(out, config, key, mcpLocalServer())
 	}
 
 	var sections []string
@@ -72,4 +72,15 @@ func opencodeConfig(home string) (string, bool) {
 		return "", false
 	}
 	return filepath.Join(dir, "opencode.json"), true
+}
+
+// MCPTarget names OpenCode's config, or nothing when this machine holds the
+// .jsonc form instead. See opencodeConfig for why that is a refusal.
+func (o *Opencode) MCPTarget() (string, string) {
+	home, _ := os.UserHomeDir()
+	config, ok := opencodeConfig(home)
+	if !ok {
+		return "", ""
+	}
+	return config, "mcp"
 }

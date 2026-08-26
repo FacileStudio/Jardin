@@ -2,10 +2,12 @@ package adapter
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 )
 
 // mcpServerName is the key mycelium declares itself under.
@@ -167,4 +169,82 @@ func declareMCPServer(out *Output, path, key string, server map[string]any) bool
 func canDeclareMCP(path, key string) bool {
 	_, _, ok := mergeMCPServers(path, key, mcpStdioServer())
 	return ok
+}
+
+// mcpDeclared reports whether path already carries mycelium's server under key,
+// and whether the file could be read at all.
+//
+// A file that is not there yet is readable: install has simply not run, and it
+// will be created. A file that will not parse is not, and that is the state
+// worth a health check, because it is the one where mycelium deliberately does
+// nothing and says nothing.
+func mcpDeclared(path, key string) (present, readable bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false, os.IsNotExist(err)
+	}
+	settings := make(map[string]any)
+	if json.Unmarshal(data, &settings) != nil {
+		return false, false
+	}
+	servers, _ := settings[key].(map[string]any)
+	for name, entry := range servers {
+		if existing, _ := entry.(map[string]any); isMyceliumServer(name, existing) {
+			return true, true
+		}
+	}
+	return false, true
+}
+
+// MCPHealth reports which of the given assistants carry mycelium's MCP server
+// on this machine, and fails when one of them cannot be given it.
+//
+// The failure it exists for is silent by construction. An unparseable config is
+// refused rather than overwritten, the rules then render for an assistant that
+// shells out to the binary, and the result is a session with no search_memory
+// that looks exactly like a session that was never meant to have one. Nothing
+// else on this machine says which of the two happened.
+func MCPHealth(agents []string) (string, bool) {
+	var declared, pending, refused []string
+	for _, name := range agents {
+		agent, err := Get(name)
+		if err != nil {
+			continue
+		}
+		declarer, ok := agent.(MCPDeclarer)
+		if !ok {
+			continue
+		}
+		path, key := declarer.MCPTarget()
+		if path == "" {
+			continue
+		}
+		switch present, readable := mcpDeclared(path, key); {
+		case !readable:
+			refused = append(refused, fmt.Sprintf("%s (%s is not valid JSON)", name, path))
+		case present:
+			declared = append(declared, name)
+		default:
+			pending = append(pending, name)
+		}
+	}
+	return mcpSummary(declared, pending, refused)
+}
+
+// mcpSummary turns the three buckets into one line, leading with the refusals
+// because they are the only bucket a human has to act on.
+func mcpSummary(declared, pending, refused []string) (string, bool) {
+	if len(refused) > 0 {
+		return "cannot be declared for " + strings.Join(refused, ", "), false
+	}
+	switch {
+	case len(declared) == 0 && len(pending) == 0:
+		return "no assistant here reads one; every rule renders for the CLI", true
+	case len(declared) == 0:
+		return "not declared yet for " + strings.Join(pending, ", ") + " — run 'mycelium install'", true
+	case len(pending) > 0:
+		return "declared for " + strings.Join(declared, ", ") +
+			"; still pending for " + strings.Join(pending, ", "), true
+	}
+	return "declared for " + strings.Join(declared, ", "), true
 }

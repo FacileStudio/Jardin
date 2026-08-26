@@ -45,8 +45,8 @@ func (g *Gemini) Generate(input Input) (*Output, error) {
 	out := &Output{Files: make(map[string]string)}
 	home, _ := os.UserHomeDir()
 
-	settings := filepath.Join(home, ".gemini", "settings.json")
-	input.MCPTools = declareMCPServer(out, settings, "mcpServers", mcpStdioServer())
+	settings, key := g.MCPTarget()
+	input.MCPTools = declareMCPServer(out, settings, key, mcpStdioServer())
 
 	var sections []string
 
@@ -65,4 +65,10 @@ func (g *Gemini) Generate(input Input) (*Output, error) {
 	}
 
 	return out, nil
+}
+
+// MCPTarget names the top-level mcpServers object the Gemini CLI reads.
+func (g *Gemini) MCPTarget() (string, string) {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".gemini", "settings.json"), "mcpServers"
 }

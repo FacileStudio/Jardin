@@ -199,6 +199,14 @@ var doctorCmd = &cobra.Command{
 			return lastSyncAge(dataDir, time.Now(), syncStaleAfter(daemon.Installed()))
 		})
 
+		check("mcp", func() (string, bool) {
+			agents := cfg.Agents
+			if len(agents) == 0 {
+				agents = daemon.DetectAgents()
+			}
+			return adapter.MCPHealth(agents)
+		})
+
 		check("consolidate", func() (string, bool) {
 			return consolidateHealth(cfg, dataDir, time.Now())
 		})

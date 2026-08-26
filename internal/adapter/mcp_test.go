@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -161,5 +162,52 @@ func TestAnUnreadableConfigIsLeftAloneAndDowngradesTheAgent(t *testing.T) {
 	data, _ := os.ReadFile(path)
 	if string(data) != "{not json" {
 		t.Errorf("corrupt config was rewritten: %q", data)
+	}
+}
+
+func TestMCPHealthNamesTheConfigItRefusedToTouch(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.WriteFile(filepath.Join(home, ".claude.json"), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	msg, ok := MCPHealth([]string{"claude"})
+	if ok {
+		t.Error("a config mycelium refuses to touch has to fail the check, not pass it quietly")
+	}
+	for _, want := range []string{"claude", ".claude.json"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("the refusal does not name %q: %s", want, msg)
+		}
+	}
+}
+
+func TestMCPHealthSeparatesDeclaredFromNotYetInstalled(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	declared := `{"mcpServers":{"mycelium":{"command":"/usr/local/bin/mycelium","args":["mcp"]}}}`
+	if err := os.WriteFile(filepath.Join(home, ".claude.json"), []byte(declared), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".gemini"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".gemini", "settings.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	msg, ok := MCPHealth([]string{"claude", "gemini", "codex"})
+	if !ok {
+		t.Fatalf("check failed with nothing wrong: %s", msg)
+	}
+	if !strings.Contains(msg, "declared for claude") {
+		t.Errorf("a declared assistant is not reported as declared: %s", msg)
+	}
+	if !strings.Contains(msg, "pending for gemini") {
+		t.Errorf("an assistant install has not reached is not reported as pending: %s", msg)
+	}
+	if strings.Contains(msg, "codex") {
+		t.Errorf("codex declares nothing by design and must not appear at all: %s", msg)
 	}
 }
