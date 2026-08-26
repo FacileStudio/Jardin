@@ -65,7 +65,7 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	user, scope, ok := s.oidcIdentity(w, r, rt)
+	user, scope, ok := s.oidcIdentity(w, r, rt, pending.CLI)
 	if !ok {
 		return
 	}
@@ -116,22 +116,37 @@ func (s *Server) pendingOIDCFlow(w http.ResponseWriter, r *http.Request) (oidcFl
 // carries, and resolves the account it names — upserting so a first login
 // creates one. The email claim is required: it is the identity, and a provider
 // that omits it has told us nothing to key an account on.
-func (s *Server) oidcIdentity(w http.ResponseWriter, r *http.Request, rt *oidcRuntime) (User, string, bool) {
+//
+// A failed identity never answers with the API's JSON envelope: that endpoint
+// is reached by a top-level browser redirect, so a refusal arrives as a
+// redirect to the login page with an error parameter, exactly as a success
+// is a redirect to the app. The one exception is the CLI half, which is not a
+// browser and still reads a JSON error. A refusal must cost what the
+// acceptance costs, and neither the reason nor the status may reveal which
+// step failed.
+func (s *Server) oidcIdentity(w http.ResponseWriter, r *http.Request, rt *oidcRuntime, cli bool) (User, string, bool) {
+	refuse := func() {
+		if cli {
+			httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
+			return
+		}
+		s.oidcFailureRedirect(w, r)
+	}
 	token, err := rt.config.Exchange(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
 		s.Log.Error("oidc: exchange failed", slog.Any("error", err))
-		httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
+		refuse()
 		return User{}, "", false
 	}
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
+		refuse()
 		return User{}, "", false
 	}
 	idToken, err := rt.verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
 		s.Log.Error("oidc: id_token verify failed", slog.Any("error", err))
-		httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
+		refuse()
 		return User{}, "", false
 	}
 	var claims struct {
@@ -140,7 +155,7 @@ func (s *Server) oidcIdentity(w http.ResponseWriter, r *http.Request, rt *oidcRu
 		PreferredUsername string `json:"preferred_username"`
 	}
 	if err := idToken.Claims(&claims); err != nil || claims.Email == "" {
-		httpjson.WriteError(w, apierrors.Invalid("email claim required"))
+		refuse()
 		return User{}, "", false
 	}
 	name := claims.Name
@@ -154,6 +169,17 @@ func (s *Server) oidcIdentity(w http.ResponseWriter, r *http.Request, rt *oidcRu
 		scope = scopeAdmin
 	}
 	return user, scope, true
+}
+
+// oidcFailureRedirect ends a refused browser login on the login page rather
+// than on a JSON envelope the browser cannot use. A success and a refusal are
+// both a 302; the reason rides in an error query parameter the login page
+// renders. The state cookie was already consumed by pendingOIDCFlow, so
+// nothing from the failed attempt survives to poison the next one.
+func (s *Server) oidcFailureRedirect(w http.ResponseWriter, r *http.Request) {
+	dest := s.baseURL(r) + "/login?error=" + url.QueryEscape("sso")
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, dest, http.StatusFound)
 }
 
 // issueLoginCode ends the CLI half of the flow: a one-time code goes to the

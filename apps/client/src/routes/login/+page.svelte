@@ -16,10 +16,18 @@
 	let configLoaded = $state(false);
 
 	let redirect = $state('/memory');
+	let ssoError = $state('');
 
 	onMount(async () => {
-		const target = new URL(window.location.href).searchParams.get('redirect');
+		const params = new URL(window.location.href).searchParams;
+		const target = params.get('redirect');
 		if (target && target.startsWith('/')) redirect = target;
+
+		if (params.get('error') === 'sso') {
+			localStorage.removeItem(TOKEN_KEY);
+			ssoError = 'Connexion impossible avec Facile. Réessayez, ou commencez une nouvelle connexion.';
+		}
+
 		if (localStorage.getItem(TOKEN_KEY)) {
 			try {
 				await backend.authMe();
@@ -94,6 +102,12 @@
 						: 'Connectez-vous à votre compte Mycelium.'}
 				</p>
 			</div>
+
+			{#if ssoError}
+				<p class="mb-6 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+					{ssoError}
+				</p>
+			{/if}
 
 			{#if !configLoaded}
 				<div class="h-40"></div>

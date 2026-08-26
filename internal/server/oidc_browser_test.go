@@ -94,3 +94,63 @@ func TestTheCallbackRefusesATamperedState(t *testing.T) {
 		t.Fatalf("a tampered state answered %d, want 400", done.StatusCode)
 	}
 }
+
+// A browser login that survives state validation but fails on the identity —
+// here a provider that omits the email claim — must land back on the login
+// page with an error, not on a JSON envelope the browser cannot use. A
+// success and a refusal are both a 302; the difference is the Location.
+func TestABrowserLoginFailureEndsOnTheLoginPage(t *testing.T) {
+	const clientID = "mycelium"
+	idp := stubIdP(t, clientID, "")
+
+	srv := New(t.TempDir(), "secret")
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+	srv.OIDC = &env.OIDC{
+		Issuer: idp.URL, ClientID: clientID, ClientSecret: "secret",
+		RedirectURL: ts.URL + "/api/auth/oidc/callback", SuccessURL: "https://mycelium.example.com/auth/callback",
+	}
+
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	start, err := client.Get(ts.URL + "/api/auth/oidc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start.Body.Close()
+	authorize, err := url.Parse(start.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	callback, err := http.NewRequest("GET", ts.URL+"/api/auth/oidc/callback?code=provider-code&state="+authorize.Query().Get("state"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cookie := range start.Cookies() {
+		callback.AddCookie(cookie)
+	}
+	done, err := client.Do(callback)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done.Body.Close()
+
+	if done.StatusCode != http.StatusFound {
+		t.Fatalf("a refused browser login answered %d, want 302", done.StatusCode)
+	}
+	location := done.Header.Get("Location")
+	if !strings.HasSuffix(location, "/login?error=sso") {
+		t.Fatalf("a refused browser login ended at %s", location)
+	}
+	cleared := false
+	for _, cookie := range done.Cookies() {
+		if cookie.Name == "oidc_state" && cookie.MaxAge == -1 {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Fatal("the failed SSO attempt left its state cookie behind")
+	}
+}
