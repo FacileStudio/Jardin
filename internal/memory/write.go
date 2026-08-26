@@ -1,11 +1,14 @@
 package memory
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/FacileStudio/Mycelium/internal/lockfile"
 )
 
 const (
@@ -16,9 +19,16 @@ const (
 	// one: the convention's other four describe edits to pages that exist.
 	logOperation = "ingest"
 
-	// pageMode is what a wiki page keeps. os.CreateTemp makes a file 0600, so a
-	// staged file is chmodded before the rename rather than tightening the corpus.
-	pageMode = 0644
+	// wikiLock is the file every writer of index.md and log.md takes before its
+	// read, and wikiLockWait bounds how long one waits for another to finish.
+	// The critical section is three reads and three renames, so a two-second
+	// ceiling is already orders of magnitude more headroom than it needs.
+	//
+	// A dotfile directly under the data directory, never under memory/: sync
+	// excludes a path starting with a dot and nothing else here, so a lock
+	// anywhere else would travel to the server as an ordinary wiki file.
+	wikiLock     = ".memory.lock"
+	wikiLockWait = 2 * time.Second
 )
 
 // Finding is one entry as the wiki convention writes it. Log is a field rather
@@ -50,20 +60,53 @@ type Push func() error
 // search's date parser reads them. Either all four land or none do. Done by
 // hand the step that gets skipped is always the index, because it is the one
 // edit that is not where the writing happened, and that is how an index rots.
+//
+// The prose is composed and checked before anything is locked or opened, so a
+// finding that is half filled in or written in French fails while the wiki is
+// still untouched and while no other writer is being made to wait.
 func Add(dataDir string, f Finding, now time.Time, push Push) (Result, error) {
 	if err := f.validate(); err != nil {
 		return Result{}, err
 	}
 	day := now.Format(dayLayout)
-	block := fmt.Sprintf("### %s\n**Date**: %s\n**Source**: %s\n%s\n",
-		strings.TrimSpace(f.Title), day, strings.TrimSpace(f.Source), strings.TrimSpace(f.Body))
+	block := findingBlock(f, day)
 	if err := refuseFrench(block + "\n" + f.Log); err != nil {
 		return Result{}, err
 	}
+	res, err := fileFinding(dataDir, f, day, block)
+	if err != nil {
+		return Result{}, err
+	}
+	if push != nil {
+		res.SyncErr = push()
+	}
+	return res, nil
+}
+
+// fileFinding makes the four edits, holding the wiki lock across the read and
+// the write so two agents filing at the same moment cannot each compose a
+// version of index.md and log.md from the same starting point and then take
+// turns overwriting the other. An agent files a finding when its task ends,
+// which is exactly when several agents on one machine finish at once, and
+// log.md is append-only by invariant, so a line lost that way is lost for good.
+//
+// Sync deliberately does not take this lock. Serialising a reconcile against a
+// write would put a network round trip between an agent and its own finding,
+// and a wiki that stalls a write on a slow server is the thing being
+// local-first exists to prevent. What is left is a sync landing inside the few
+// milliseconds below, which the journal commits on both sides of and
+// `mycelium memory revert` can undo.
+func fileFinding(dataDir string, f Finding, day, block string) (Result, error) {
 	path, key, err := pagePath(dataDir, f.Page)
 	if err != nil {
 		return Result{}, err
 	}
+	release, err := lockWiki(dataDir)
+	if err != nil {
+		return Result{}, err
+	}
+	defer release()
+
 	page, err := os.ReadFile(path)
 	if err != nil {
 		return Result{}, fmt.Errorf("cannot file a finding in %s: %w", key, err)
@@ -72,9 +115,10 @@ func Add(dataDir string, f Finding, now time.Time, push Push) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("%s: %w", key, err)
 	}
+	front, _ := frontmatter(string(page))
 	index := filepath.Join(memoryRoot(dataDir), indexFile)
 	history := filepath.Join(memoryRoot(dataDir), logFile)
-	nextIndex, pointed := indexPointer(readOrEmpty(index), key, f.Title)
+	nextIndex, pointed := indexPointer(readOrEmpty(index), key, front.title, f.Title)
 	err = writeAll([]edit{
 		{path: path, data: strings.TrimRight(stamped, "\n") + "\n\n" + block},
 		{path: index, data: nextIndex},
@@ -83,11 +127,24 @@ func Add(dataDir string, f Finding, now time.Time, push Push) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	res := Result{Page: key, Indexed: pointed}
-	if push != nil {
-		res.SyncErr = push()
+	return Result{Page: key, Indexed: pointed}, nil
+}
+
+// lockWiki serialises the writers of index.md and log.md, naming the work in
+// the words a reader of the refusal needs rather than the lock's own.
+func lockWiki(dataDir string) (func(), error) {
+	release, err := lockfile.Take(dataDir, wikiLock, wikiLockWait)
+	if errors.Is(err, lockfile.ErrHeld) {
+		return nil, fmt.Errorf("another mycelium process is writing to the wiki")
 	}
-	return res, nil
+	return release, err
+}
+
+// findingBlock renders one finding in the shape the corpus already uses, which
+// is what makes search's date parser read it.
+func findingBlock(f Finding, day string) string {
+	return fmt.Sprintf("### %s\n**Date**: %s\n**Source**: %s\n%s\n",
+		strings.TrimSpace(f.Title), day, strings.TrimSpace(f.Source), strings.TrimSpace(f.Body))
 }
 
 // validate refuses a half-filled finding: one with no source cannot be checked
@@ -100,91 +157,6 @@ func (f Finding) validate() error {
 		}
 	}
 	return nil
-}
-
-// bumpUpdated rewrites the page's `updated:` stamp, adding the field when the
-// header lacks it. A page with no frontmatter is refused rather than repaired:
-// the header carries what retrieval and ratification read, and inventing one
-// files a finding on a page the wiki only half sees.
-func bumpUpdated(content, day string) (string, error) {
-	const fence = "---\n"
-	if !strings.HasPrefix(content, fence) {
-		return "", fmt.Errorf("the page has no YAML frontmatter, so there is no `updated:` to stamp")
-	}
-	end := strings.Index(content[len(fence):], "\n---")
-	if end < 0 {
-		return "", fmt.Errorf("the page's YAML frontmatter is never closed")
-	}
-	head := strings.Split(content[len(fence):len(fence)+end], "\n")
-	rest := content[len(fence)+end:]
-	for i, line := range head {
-		if strings.HasPrefix(line, "updated:") {
-			head[i] = "updated: " + day
-			return fence + strings.Join(head, "\n") + rest, nil
-		}
-	}
-	return fence + strings.Join(append(head, "updated: "+day), "\n") + rest, nil
-}
-
-// indexPointer returns index.md with a pointer to the page, and whether it
-// added one. A page the index already names keeps the line it has: the index is
-// a router with one line per page, and a line per finding is the rot itself.
-// The section is the page's own directory, capitalised, because the wiki's
-// directories and its index headings are the same words.
-func indexPointer(index, page, title string) (string, bool) {
-	if strings.Contains(index, "("+page+")") {
-		return index, false
-	}
-	name := strings.TrimSuffix(filepath.Base(page), ".md")
-	line := fmt.Sprintf("- [%s](%s): %s", name, page, strings.TrimSpace(title))
-	section := "Pages"
-	if dir, _, found := strings.Cut(page, "/"); found && dir != "" {
-		section = strings.ToUpper(dir[:1]) + dir[1:]
-	}
-	return insertInSection(index, section, line), true
-}
-
-// insertInSection puts the line at the end of its section's entries, starting
-// that section at the end of the file when the index has none. Trailing blank
-// lines stay below the insertion point, so the spacing between sections lives.
-func insertInSection(index, section, line string) string {
-	head := "## " + section
-	if strings.TrimSpace(index) == "" {
-		return strings.Join([]string{head, "", line}, "\n") + "\n"
-	}
-	lines := strings.Split(strings.TrimRight(index, "\n"), "\n")
-	start := -1
-	for i, l := range lines {
-		if strings.TrimSpace(l) == head {
-			start = i + 1
-			break
-		}
-	}
-	if start < 0 {
-		return strings.Join(append(lines, "", head, "", line), "\n") + "\n"
-	}
-	end := len(lines)
-	for i := start; i < len(lines); i++ {
-		if strings.HasPrefix(lines[i], "## ") {
-			end = i
-			break
-		}
-	}
-	for end > start && strings.TrimSpace(lines[end-1]) == "" {
-		end--
-	}
-	out := append(append([]string{}, lines[:end]...), line)
-	return strings.Join(append(out, lines[end:]...), "\n") + "\n"
-}
-
-// appendLog adds the history line. log.md is append-only by invariant, so this
-// only grows the file.
-func appendLog(content, day, description string) string {
-	line := fmt.Sprintf("## [%s] %s | %s\n", day, logOperation, strings.TrimSpace(description))
-	if strings.TrimSpace(content) == "" {
-		return line
-	}
-	return strings.TrimRight(content, "\n") + "\n" + line
 }
 
 // refuseFrench blocks a write carrying French prose. The sync-side check in
@@ -218,81 +190,4 @@ func pagePath(dataDir, page string) (string, string, error) {
 func readOrEmpty(path string) string {
 	data, _ := os.ReadFile(path)
 	return string(data)
-}
-
-// edit is one file's next content in full, and once staged the temp file waiting
-// to take its place. Everything is composed first, so a bad page or French prose
-// fails while the wiki is still untouched.
-type edit struct {
-	path string
-	data string
-	tmp  string
-}
-
-// writeAll makes the edits land together. Every file is written whole and
-// synced beside its target before anything moves, so the only work left is a
-// rename, and a rename is atomic: no reader sees half a page, and nothing moves
-// at all if any file cannot be staged. The commit is three renames rather than
-// one transaction, because POSIX has no
-// multi-file rename, so a crash between them can still land a finding without
-// its log line: a window three syscalls wide, while the failures that actually
-// happen — a full disk, a read-only wiki, a bad page — all happen during
-// staging, where nothing has been renamed yet.
-func writeAll(files []edit) error {
-	var ready []edit
-	defer func() {
-		for _, e := range ready {
-			os.Remove(e.tmp)
-		}
-	}()
-	for _, f := range files {
-		staged, err := stage(f)
-		if err != nil {
-			return fmt.Errorf("failed to stage %s: %w", f.path, err)
-		}
-		ready = append(ready, staged)
-	}
-	for _, e := range ready {
-		if err := os.Rename(e.tmp, e.path); err != nil {
-			return fmt.Errorf("failed to write %s: %w", e.path, err)
-		}
-	}
-	return nil
-}
-
-// stage writes one file's next content beside it, ready to be renamed into place.
-func stage(f edit) (s edit, err error) {
-	tmp, err := os.CreateTemp(filepath.Dir(f.path), filepath.Base(f.path)+".*")
-	if err != nil {
-		return edit{}, err
-	}
-	defer func() {
-		if err != nil {
-			os.Remove(tmp.Name())
-		}
-	}()
-	if _, err = tmp.WriteString(f.data); err == nil {
-		err = tmp.Sync()
-	}
-	if closeErr := tmp.Close(); err == nil {
-		err = closeErr
-	}
-	if err == nil {
-		err = os.Chmod(tmp.Name(), modeOf(f.path))
-	}
-
-	if err != nil {
-		return edit{}, err
-	}
-	f.tmp = tmp.Name()
-	return f, nil
-}
-
-// modeOf reports the permissions a staged file needs to replace its target
-// without changing them.
-func modeOf(path string) os.FileMode {
-	if info, err := os.Stat(path); err == nil {
-		return info.Mode().Perm()
-	}
-	return pageMode
 }

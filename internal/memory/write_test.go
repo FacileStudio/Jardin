@@ -86,7 +86,7 @@ func TestAddDoesEveryPieceOfBookkeepingInOneCall(t *testing.T) {
 	}
 
 	index := readWiki(t, dir, "index.md")
-	pointer := "- [mycelium](tools/mycelium.md): Upgrading leaves a shadow copy behind"
+	pointer := "- [Mycelium CLI](tools/mycelium.md): Upgrading leaves a shadow copy behind"
 	if !strings.Contains(index, pointer) {
 		t.Errorf("index is missing %q:\n%s", pointer, index)
 	}
@@ -183,5 +183,59 @@ func TestAddRefusesAPageWithNoFrontmatterToStamp(t *testing.T) {
 	_, err := Add(dir, aFinding(), time.Now(), nil)
 	if err == nil || !strings.Contains(err.Error(), "frontmatter") {
 		t.Fatalf("err = %v, want a refusal naming the missing frontmatter", err)
+	}
+}
+
+func TestTheIndexPointerCarriesThePageTitleAndFallsBackToItsSlug(t *testing.T) {
+	titled, _ := indexPointer("", "tools/mycelium.md", "Mycelium CLI", "a finding")
+	if !strings.Contains(titled, "- [Mycelium CLI](tools/mycelium.md): a finding") {
+		t.Errorf("a titled page is not named by its title:\n%s", titled)
+	}
+	untitled, _ := indexPointer("", "tools/mycelium.md", "", "a finding")
+	if !strings.Contains(untitled, "- [mycelium](tools/mycelium.md): a finding") {
+		t.Errorf("a page with no title does not fall back to its slug:\n%s", untitled)
+	}
+}
+
+func TestAStagedFileIsNamedSoSyncWillNotCarryIt(t *testing.T) {
+	dir := t.TempDir()
+	staged, err := stage(edit{path: filepath.Join(dir, "page.md"), data: "prose"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(staged.tmp)
+	if !strings.HasSuffix(staged.tmp, ".tmp") {
+		t.Fatalf("staged file is %q; internal/sync only skips a %q suffix, so anything "+
+			"else is a whole copy of the page published to every machine", staged.tmp, ".tmp")
+	}
+}
+
+func TestTwoWritersBothLandTheirLogLine(t *testing.T) {
+	dir := wikiWithPage(t)
+	second := aFinding()
+	second.Title = "A second finding"
+	second.Log = "the second writer's line"
+
+	done := make(chan error, 2)
+	for _, f := range []Finding{aFinding(), second} {
+		go func(f Finding) { _, err := Add(dir, f, time.Now(), nil); done <- err }(f)
+	}
+	for range 2 {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	history := readWiki(t, dir, "log.md")
+	for _, want := range []string{aFinding().Log, second.Log, "something earlier"} {
+		if !strings.Contains(history, want) {
+			t.Errorf("log.md lost %q, so one writer overwrote the other:\n%s", want, history)
+		}
+	}
+	page := readWiki(t, dir, "tools/mycelium.md")
+	for _, want := range []string{"### Upgrading leaves a shadow copy behind", "### A second finding"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the page lost %q:\n%s", want, page)
+		}
 	}
 }
