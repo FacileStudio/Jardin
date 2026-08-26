@@ -53,6 +53,20 @@ func (s *Server) syncTree(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, files)
 }
 
+// syncGetFile streams one file from the tree as bytes, never as a document.
+//
+// http.ServeFile types a response from the file's extension, so without this
+// the endpoint would answer a synced .html with text/html on the API's own
+// origin — the origin whose localStorage holds the bearer token that mints
+// API tokens and writes rules/. The tree now carries agent-authored HTML in
+// reports/, and auth here is header-only so a browser navigation cannot reach
+// it today; presetting the type is what keeps that true if anything ever
+// renders what this returns. Content-Type is set before ServeFile because
+// ServeFile only sniffs when the header is absent, which leaves its Range and
+// If-Modified-Since handling intact.
+//
+// Both clients are unaffected: internal/sync reads the body as bytes, and the
+// web client parses JSON by content type and falls back to text.
 func (s *Server) syncGetFile(w http.ResponseWriter, r *http.Request) {
 	root, rootOK := s.scopeRoot(w, r)
 	if !rootOK {
@@ -63,6 +77,8 @@ func (s *Server) syncGetFile(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, apierrors.Invalid("invalid path"))
 		return
 	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeFile(w, r, full)
 }
 
