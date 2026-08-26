@@ -10,6 +10,105 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-08-26
+
+### Added
+
+- **Agents reach memory and flows as tools, not as instructions.** `mycelium mcp` speaks
+  MCP over stdio and serves three of them: `search_memory`, `list_flows` and `run_flow`.
+  `run_flow` takes a flow name and nothing else, because a fixed set of procedures a human
+  read and pinned is the whole defence against the injection this kind of server usually
+  ships with, and an unpinned flow comes back with the command that pins it rather than an
+  exit code. Stdio is not a default here but the only transport that can work: the steps run
+  `sh -c` on the calling machine and the trust pin is per machine.
+
+- **`mycelium install` declares that server in each assistant's own config**, merging into
+  `~/.claude.json`, `~/.gemini/settings.json` and `~/.config/opencode/opencode.json` rather
+  than overwriting them, and replacing the entry mycelium owns whatever name it carries so
+  the pre-rename `jardin` entry stops pointing at a deleted binary. Codex is skipped on
+  purpose: its MCP servers live in TOML. A rule now renders for one audience or the other,
+  so an assistant is told to call `search_memory` or to run `mycelium memory search`, never
+  both.
+
+- **`mycelium memory add` files a finding and everything that goes with it in one call**: the
+  finding on its page, that page's `updated:` stamp, the pointer in `index.md` and the line
+  in `log.md`. All four or none. Done by hand the one that gets skipped is always the index,
+  because it is the only edit that is not where the writing happened. `--body-stdin` takes
+  prose that would otherwise be a fight with shell quoting, and the log line is an argument
+  rather than something derived from the diff, because it records what was wrong before and
+  a diff does not carry that.
+
+- **`mycelium doctor` reports the MCP declaration.** An assistant whose config will not parse
+  is refused rather than overwritten, its rules quietly render for the CLI, and the result
+  looks exactly like an assistant that was never meant to have the tools. The check names
+  the file and fails, and it separates that from an assistant install has simply not reached
+  yet.
+
+- **A failed background sync announces itself on Linux.** The generated systemd unit carries
+  `OnFailure=`, where before a nonzero exit only marked the unit failed in systemd's own
+  state and nothing read it until somebody typed `journalctl`. launchd already redirected to
+  `~/.mycelium/daemon.log` and needs no equivalent.
+
+- **One mark, generated rather than hand-edited.** `scripts/icons.ts` writes all six brand
+  assets from a single glyph. They had drifted into three different marks, and the card that
+  renders wherever the site is shared still advertised a hostname that answers 404.
+
+### Changed
+
+- **`mycelium sync --force` and `mycelium pull` only run from a terminal.** Both hand a
+  machine the power to empty its own wiki in one call, and on 2026-08-25 a reconcile deleted
+  102 files here because the guard that stopped it printed the flag that waived it. An agent
+  whose goal is a finished sync reads that sentence as the next step. The refusal a
+  non-interactive caller gets now carries no flag at all, and a refused bulk delete states
+  how many files each side holds, which is the line that separates a cleanup somebody meant
+  from a server that lost its data volume.
+
+- **`mycelium claim start` asks the server before taking a claim.** Local claim files arrive
+  on a daemon tick, so two agents on two machines could both read "no claims" for up to a
+  minute and both take the repo. An unreachable server downgrades the verdict instead of
+  ending the command: the claim is taken and reported as unverified, because a lock that
+  fails closed would stop the work every time a laptop was on a train.
+
+- **Sync staleness is measured in daemon ticks, not in a round number of hours.** The daemon
+  runs every 60 seconds and the old threshold was 24 hours, a gap of 1440x, so sync failed
+  for twenty hours on 2026-08-25 while `doctor` printed a green tick beside
+  `last sync: 19h43m36s ago`. It is thirty ticks now when the service is installed and still
+  a day when syncing is something a person does by hand, and `mycelium recap` prints the
+  same line at the start of a session, only when it is stale.
+
+- **A browser session from a password login expires and evicts the one it replaces**, which
+  is what every SSO session already did. Until now that path minted an admin credential that
+  never expired, which is also why it slipped past the fix below.
+
+### Fixed
+
+- **Login sessions are no longer listed as API tokens.** The settings page compared a whole
+  token name against `session`, which matches neither `session:<email>` nor `cli:<email>`, so
+  every browser and CLI login anyone had ever made appeared as an API token with a revoke
+  button beside it. The filter moved to the server, where every client gets it right at once,
+  and it tests the expiry rather than the name.
+
+- **A page being written can no longer reach the server half-landed.** Every wiki write is
+  staged beside its target and renamed into place, but the staged file was named so that sync
+  did not recognise it as temporary. A crash between the two would have published a whole
+  second copy of the page to the server and to every other machine.
+
+- **Two agents filing a finding at the same moment no longer overwrite each other.**
+  `index.md` and `log.md` are read, appended to and written back, and an agent files a
+  finding when its task ends, which is exactly when several finish at once. The read and the
+  write now happen under one lock. Sync deliberately does not take it: serialising a
+  reconcile against a write would put a network round trip between an agent and its own
+  finding.
+
+- **An index pointer is named after the page it points at.** It carried the page's slug where
+  every hand-written line in the corpus carries a title, so a filed entry stopped being
+  scannable among the others.
+
+- **`mycelium install claude` cannot leave the account record truncated.** `~/.claude.json`
+  holds project history and the account record, is not regenerable, and is rewritten by any
+  running session. It is now replaced through a rename rather than opened with `O_TRUNC`,
+  which closes the window where a crash lost all of it.
+
 ## [0.26.0] — 2026-08-24
 
 ### Changed
