@@ -21,11 +21,10 @@ func (c *Cursor) TargetPaths() []string {
 func (c *Cursor) Generate(input Input) (*Output, error) {
 	out := &Output{Files: make(map[string]string)}
 
-	rendered := ruleSections(input)
-	for i, rule := range input.Rules {
+	for _, rule := range input.Rules {
 		path := fmt.Sprintf(".cursor/rules/%s.mdc", rule.Name)
 		content := fmt.Sprintf("---\ndescription: %s\nalwaysApply: true\n---\n\n%s\n",
-			rule.Name, rendered[i])
+			rule.Name, renderRule(input, rule))
 		out.Files[path] = content
 	}
 

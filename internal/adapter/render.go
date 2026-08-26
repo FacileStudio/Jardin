@@ -1,6 +1,10 @@
 package adapter
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/FacileStudio/Mycelium/internal/cell"
+)
 
 const (
 	fenceOpenPrefix = "<!-- agent:"
@@ -84,17 +88,27 @@ func renderFences(content, audience string) string {
 	return strings.Join(out, "\n")
 }
 
+// renderRule returns one rule's body rendered for this input's audience,
+// trimmed and ready to drop into a generated file.
+//
+// The unit is one rule because cursor writes one file per rule and everyone
+// else writes them joined. Handing cursor a slice to index into the rule list
+// with worked only while the two stayed the same length, which is a property
+// nothing states and nothing checks.
+func renderRule(input Input, rule cell.NamedFile) string {
+	return strings.TrimSpace(renderFences(rule.Content, audienceFor(input.MCPTools)))
+}
+
 // ruleSections returns every rule body rendered for this input's audience,
-// trimmed and ready to join into a generated file.
+// ready to join into a generated file.
 //
 // Shared rather than repeated per adapter: eight adapters loop over
 // input.Rules, and a fence honoured by seven of them is a rule that reaches
 // one agent in both forms with nothing failing.
 func ruleSections(input Input) []string {
-	audience := audienceFor(input.MCPTools)
 	out := make([]string, 0, len(input.Rules))
 	for _, rule := range input.Rules {
-		out = append(out, strings.TrimSpace(renderFences(rule.Content, audience)))
+		out = append(out, renderRule(input, rule))
 	}
 	return out
 }
