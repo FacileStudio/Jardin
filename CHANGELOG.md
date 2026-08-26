@@ -10,6 +10,44 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.28.0] — 2026-08-26
+
+### Added
+
+- **`mycelium report` records a rendered page and carries it to the machine you are sitting
+  at.** An agent working over SSH on a headless box can produce an HTML report and has
+  nowhere to put it. `mycelium report add <file>` writes it into `~/.mycelium/reports/`,
+  which syncs like the rest of the tree, so it opens on the machine with a screen. It is
+  stored and never hosted: a file opened from disk gets an opaque origin and cannot read the
+  bearer token the web UI keeps in `localStorage`, which is the whole reason there is no URL
+  to hand anybody. The identifier comes from the document's `<title>`, so recording the same
+  page twice replaces it rather than piling up copies, and a report expires after thirty days
+  unless `--expires never` pins it. Metadata rides in the file as meta tags rather than in a
+  sidecar, because sync reconciles one file at a time and a shared manifest would conflict
+  every time two machines recorded a report in the same minute. `add` names any relative
+  `src` or `href` it finds, since a page opened from disk cannot fetch its siblings and a
+  missing stylesheet is a failure only the reader ever sees.
+
+- **A report never enters the wiki.** Every indexer, embedder and language scan is already
+  scoped to `memory/**.md`, so `reports/` crosses machines without joining the corpus a
+  search answers from. The wiki holds the fact as text and keeps it; a report is the picture
+  of one and expires.
+
+- **`publish_report`, a fourth MCP tool.** Its description carries the trigger as well as the
+  behaviour, because that string is the only text guaranteed to be in front of a model at the
+  moment it decides. It says what a report is not, twice: not a link, and not a finding.
+
+### Changed
+
+- **`/api/sync/files/{path}` answers `application/octet-stream` with `nosniff`.**
+  `http.ServeFile` types a response from the file's extension, so the endpoint would have
+  answered a synced `.html` as `text/html` on the origin whose `localStorage` holds the token
+  that mints API tokens and writes `rules/`. Auth there is header-only, so a browser
+  navigation gets a 401 and the path was never reachable that way. Presetting the type is
+  what keeps that true now the tree carries agent-authored HTML, and it leaves ServeFile's
+  Range and If-Modified-Since handling intact because ServeFile only sniffs when the header
+  is absent.
+
 ## [0.27.0] — 2026-08-26
 
 ### Added
@@ -624,7 +662,9 @@ through, and the on-disk vocabulary settled on `memory`.
 - Traefik gives API routes priority over the client, and the Docker build uses
   `golang:alpine`.
 
-[Unreleased]: https://github.com/FacileStudio/Mycelium/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/FacileStudio/Mycelium/compare/v0.28.0...HEAD
+[0.28.0]: https://github.com/FacileStudio/Mycelium/compare/v0.27.0...v0.28.0
+[0.27.0]: https://github.com/FacileStudio/Mycelium/compare/v0.26.0...v0.27.0
 [0.23.0]: https://github.com/FacileStudio/Mycelium/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/FacileStudio/Mycelium/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/FacileStudio/Mycelium/compare/v0.20.0...v0.21.0
