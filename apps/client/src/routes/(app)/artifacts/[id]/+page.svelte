@@ -2,11 +2,11 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Alert, Badge, Button, Card, ConfirmModal, Spinner, icons, toast } from '@facile/muse';
-	import { backend, type ReportDetail } from '$lib/backend';
+	import { backend, type ArtifactDetail } from '$lib/backend';
 	import MarkdownMuse from '$lib/components/MarkdownMuse.svelte';
 
 	const id = $derived(page.params.id ?? '');
-	let detail: ReportDetail | null = $state(null);
+	let detail: ArtifactDetail | null = $state(null);
 	let loading = $state(true);
 	let error = $state('');
 	let confirmOpen = $state(false);
@@ -14,11 +14,11 @@
 	let viewMode: 'preview' | 'source' = $state('preview');
 
 	$effect(() => {
-		const reportId = id;
-		if (!reportId) return;
+		const artId = id;
+		if (!artId) return;
 		loading = true;
 		backend
-			.reportGet(reportId)
+			.artifactGet(artId)
 			.then((d) => (detail = d))
 			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load artifact.'))
 			.finally(() => (loading = false));
@@ -28,9 +28,9 @@
 		if (!detail) return;
 		deleting = true;
 		try {
-			await backend.reportDelete(detail.id);
+			await backend.artifactDelete(detail.id);
 			toast.success(`Deleted artifact “${detail.title}”.`);
-			goto('/reports');
+			goto('/artifacts');
 		} catch (e) {
 			toast.danger(e instanceof Error ? e.message : 'Could not delete artifact.', {
 				title: 'Delete failed'
@@ -59,7 +59,7 @@
 <div class="flex flex-col gap-6">
 	<div class="flex flex-col gap-3">
 		<a
-			href="/reports"
+			href="/artifacts"
 			class="inline-flex w-fit items-center gap-1 text-fc-sm text-fc-fg-muted transition-colors hover:text-fc-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
 		>
 			<iconify-icon icon={icons.chevronLeft} width="16" height="16" class="block"></iconify-icon>
@@ -162,4 +162,3 @@
 		onConfirm={remove}
 	/>
 {/if}
-

@@ -1,4 +1,4 @@
-package reports
+package artifacts
 
 import (
 	"bytes"
@@ -17,7 +17,8 @@ const DefaultTTL = 30 * 24 * time.Hour
 
 const timeFormat = time.RFC3339
 
-type Report struct {
+// Artifact represents a recorded markdown or HTML document.
+type Artifact struct {
 	ID      string    `json:"id"`
 	Title   string    `json:"title"`
 	Path    string    `json:"path"`
@@ -26,10 +27,15 @@ type Report struct {
 	Expires time.Time `json:"expires,omitempty"`
 }
 
-func (r Report) Expired(now time.Time) bool {
-	return !r.Expires.IsZero() && now.After(r.Expires)
+// Report is a backward-compatible alias for Artifact.
+type Report = Artifact
+
+// Expired reports whether the artifact has passed its expiry.
+func (a Artifact) Expired(now time.Time) bool {
+	return !a.Expires.IsZero() && now.After(a.Expires)
 }
 
+// Request holds parameters for adding a new artifact.
 type Request struct {
 	Source  string
 	Title   string
@@ -38,10 +44,11 @@ type Request struct {
 	Pinned  bool
 }
 
-func Add(dataDir string, req Request, now time.Time) (Report, error) {
+// Add copies and registers a new artifact in the local store.
+func Add(dataDir string, req Request, now time.Time) (Artifact, error) {
 	raw, err := os.ReadFile(req.Source)
 	if err != nil {
-		return Report{}, fmt.Errorf("failed to read %s: %w", req.Source, err)
+		return Artifact{}, fmt.Errorf("failed to read %s: %w", req.Source, err)
 	}
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
@@ -49,7 +56,7 @@ func Add(dataDir string, req Request, now time.Time) (Report, error) {
 	}
 	id := idFor(title, req.Machine, now)
 	if id == "" {
-		return Report{}, fmt.Errorf("cannot derive a name from %q, pass --title", req.Source)
+		return Artifact{}, fmt.Errorf("cannot derive a name from %q, pass --title", req.Source)
 	}
 	ext := ".md"
 	if isHTML(req.Source, raw) {
@@ -57,9 +64,9 @@ func Add(dataDir string, req Request, now time.Time) (Report, error) {
 	}
 	targetDir := filepath.Join(Dir(dataDir), now.UTC().Format("2006/01"))
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
-		return Report{}, fmt.Errorf("failed to create target directory: %w", err)
+		return Artifact{}, fmt.Errorf("failed to create target directory: %w", err)
 	}
-	rep := Report{
+	art := Artifact{
 		ID:      id,
 		Title:   title,
 		Path:    filepath.Join(targetDir, id+ext),
@@ -67,11 +74,11 @@ func Add(dataDir string, req Request, now time.Time) (Report, error) {
 		Created: now,
 		Expires: expiryFor(req, now),
 	}
-	stamped := stamp(raw, rep, ext == ".html")
-	if err := os.WriteFile(rep.Path, stamped, 0o644); err != nil {
-		return Report{}, fmt.Errorf("failed to write %s: %w", rep.Path, err)
+	stamped := stamp(raw, art, ext == ".html")
+	if err := os.WriteFile(art.Path, stamped, 0o644); err != nil {
+		return Artifact{}, fmt.Errorf("failed to write %s: %w", art.Path, err)
 	}
-	return rep, nil
+	return art, nil
 }
 
 func expiryFor(req Request, now time.Time) time.Time {
@@ -85,11 +92,11 @@ func expiryFor(req Request, now time.Time) time.Time {
 }
 
 var (
-	titleTag      = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
-	mdHeading     = regexp.MustCompile(`(?m)^#\s+(.+)$`)
-	slugTrim      = regexp.MustCompile(`[^a-z0-9]+`)
-	datePrefix    = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-`)
-	fullHashedID  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-.+-[a-f0-9]{6}$`)
+	titleTag     = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
+	mdHeading    = regexp.MustCompile(`(?m)^#\s+(.+)$`)
+	slugTrim     = regexp.MustCompile(`[^a-z0-9]+`)
+	datePrefix   = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-`)
+	fullHashedID = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-.+-[a-f0-9]{6}$`)
 )
 
 func idFor(title, machine string, now time.Time) string {
@@ -155,8 +162,7 @@ func extractFrontmatterTitle(content string) string {
 	return ""
 }
 
+// Slug sanitizes a title into a URL and filename friendly slug.
 func Slug(title string) string {
 	return strings.Trim(slugTrim.ReplaceAllString(strings.ToLower(title), "-"), "-")
 }
-
-

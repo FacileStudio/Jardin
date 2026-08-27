@@ -13,6 +13,8 @@ import type {
 	MemoryIndexState,
 	MemorySearchResponse,
 	ModelInfo,
+	ArtifactDetail,
+	ArtifactSummary,
 	ReportDetail,
 	ReportSummary,
 	SessionBlock,
@@ -63,9 +65,13 @@ export const backend = {
 	modelsList: () => request<ModelInfo[]>('GET', `/models${spaceQuery()}`),
 	modelGet: (path: string) => request<string>('GET', `/models/${path}${spaceQuery()}`),
 
-	reportsList: () => request<ReportSummary[]>('GET', `/reports${spaceQuery()}`),
-	reportGet: (id: string) => request<ReportDetail>('GET', `/reports/${id}${spaceQuery()}`),
-	reportDelete: (id: string) => request<void>('DELETE', `/reports/${id}${spaceQuery()}`),
+	artifactsList: () => request<ArtifactSummary[]>('GET', `/artifacts${spaceQuery()}`),
+	artifactGet: (id: string) => request<ArtifactDetail>('GET', `/artifacts/${id}${spaceQuery()}`),
+	artifactDelete: (id: string) => request<void>('DELETE', `/artifacts/${id}${spaceQuery()}`),
+
+	reportsList: () => request<ArtifactSummary[]>('GET', `/artifacts${spaceQuery()}`),
+	reportGet: (id: string) => request<ArtifactDetail>('GET', `/artifacts/${id}${spaceQuery()}`),
+	reportDelete: (id: string) => request<void>('DELETE', `/artifacts/${id}${spaceQuery()}`),
 
 	sessionsStats: (since: string, by: string) =>
 		request<SessionStats>('GET', `/sessions/stats?since=${since}&by=${by}${spaceQuery('&')}`),

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Badge, Button, Card, icons, toast } from '@facile/muse';
 	import { marked, type Tokens, type Token } from 'marked';
+	import MermaidBlock from './MermaidBlock.svelte';
 
 	let { content = '' }: { content: string } = $props();
 
@@ -194,15 +195,7 @@
 				</div>
 
 			{:else if lang === 'mermaid'}
-				<Card class="my-4 overflow-hidden p-0">
-					<div class="flex items-center justify-between border-b border-fc-border bg-fc-surface-hover/40 px-4 py-2 text-fc-xs text-fc-fg-muted">
-						<span class="font-semibold uppercase tracking-wider">Mermaid Flow</span>
-						<Button variant="ghost" size="sm" icon={icons.copy} onclick={() => copyToClipboard(c.text)}>
-							Copy
-						</Button>
-					</div>
-					<pre class="overflow-x-auto p-4 font-fc-mono text-fc-xs text-fc-fg"><code>{c.text}</code></pre>
-				</Card>
+				<MermaidBlock code={c.text} />
 
 			{:else}
 				<Card class="my-3 overflow-hidden p-0">

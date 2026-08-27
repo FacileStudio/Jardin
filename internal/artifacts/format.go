@@ -1,4 +1,4 @@
-package reports
+package artifacts
 
 import (
 	"fmt"
@@ -14,10 +14,10 @@ var (
 	mdLink   = regexp.MustCompile(`!?\[.*?\]\(([^)]+)\)`)
 )
 
-func stamp(raw []byte, rep Report, isHTML bool) []byte {
+func stamp(raw []byte, art Artifact, isHTML bool) []byte {
 	if isHTML {
 		body := metaAny.ReplaceAll(raw, nil)
-		block := metaBlock(rep)
+		block := metaBlock(art)
 		if loc := headEnd.FindIndex(body); loc != nil {
 			out := append([]byte{}, body[:loc[0]]...)
 			return append(append(out, block...), body[loc[0]:]...)
@@ -27,7 +27,7 @@ func stamp(raw []byte, rep Report, isHTML bool) []byte {
 
 	content := string(raw)
 	body := stripFrontmatter(content)
-	header := frontmatterBlock(rep)
+	header := frontmatterBlock(art)
 	return []byte(header + body)
 }
 
@@ -46,29 +46,29 @@ func stripFrontmatter(content string) string {
 	return strings.TrimPrefix(rest, "\r\n")
 }
 
-func frontmatterBlock(rep Report) string {
+func frontmatterBlock(art Artifact) string {
 	var b strings.Builder
 	b.WriteString("---\n")
-	fmt.Fprintf(&b, "title: %q\n", rep.Title)
-	if rep.Machine != "" {
-		fmt.Fprintf(&b, "machine: %q\n", rep.Machine)
+	fmt.Fprintf(&b, "title: %q\n", art.Title)
+	if art.Machine != "" {
+		fmt.Fprintf(&b, "machine: %q\n", art.Machine)
 	}
-	fmt.Fprintf(&b, "created: %s\n", rep.Created.UTC().Format(timeFormat))
-	if !rep.Expires.IsZero() {
-		fmt.Fprintf(&b, "expires: %s\n", rep.Expires.UTC().Format(timeFormat))
+	fmt.Fprintf(&b, "created: %s\n", art.Created.UTC().Format(timeFormat))
+	if !art.Expires.IsZero() {
+		fmt.Fprintf(&b, "expires: %s\n", art.Expires.UTC().Format(timeFormat))
 	}
 	b.WriteString("type: artifact\n")
 	b.WriteString("---\n\n")
 	return b.String()
 }
 
-func metaBlock(rep Report) []byte {
+func metaBlock(art Artifact) []byte {
 	var b strings.Builder
-	fmt.Fprintf(&b, "\n<meta name=\"mycelium-title\" content=\"%s\">", html.EscapeString(rep.Title))
-	fmt.Fprintf(&b, "\n<meta name=\"mycelium-machine\" content=\"%s\">", html.EscapeString(rep.Machine))
-	fmt.Fprintf(&b, "\n<meta name=\"mycelium-created\" content=\"%s\">", rep.Created.UTC().Format(timeFormat))
-	if !rep.Expires.IsZero() {
-		fmt.Fprintf(&b, "\n<meta name=\"mycelium-expires\" content=\"%s\">", rep.Expires.UTC().Format(timeFormat))
+	fmt.Fprintf(&b, "\n<meta name=\"mycelium-title\" content=\"%s\">", html.EscapeString(art.Title))
+	fmt.Fprintf(&b, "\n<meta name=\"mycelium-machine\" content=\"%s\">", html.EscapeString(art.Machine))
+	fmt.Fprintf(&b, "\n<meta name=\"mycelium-created\" content=\"%s\">", art.Created.UTC().Format(timeFormat))
+	if !art.Expires.IsZero() {
+		fmt.Fprintf(&b, "\n<meta name=\"mycelium-expires\" content=\"%s\">", art.Expires.UTC().Format(timeFormat))
 	}
 	b.WriteString("\n")
 	return []byte(b.String())
@@ -79,6 +79,7 @@ var (
 	schemeRef = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*:`)
 )
 
+// ExternalRefs scans raw content for relative links and assets that will not resolve from disk.
 func ExternalRefs(raw []byte) []string {
 	seen := map[string]bool{}
 	var out []string

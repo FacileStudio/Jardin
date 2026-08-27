@@ -10,7 +10,16 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
-## [0.30.0] — 2026-08-27
+## [0.31.0] — 2026-08-27
+
+### Added
+
+- **Native Mermaid diagram rendering in web markdown viewer.** Integrated client-side Mermaid flowchart rendering with syntax error fallbacks and a source/diagram toggle in `MarkdownMuse.svelte`.
+- **`publish_artifact` MCP tool.** Registered as the primary MCP tool for recording artifacts, retaining `publish_report` as a compatibility alias.
+
+### Changed
+
+- **Renamed reports to artifacts across the full stack.** Reorganized `internal/reports` into `internal/artifacts`, mounted `/api/artifacts` HTTP endpoints with `/api/reports` compatibility aliases, and updated web routes to `/artifacts`.
 
 ### Added
 

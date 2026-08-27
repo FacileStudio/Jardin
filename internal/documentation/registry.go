@@ -20,7 +20,7 @@ var claimProjectParam = Field{Name: "project", Type: "string", Description: "Pro
 var claimMachineParam = Field{Name: "machine", Type: "string", Description: "Machine that holds the claim."}
 var claimAgentParam = Field{Name: "agent", Type: "string", Description: "Agent that holds the claim."}
 var spaceParam = Field{Name: "id", Type: "string", Description: "Space ID."}
-var reportIdParam = Field{Name: "id", Type: "string", Description: "Report identifier."}
+var artifactIdParam = Field{Name: "id", Type: "string", Description: "Artifact identifier."}
 var memberParam = Field{Name: "email", Type: "string", Description: "Member's email address."}
 
 // Registry is every route the server mounts under /api. A test walks the live
@@ -137,12 +137,12 @@ var Registry = Response{Modules: []Module{
 		},
 	},
 	{
-		Name:        "reports",
-		Description: "Rendered HTML and markdown reports synced across machines.",
+		Name:        "artifacts",
+		Description: "Rendered HTML and markdown artifacts synced across machines.",
 		Routes: []Route{
-			{Method: "GET", Path: "/reports", Summary: "List reports", Auth: "bearer", ResponseBody: "[]ReportSummary", Errors: anyToken},
-			{Method: "GET", Path: "/reports/{id}", Summary: "Read one report", Auth: "bearer", PathParams: []Field{reportIdParam}, ResponseBody: "ReportDetail", Errors: append(anyToken, notFound)},
-			{Method: "DELETE", Path: "/reports/{id}", Summary: "Delete a report", Auth: "bearer", PathParams: []Field{reportIdParam}, Errors: append(anyToken, notFound)},
+			{Method: "GET", Path: "/artifacts", Summary: "List artifacts", Auth: "bearer", ResponseBody: "[]ArtifactSummary", Errors: anyToken},
+			{Method: "GET", Path: "/artifacts/{id}", Summary: "Read one artifact", Auth: "bearer", PathParams: []Field{artifactIdParam}, ResponseBody: "ArtifactDetail", Errors: append(anyToken, notFound)},
+			{Method: "DELETE", Path: "/artifacts/{id}", Summary: "Delete an artifact", Auth: "bearer", PathParams: []Field{artifactIdParam}, Errors: append(anyToken, notFound)},
 		},
 	},
 	{

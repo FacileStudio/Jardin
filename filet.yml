@@ -50,7 +50,7 @@ architecture:
     "internal/sync": []
     "internal/journal": []
     "internal/memory": []
-    "internal/reports": []
+    "internal/artifacts": []
     "internal/daemon": []
     "internal/cell": []
     "internal/env": []

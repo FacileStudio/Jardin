@@ -7,26 +7,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/FacileStudio/Mycelium/internal/artifacts"
 	"github.com/FacileStudio/Mycelium/internal/config"
-	"github.com/FacileStudio/Mycelium/internal/reports"
 	"github.com/FacileStudio/Mycelium/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var (
-	reportJSON    bool
-	reportTitle   string
-	reportExpires string
-	reportNoOpen  bool
+	artifactJSON    bool
+	artifactTitle   string
+	artifactExpires string
+	artifactNoOpen  bool
 )
 
-var reportCmd = &cobra.Command{
+var artifactCmd = &cobra.Command{
 	Use:     "artifact",
 	Aliases: []string{"artifacts", "report", "reports"},
 	Short:   "Manage rendered artifacts and reports that travel between your machines",
 }
 
-var reportAddCmd = &cobra.Command{
+var artifactAddCmd = &cobra.Command{
 	Use:   "add <file>",
 	Short: "Record a markdown or HTML artifact and open it",
 	Long: "Record a markdown or HTML artifact and open it.\n\n" +
@@ -40,13 +40,13 @@ var reportAddCmd = &cobra.Command{
 	Args:         cobra.ExactArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		expires, pinned, err := parseExpiry(reportExpires)
+		expires, pinned, err := parseExpiry(artifactExpires)
 		if err != nil {
 			return err
 		}
-		rep, err := reports.Add(config.DataDir(), reports.Request{
+		art, err := artifacts.Add(config.DataDir(), artifacts.Request{
 			Source:  args[0],
-			Title:   reportTitle,
+			Title:   artifactTitle,
 			Machine: config.MachineName(),
 			Expires: expires,
 			Pinned:  pinned,
@@ -55,70 +55,70 @@ var reportAddCmd = &cobra.Command{
 			return err
 		}
 		warnExternalRefs(args[0])
-		reportRecorded(rep)
+		artifactRecorded(art)
 		return nil
 	},
 }
 
-var reportListCmd = &cobra.Command{
+var artifactListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List the artifacts on this machine, newest first",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		reports.Sweep(config.DataDir(), time.Now())
-		all, err := reports.List(config.DataDir())
+		artifacts.Sweep(config.DataDir(), time.Now())
+		all, err := artifacts.List(config.DataDir())
 		if err != nil {
 			return err
 		}
-		if reportJSON {
+		if artifactJSON {
 			return printJSON(all)
 		}
 		if len(all) == 0 {
 			fmt.Println("No artifacts")
 			return nil
 		}
-		width := reportIDWidth(all)
-		for _, rep := range all {
-			fmt.Println(reportLine(rep, width, time.Now()))
+		width := artifactIDWidth(all)
+		for _, art := range all {
+			fmt.Println(artifactLine(art, width, time.Now()))
 		}
 		return nil
 	},
 }
 
-var reportOpenCmd = &cobra.Command{
+var artifactOpenCmd = &cobra.Command{
 	Use:   "open <id>",
 	Short: "Open an artifact in this machine's browser",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		rep, err := reports.Find(config.DataDir(), args[0])
+		art, err := artifacts.Find(config.DataDir(), args[0])
 		if err != nil {
 			return err
 		}
-		if !reports.HasDisplay() {
-			fmt.Println(rep.Path)
+		if !artifacts.HasDisplay() {
+			fmt.Println(art.Path)
 			return nil
 		}
-		return reports.Open(rep.Path)
+		return artifacts.Open(art.Path)
 	},
 }
 
-var reportRmCmd = &cobra.Command{
+var artifactRmCmd = &cobra.Command{
 	Use:   "rm <id>",
 	Short: "Delete an artifact",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := reports.Remove(config.DataDir(), args[0]); err != nil {
+		if err := artifacts.Remove(config.DataDir(), args[0]); err != nil {
 			return err
 		}
-		ui.Success("Deleted %s", reports.Slug(args[0]))
+		ui.Success("Deleted %s", artifacts.Slug(args[0]))
 		return nil
 	},
 }
 
-var reportSweepCmd = &cobra.Command{
+var artifactSweepCmd = &cobra.Command{
 	Use:   "sweep",
 	Short: "Delete every artifact whose expiry has passed",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		swept, err := reports.Sweep(config.DataDir(), time.Now())
+		swept, err := artifacts.Sweep(config.DataDir(), time.Now())
 		if err != nil {
 			return err
 		}
@@ -157,7 +157,7 @@ func warnExternalRefs(source string) {
 	if err != nil {
 		return
 	}
-	refs := reports.ExternalRefs(raw)
+	refs := artifacts.ExternalRefs(raw)
 	if len(refs) == 0 {
 		return
 	}
@@ -165,27 +165,26 @@ func warnExternalRefs(source string) {
 	ui.Hint("embed images as data: URIs or ensure paths are valid")
 }
 
-func reportRecorded(rep reports.Report) {
-	ui.Success("Recorded %s", rep.ID)
-	ui.Hint("%s", rep.Path)
+func artifactRecorded(art artifacts.Artifact) {
+	ui.Success("Recorded %s", art.ID)
+	ui.Hint("%s", art.Path)
 	if err := pushAfterWrite(); err != nil {
 		ui.Warn("Recorded here but not synced (%v)", err)
 	}
-	if reportNoOpen || !reports.HasDisplay() {
+	if artifactNoOpen || !artifacts.HasDisplay() {
 		return
 	}
-	if err := reports.Open(rep.Path); err != nil {
+	if err := artifacts.Open(art.Path); err != nil {
 		ui.Warn("Could not open a browser (%v)", err)
 	}
 }
 
 func init() {
-	reportAddCmd.Flags().StringVar(&reportTitle, "title", "", "Override the document's own title")
-	reportAddCmd.Flags().StringVar(&reportExpires, "expires", "",
+	artifactAddCmd.Flags().StringVar(&artifactTitle, "title", "", "Override the document's own title")
+	artifactAddCmd.Flags().StringVar(&artifactExpires, "expires", "",
 		"How long to keep it: 7d, 12h, or never (default 30d)")
-	reportAddCmd.Flags().BoolVar(&reportNoOpen, "no-open", false, "Record it without opening a browser")
-	reportListCmd.Flags().BoolVar(&reportJSON, "json", false, "Print the listing as JSON")
-	reportCmd.AddCommand(reportAddCmd, reportListCmd, reportOpenCmd, reportRmCmd, reportSweepCmd)
-	rootCmd.AddCommand(reportCmd)
+	artifactAddCmd.Flags().BoolVar(&artifactNoOpen, "no-open", false, "Record it without opening a browser")
+	artifactListCmd.Flags().BoolVar(&artifactJSON, "json", false, "Print the listing as JSON")
+	artifactCmd.AddCommand(artifactAddCmd, artifactListCmd, artifactOpenCmd, artifactRmCmd, artifactSweepCmd)
+	rootCmd.AddCommand(artifactCmd)
 }
-

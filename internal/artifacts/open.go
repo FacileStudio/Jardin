@@ -1,4 +1,4 @@
-package reports
+package artifacts
 
 import (
 	"os"
@@ -20,7 +20,7 @@ func HasDisplay() bool {
 	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
 }
 
-// Open shows a report in this machine's default browser.
+// Open shows an artifact in this machine's default browser.
 func Open(path string) error {
 	opener := "xdg-open"
 	if runtime.GOOS == "darwin" {

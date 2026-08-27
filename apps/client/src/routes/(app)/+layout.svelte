@@ -34,7 +34,7 @@
 			activeMatch: ['/rules', '/skills']
 		},
 		{ label: 'Automation', href: '/flows', icon: icons.plug, activeMatch: ['/flows', '/models'] },
-		{ label: 'Reports', href: '/reports', icon: icons.card, activeMatch: ['/reports'] },
+		{ label: 'Artifacts', href: '/artifacts', icon: icons.card, activeMatch: ['/artifacts', '/reports'] },
 		{ label: 'Machines', href: '/machines', icon: icons.server },
 		{ label: 'Sessions', href: '/sessions', icon: icons.history },
 		{ label: 'Spaces', href: '/spaces', icon: icons.usersGroup }

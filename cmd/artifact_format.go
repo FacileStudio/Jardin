@@ -5,42 +5,42 @@ import (
 	"math"
 	"time"
 
-	"github.com/FacileStudio/Mycelium/internal/reports"
+	"github.com/FacileStudio/Mycelium/internal/artifacts"
 	"github.com/FacileStudio/Mycelium/internal/ui"
 )
 
-// reportIDWidth is the column width the identifiers need so the titles line up.
-func reportIDWidth(all []reports.Report) int {
+// artifactIDWidth is the column width the identifiers need so the titles line up.
+func artifactIDWidth(all []artifacts.Artifact) int {
 	width := 0
-	for _, rep := range all {
-		if len(rep.ID) > width {
-			width = len(rep.ID)
+	for _, art := range all {
+		if len(art.ID) > width {
+			width = len(art.ID)
 		}
 	}
 	return width
 }
 
-// reportLine renders one listing row: what it is, which machine wrote it, and
+// artifactLine renders one listing row: what it is, which machine wrote it, and
 // how long it has left.
-func reportLine(rep reports.Report, width int, now time.Time) string {
-	meta := reportAge(rep, now)
-	if rep.Machine != "" {
-		meta = rep.Machine + ", " + meta
+func artifactLine(art artifacts.Artifact, width int, now time.Time) string {
+	meta := artifactAge(art, now)
+	if art.Machine != "" {
+		meta = art.Machine + ", " + meta
 	}
-	return fmt.Sprintf("%-*s  %s  %s", width, rep.ID, rep.Title, ui.Dim("("+meta+")"))
+	return fmt.Sprintf("%-*s  %s  %s", width, art.ID, art.Title, ui.Dim("("+meta+")"))
 }
 
-// reportAge pairs how old a report is with how long it has left, which is what
+// artifactAge pairs how old an artifact is with how long it has left, which is what
 // decides whether to open it or delete it.
-func reportAge(rep reports.Report, now time.Time) string {
+func artifactAge(art artifacts.Artifact, now time.Time) string {
 	age := "just now"
-	if d := now.Sub(rep.Created); d >= time.Minute {
+	if d := now.Sub(art.Created); d >= time.Minute {
 		age = humanDuration(d) + " ago"
 	}
-	if rep.Expires.IsZero() {
+	if art.Expires.IsZero() {
 		return age + ", pinned"
 	}
-	return age + ", expires in " + humanDuration(rep.Expires.Sub(now))
+	return age + ", expires in " + humanDuration(art.Expires.Sub(now))
 }
 
 // humanDuration renders a span the way somebody scanning a list wants it: one

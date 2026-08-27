@@ -1,4 +1,4 @@
-package reports
+package artifacts
 
 import (
 	"os"
@@ -22,12 +22,12 @@ func TestAddRoundTripsItsMetadataHTML(t *testing.T) {
 	src := writeSource(t, dir, "in.html", "<html><head><title>Suite drift</title></head><body>hi</body></html>")
 	now := time.Date(2026, 8, 26, 10, 0, 0, 0, time.UTC)
 
-	rep, err := Add(dir, Request{Source: src, Machine: "ruche"}, now)
+	art, err := Add(dir, Request{Source: src, Machine: "ruche"}, now)
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	if !strings.HasPrefix(rep.ID, "2026-08-26-suite-drift-") {
-		t.Fatalf("id from <title>: got %q, want prefix 2026-08-26-suite-drift-", rep.ID)
+	if !strings.HasPrefix(art.ID, "2026-08-26-suite-drift-") {
+		t.Fatalf("id from <title>: got %q, want prefix 2026-08-26-suite-drift-", art.ID)
 	}
 
 	back, err := Find(dir, "suite-drift")
@@ -47,15 +47,15 @@ func TestAddRoundTripsItsMetadataMarkdown(t *testing.T) {
 	src := writeSource(t, dir, "spec.md", "# DMS Architecture\n\nSome body text.")
 	now := time.Date(2026, 8, 27, 10, 0, 0, 0, time.UTC)
 
-	rep, err := Add(dir, Request{Source: src, Machine: "lucy"}, now)
+	art, err := Add(dir, Request{Source: src, Machine: "lucy"}, now)
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	if !strings.HasPrefix(rep.ID, "2026-08-27-dms-architecture-") {
-		t.Fatalf("id from markdown heading: got %q, want prefix 2026-08-27-dms-architecture-", rep.ID)
+	if !strings.HasPrefix(art.ID, "2026-08-27-dms-architecture-") {
+		t.Fatalf("id from markdown heading: got %q, want prefix 2026-08-27-dms-architecture-", art.ID)
 	}
 
-	back, err := Find(dir, rep.ID)
+	back, err := Find(dir, art.ID)
 	if err != nil {
 		t.Fatalf("find exact: %v", err)
 	}
@@ -78,22 +78,22 @@ func TestReAddingReplacesInPlaceWithoutStackingTags(t *testing.T) {
 	now := time.Date(2026, 8, 26, 10, 0, 0, 0, time.UTC)
 
 	src := writeSource(t, dir, "a.html", strings.Replace(page, "%s", "first", 1))
-	firstRep, err := Add(dir, Request{Source: src, Machine: "ruche"}, now)
+	firstArt, err := Add(dir, Request{Source: src, Machine: "ruche"}, now)
 	if err != nil {
 		t.Fatalf("first add: %v", err)
 	}
-	stamped, err := os.ReadFile(firstRep.Path)
+	stamped, err := os.ReadFile(firstArt.Path)
 	if err != nil {
 		t.Fatalf("read stamped: %v", err)
 	}
 	again := writeSource(t, dir, "b.html", string(stamped))
-	if _, err := Add(dir, Request{Source: again, Title: firstRep.ID, Machine: "lucy"}, now); err != nil {
+	if _, err := Add(dir, Request{Source: again, Title: firstArt.ID, Machine: "lucy"}, now); err != nil {
 		t.Fatalf("second add: %v", err)
 	}
 
 	all, err := List(dir)
 	if err != nil || len(all) != 1 {
-		t.Fatalf("want exactly one report, got %d (%v)", len(all), err)
+		t.Fatalf("want exactly one artifact, got %d (%v)", len(all), err)
 	}
 	final, err := os.ReadFile(all[0].Path)
 	if err != nil {
@@ -113,11 +113,11 @@ func TestSweepTakesExpiredAndLeavesPinned(t *testing.T) {
 	stale := writeSource(t, dir, "stale.html", "<title>Stale</title>")
 	kept := writeSource(t, dir, "kept.html", "<title>Kept</title>")
 
-	staleRep, err := Add(dir, Request{Source: stale, Expires: now.Add(-time.Hour)}, now)
+	staleArt, err := Add(dir, Request{Source: stale, Expires: now.Add(-time.Hour)}, now)
 	if err != nil {
 		t.Fatalf("add stale: %v", err)
 	}
-	keptRep, err := Add(dir, Request{Source: kept, Pinned: true}, now)
+	keptArt, err := Add(dir, Request{Source: kept, Pinned: true}, now)
 	if err != nil {
 		t.Fatalf("add kept: %v", err)
 	}
@@ -126,12 +126,12 @@ func TestSweepTakesExpiredAndLeavesPinned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
-	if len(swept) != 1 || swept[0] != staleRep.ID {
+	if len(swept) != 1 || swept[0] != staleArt.ID {
 		t.Fatalf("swept the wrong set: %v", swept)
 	}
 	all, _ := List(dir)
-	if len(all) != 1 || all[0].ID != keptRep.ID {
-		t.Fatalf("pinned report did not survive: %+v", all)
+	if len(all) != 1 || all[0].ID != keptArt.ID {
+		t.Fatalf("pinned artifact did not survive: %+v", all)
 	}
 }
 
@@ -151,4 +151,3 @@ func TestExternalRefsNamesOnlyWhatCannotResolveFromDisk(t *testing.T) {
 		}
 	}
 }
-

@@ -76,7 +76,7 @@ func TestToolsListReturnsExactlyTheFourToolsInAStableOrder(t *testing.T) {
 	for _, tool := range listTools(t) {
 		names = append(names, tool.Name)
 	}
-	want := []string{"list_flows", "publish_report", "run_flow", "search_memory"}
+	want := []string{"list_flows", "publish_artifact", "publish_report", "run_flow", "search_memory"}
 	if !reflect.DeepEqual(names, want) {
 		t.Errorf("tools/list = %v, want %v", names, want)
 	}
@@ -88,10 +88,11 @@ func TestToolsListReturnsExactlyTheFourToolsInAStableOrder(t *testing.T) {
 // left unset, so "we forgot" and "we meant it" look identical on the wire.
 func TestEveryToolSetsAllFourAnnotationsExplicitly(t *testing.T) {
 	want := map[string]*mcp.ToolAnnotations{
-		"search_memory":  {ReadOnlyHint: true, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
-		"list_flows":     {ReadOnlyHint: true, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
-		"run_flow":       {ReadOnlyHint: false, DestructiveHint: hint(true), IdempotentHint: false, OpenWorldHint: hint(true)},
-		"publish_report": {ReadOnlyHint: false, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
+		"search_memory":    {ReadOnlyHint: true, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
+		"list_flows":       {ReadOnlyHint: true, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
+		"run_flow":         {ReadOnlyHint: false, DestructiveHint: hint(true), IdempotentHint: false, OpenWorldHint: hint(true)},
+		"publish_artifact": {ReadOnlyHint: false, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
+		"publish_report":   {ReadOnlyHint: false, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
 	}
 	for _, tool := range listTools(t) {
 		if tool.Annotations == nil {

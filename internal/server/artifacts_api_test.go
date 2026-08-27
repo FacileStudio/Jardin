@@ -9,41 +9,41 @@ import (
 	"testing"
 	"time"
 
-	"github.com/FacileStudio/Mycelium/internal/reports"
+	"github.com/FacileStudio/Mycelium/internal/artifacts"
 )
 
-func seedReport(t *testing.T, dataDir string) string {
+func seedArtifact(t *testing.T, dataDir string) string {
 	t.Helper()
 	src := filepath.Join(t.TempDir(), "audit.html")
 	if err := os.WriteFile(src, []byte("<html><head><title>Audit 2026</title></head><body><h1>Audit</h1></body></html>"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	rep, err := reports.Add(dataDir, reports.Request{
+	art, err := artifacts.Add(dataDir, artifacts.Request{
 		Source:  src,
 		Machine: "lucy",
 	}, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	return rep.ID
+	return art.ID
 }
 
-func TestReportsListAPI(t *testing.T) {
+func TestArtifactsListAPI(t *testing.T) {
 	dataDir := t.TempDir()
 	srv := New(dataDir, "password")
 	handler := srv.Handler()
 	token := loginAs(t, handler, "password", "lucy")
-	id := seedReport(t, dataDir)
+	id := seedArtifact(t, dataDir)
 
-	req := httptest.NewRequest("GET", "/api/reports", nil)
+	req := httptest.NewRequest("GET", "/api/artifacts", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("GET /api/reports: got %d, want 200", w.Code)
+		t.Fatalf("GET /api/artifacts: got %d, want 200", w.Code)
 	}
-	var list []ReportSummary
+	var list []ArtifactSummary
 	if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
 		t.Fatal(err)
 	}
@@ -55,22 +55,22 @@ func TestReportsListAPI(t *testing.T) {
 	}
 }
 
-func TestReportsGetAPI(t *testing.T) {
+func TestArtifactsGetAPI(t *testing.T) {
 	dataDir := t.TempDir()
 	srv := New(dataDir, "password")
 	handler := srv.Handler()
 	token := loginAs(t, handler, "password", "lucy")
-	id := seedReport(t, dataDir)
+	id := seedArtifact(t, dataDir)
 
-	req := httptest.NewRequest("GET", "/api/reports/"+id, nil)
+	req := httptest.NewRequest("GET", "/api/artifacts/"+id, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("GET /api/reports/%s: got %d, want 200", id, w.Code)
+		t.Fatalf("GET /api/artifacts/%s: got %d, want 200", id, w.Code)
 	}
-	var detail ReportDetail
+	var detail ArtifactDetail
 	if err := json.Unmarshal(w.Body.Bytes(), &detail); err != nil {
 		t.Fatal(err)
 	}
@@ -79,29 +79,28 @@ func TestReportsGetAPI(t *testing.T) {
 	}
 }
 
-func TestReportsDeleteAPI(t *testing.T) {
+func TestArtifactsDeleteAPI(t *testing.T) {
 	dataDir := t.TempDir()
 	srv := New(dataDir, "password")
 	handler := srv.Handler()
 	token := loginAs(t, handler, "password", "lucy")
-	id := seedReport(t, dataDir)
+	id := seedArtifact(t, dataDir)
 
-	req := httptest.NewRequest("DELETE", "/api/reports/"+id, nil)
+	req := httptest.NewRequest("DELETE", "/api/artifacts/"+id, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNoContent {
-		t.Fatalf("DELETE /api/reports/%s: got %d, want 204", id, w.Code)
+		t.Fatalf("DELETE /api/artifacts/%s: got %d, want 204", id, w.Code)
 	}
 
-	req = httptest.NewRequest("GET", "/api/reports/"+id, nil)
+	req = httptest.NewRequest("GET", "/api/artifacts/"+id, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {
-		t.Fatalf("GET /api/reports/%s after delete: got %d, want 404", id, w.Code)
+		t.Fatalf("GET /api/artifacts/%s after delete: got %d, want 404", id, w.Code)
 	}
 }
-

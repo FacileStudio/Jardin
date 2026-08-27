@@ -19,7 +19,7 @@ export interface FileEntry {
 	mod_time: string;
 }
 
-export interface ReportSummary {
+export interface ArtifactSummary {
 	id: string;
 	title: string;
 	machine: string;
@@ -29,9 +29,13 @@ export interface ReportSummary {
 	expired: boolean;
 }
 
-export interface ReportDetail extends ReportSummary {
+export type ReportSummary = ArtifactSummary;
+
+export interface ArtifactDetail extends ArtifactSummary {
 	content: string;
 }
+
+export type ReportDetail = ArtifactDetail;
 
 /*
  * `chunks_per_second` and `eta_seconds` are the server's own measurement of the run, never
