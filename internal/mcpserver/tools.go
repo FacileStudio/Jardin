@@ -74,22 +74,19 @@ func runFlowTool() *mcp.Tool {
 	}
 }
 
-// publishArtifactTool declares the one tool that produces something for a human
-// rather than for the model.
+// publishArtifactTool declares the tool that records rendered artifacts and reports.
 func publishArtifactTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:  "publish_artifact",
 		Title: "Publish an artifact",
-		Description: "Record a markdown or HTML document in the synced tree and return the path it " +
-			"landed at, so a page produced on a headless machine opens on the machine the human is " +
-			"sitting at. It is stored, never hosted: there is no URL and no link to hand anybody.\n\n" +
+		Description: "Record a markdown or HTML document in the synced tree, open it in the browser, " +
+			"and return its canonical web URL and file path. Accepts either inline 'content' or a file 'path'.\n\n" +
 			"Use it when the answer is structural rather than linear: a comparison across many items, " +
-			"a timeline, a graph, a table wider than a terminal. Answer in the conversation first and " +
-			"record an artifact as an attachment to that answer, never in place of it. A finding belongs " +
-			"in the wiki as text; an artifact is the picture of one, and it expires in 30 days.\n\n" +
-			"The page must carry everything it needs inline, because a file opened from disk cannot " +
-			"fetch its siblings. The document's title becomes the artifact's name, so recording the " +
-			"same title twice replaces it rather than piling up copies.",
+			"a timeline, a graph, or an extensive report. Answer in the conversation first and " +
+			"record an artifact as an attachment to that answer, never in place of it. A durable finding belongs " +
+			"in the wiki as memory; an artifact is a rendered presentation or report, and it expires in 30 days.\n\n" +
+			"The page must carry everything it needs inline. The document's title becomes the artifact's name, " +
+			"so recording the same title replaces it rather than piling up copies.",
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:    false,
 			DestructiveHint: hint(false),

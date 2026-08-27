@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -14,10 +16,11 @@ import (
 )
 
 var (
-	artifactJSON    bool
-	artifactTitle   string
-	artifactExpires string
-	artifactNoOpen  bool
+	artifactJSON      bool
+	artifactTitle     string
+	artifactExpires   string
+	artifactNoOpen    bool
+	artifactBodyStdin bool
 )
 
 var artifactCmd = &cobra.Command{
@@ -27,7 +30,7 @@ var artifactCmd = &cobra.Command{
 }
 
 var artifactAddCmd = &cobra.Command{
-	Use:   "add <file>",
+	Use:   "add [file]",
 	Short: "Record a markdown or HTML artifact and open it",
 	Long: "Record a markdown or HTML artifact and open it.\n\n" +
 		"The document is copied into ~/.mycelium/artifacts/ and synced across machines. " +
@@ -36,25 +39,47 @@ var artifactAddCmd = &cobra.Command{
 		"The identifier comes from the title with a date prefix to prevent collisions:\n\n" +
 		"  mycelium artifact add spec.md\n" +
 		"  mycelium artifact add audit.html --expires 7d\n" +
-		"  mycelium artifact add plan.md --title 'Migration plan' --expires never",
-	Args:         cobra.ExactArgs(1),
+		"  mycelium artifact add plan.md --title 'Migration plan' --expires never\n" +
+		"  mycelium artifact add --title 'Quick note' --body-stdin < report.md",
+	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		expires, pinned, err := parseExpiry(artifactExpires)
 		if err != nil {
 			return err
 		}
-		art, err := artifacts.Add(config.DataDir(), artifacts.Request{
-			Source:  args[0],
-			Title:   artifactTitle,
-			Machine: config.MachineName(),
-			Expires: expires,
-			Pinned:  pinned,
-		}, time.Now())
-		if err != nil {
-			return err
+		var art artifacts.Artifact
+		fromStdin := artifactBodyStdin || (len(args) == 1 && args[0] == "-")
+		if fromStdin {
+			raw, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return fmt.Errorf("failed to read from stdin: %w", err)
+			}
+			art, err = artifacts.AddContent(config.DataDir(), raw, "stdin.md", artifacts.Request{
+				Title:   artifactTitle,
+				Machine: config.MachineName(),
+				Expires: expires,
+				Pinned:  pinned,
+			}, time.Now())
+			if err != nil {
+				return err
+			}
+		} else {
+			if len(args) == 0 {
+				return errors.New("specify a file to record or pass --body-stdin")
+			}
+			art, err = artifacts.Add(config.DataDir(), artifacts.Request{
+				Source:  args[0],
+				Title:   artifactTitle,
+				Machine: config.MachineName(),
+				Expires: expires,
+				Pinned:  pinned,
+			}, time.Now())
+			if err != nil {
+				return err
+			}
+			warnExternalRefs(args[0])
 		}
-		warnExternalRefs(args[0])
 		artifactRecorded(art)
 		return nil
 	},
@@ -93,11 +118,12 @@ var artifactOpenCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		target := artifactTarget(art)
 		if !artifacts.HasDisplay() {
-			fmt.Println(art.Path)
+			fmt.Println(target)
 			return nil
 		}
-		return artifacts.Open(art.Path)
+		return artifacts.Open(target)
 	},
 }
 
@@ -165,16 +191,25 @@ func warnExternalRefs(source string) {
 	ui.Hint("embed images as data: URIs or ensure paths are valid")
 }
 
+func artifactTarget(art artifacts.Artifact) string {
+	cfg, err := config.LoadMyceliumConfig()
+	if err == nil && cfg != nil && cfg.ServerURL() != "" {
+		return artifacts.URL(cfg.ServerURL(), art.ID)
+	}
+	return art.Path
+}
+
 func artifactRecorded(art artifacts.Artifact) {
+	target := artifactTarget(art)
 	ui.Success("Recorded %s", art.ID)
-	ui.Hint("%s", art.Path)
+	ui.Hint("%s", target)
 	if err := pushAfterWrite(); err != nil {
 		ui.Warn("Recorded here but not synced (%v)", err)
 	}
 	if artifactNoOpen || !artifacts.HasDisplay() {
 		return
 	}
-	if err := artifacts.Open(art.Path); err != nil {
+	if err := artifacts.Open(target); err != nil {
 		ui.Warn("Could not open a browser (%v)", err)
 	}
 }
@@ -184,6 +219,8 @@ func init() {
 	artifactAddCmd.Flags().StringVar(&artifactExpires, "expires", "",
 		"How long to keep it: 7d, 12h, or never (default 30d)")
 	artifactAddCmd.Flags().BoolVar(&artifactNoOpen, "no-open", false, "Record it without opening a browser")
+	artifactAddCmd.Flags().BoolVar(&artifactBodyStdin, "body-stdin", false, "Read artifact body from stdin")
+	artifactAddCmd.Flags().BoolVar(&artifactBodyStdin, "stdin", false, "Read artifact body from stdin")
 	artifactListCmd.Flags().BoolVar(&artifactJSON, "json", false, "Print the listing as JSON")
 	artifactCmd.AddCommand(artifactAddCmd, artifactListCmd, artifactOpenCmd, artifactRmCmd, artifactSweepCmd)
 	rootCmd.AddCommand(artifactCmd)

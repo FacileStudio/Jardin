@@ -122,3 +122,27 @@ func TestEveryToolAdvertisesAnObjectInputAndOutputSchema(t *testing.T) {
 		}
 	}
 }
+
+func TestPublishArtifactWithInlineContent(t *testing.T) {
+	client := connect(t)
+	t.Setenv("DATA_DIR", t.TempDir())
+	t.Setenv("MYCELIUM_URL", "https://mycelium.facile.studio")
+	res, err := client.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "publish_artifact",
+		Arguments: map[string]any{
+			"title":   "Inline Artifact",
+			"content": "# Test\n\nInline content.",
+		},
+	})
+	if err != nil {
+		t.Fatalf("call publish_artifact: %v", err)
+	}
+	var out publishArtifactOutput
+	decode(t, res, &out)
+	if out.ID == "" {
+		t.Fatal("empty artifact ID")
+	}
+	if !strings.HasPrefix(out.URL, "https://mycelium.facile.studio/artifacts/") {
+		t.Fatalf("artifact URL: got %q, want prefix https://mycelium.facile.studio/artifacts/", out.URL)
+	}
+}

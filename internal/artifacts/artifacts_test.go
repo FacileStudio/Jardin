@@ -151,3 +151,25 @@ func TestExternalRefsNamesOnlyWhatCannotResolveFromDisk(t *testing.T) {
 		}
 	}
 }
+
+func TestAddContentRecordsRawMarkdown(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC)
+	art, err := AddContent(dir, []byte("# Dynamic Report\n\nContent."), "report.md", Request{
+		Machine: "lucy",
+	}, now)
+	if err != nil {
+		t.Fatalf("add content: %v", err)
+	}
+	if art.Title != "Dynamic Report" {
+		t.Fatalf("title: got %q, want Dynamic Report", art.Title)
+	}
+	if !strings.HasPrefix(art.ID, "2026-08-27-dynamic-report-") {
+		t.Fatalf("id prefix: got %q", art.ID)
+	}
+	u := URL("https://mycelium.facile.studio", art.ID)
+	wantURL := "https://mycelium.facile.studio/artifacts/" + art.ID
+	if u != wantURL {
+		t.Fatalf("URL: got %q, want %q", u, wantURL)
+	}
+}

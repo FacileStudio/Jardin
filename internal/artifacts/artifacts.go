@@ -44,22 +44,18 @@ type Request struct {
 	Pinned  bool
 }
 
-// Add copies and registers a new artifact in the local store.
-func Add(dataDir string, req Request, now time.Time) (Artifact, error) {
-	raw, err := os.ReadFile(req.Source)
-	if err != nil {
-		return Artifact{}, fmt.Errorf("failed to read %s: %w", req.Source, err)
-	}
+// AddContent registers a new artifact directly from byte content.
+func AddContent(dataDir string, raw []byte, filename string, req Request, now time.Time) (Artifact, error) {
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
-		title = titleFrom(raw, req.Source)
+		title = titleFrom(raw, filename)
 	}
 	id := idFor(title, req.Machine, now)
 	if id == "" {
-		return Artifact{}, fmt.Errorf("cannot derive a name from %q, pass --title", req.Source)
+		return Artifact{}, fmt.Errorf("cannot derive a name from %q, pass --title", filename)
 	}
 	ext := ".md"
-	if isHTML(req.Source, raw) {
+	if isHTML(filename, raw) {
 		ext = ".html"
 	}
 	targetDir := filepath.Join(Dir(dataDir), now.UTC().Format("2006/01"))
@@ -79,6 +75,24 @@ func Add(dataDir string, req Request, now time.Time) (Artifact, error) {
 		return Artifact{}, fmt.Errorf("failed to write %s: %w", art.Path, err)
 	}
 	return art, nil
+}
+
+// Add copies and registers a new artifact from a file path in the local store.
+func Add(dataDir string, req Request, now time.Time) (Artifact, error) {
+	raw, err := os.ReadFile(req.Source)
+	if err != nil {
+		return Artifact{}, fmt.Errorf("failed to read %s: %w", req.Source, err)
+	}
+	return AddContent(dataDir, raw, req.Source, req, now)
+}
+
+// URL returns the canonical web URL for an artifact given the server URL and artifact ID.
+func URL(serverURL, id string) string {
+	clean := strings.TrimSpace(serverURL)
+	if clean == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/artifacts/%s", strings.TrimRight(clean, "/"), id)
 }
 
 func expiryFor(req Request, now time.Time) time.Time {
