@@ -11,47 +11,18 @@ import (
 	"time"
 )
 
-// Dir is the reports directory inside a mycelium data directory.
 func Dir(dataDir string) string { return filepath.Join(dataDir, Dirname) }
 
-var (
-	metaAny  = regexp.MustCompile(`(?i)\n?<meta name="mycelium-[a-z]+" content="[^"]*">`)
-	metaPair = regexp.MustCompile(`(?i)<meta name="mycelium-([a-z]+)" content="([^"]*)">`)
-	headEnd  = regexp.MustCompile(`(?i)</head>`)
-)
-
-// stamp replaces whatever metadata the page already carries with this report's
-// own, so re-recording a page pulled back out of reports/ does not accumulate a
-// stack of stale tags.
-func stamp(raw []byte, rep Report) []byte {
-	body := metaAny.ReplaceAll(raw, nil)
-	block := metaBlock(rep)
-	if loc := headEnd.FindIndex(body); loc != nil {
-		out := append([]byte{}, body[:loc[0]]...)
-		return append(append(out, block...), body[loc[0]:]...)
+func allDirs(dataDir string) []string {
+	dirs := []string{filepath.Join(dataDir, "artifacts")}
+	repDir := filepath.Join(dataDir, "reports")
+	if _, err := os.Stat(repDir); err == nil {
+		dirs = append(dirs, repDir)
 	}
-	return append(block, body...)
+	return dirs
 }
 
-// metaBlock renders the tags. Attribute values are HTML-escaped because a title
-// is free text and a quote in it would otherwise close the attribute early.
-func metaBlock(rep Report) []byte {
-	var b strings.Builder
-	fmt.Fprintf(&b, "\n<meta name=\"mycelium-title\" content=\"%s\">", html.EscapeString(rep.Title))
-	fmt.Fprintf(&b, "\n<meta name=\"mycelium-machine\" content=\"%s\">", html.EscapeString(rep.Machine))
-	fmt.Fprintf(&b, "\n<meta name=\"mycelium-created\" content=\"%s\">", rep.Created.UTC().Format(timeFormat))
-	if !rep.Expires.IsZero() {
-		fmt.Fprintf(&b, "\n<meta name=\"mycelium-expires\" content=\"%s\">", rep.Expires.UTC().Format(timeFormat))
-	}
-	b.WriteString("\n")
-	return []byte(b.String())
-}
-
-// parse reads back what stamp wrote. An unparseable or missing tag leaves its
-// field zero rather than failing the listing: a report whose metadata somebody
-// hand-edited should still be visible enough to delete.
-func parse(path string, raw []byte) Report {
-	rep := Report{ID: strings.TrimSuffix(filepath.Base(path), ".html"), Path: path}
+func parseHTMLMeta(raw []byte, rep *Report) {
 	for _, m := range metaPair.FindAllSubmatch(raw, -1) {
 		value := html.UnescapeString(string(m[2]))
 		switch strings.ToLower(string(m[1])) {
@@ -65,48 +36,151 @@ func parse(path string, raw []byte) Report {
 			rep.Expires, _ = time.Parse(timeFormat, value)
 		}
 	}
+}
+
+func parseFrontmatter(content string, rep *Report) {
+	if !strings.HasPrefix(content, "---\n") && !strings.HasPrefix(content, "---\r\n") {
+		return
+	}
+	end := strings.Index(content[4:], "\n---")
+	if end < 0 {
+		return
+	}
+	head := content[4 : 4+end]
+	for _, line := range strings.Split(head, "\n") {
+		line = strings.TrimSpace(line)
+		colon := strings.Index(line, ":")
+		if colon < 0 {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(line[:colon]))
+		val := strings.Trim(strings.TrimSpace(line[colon+1:]), `"'`)
+		switch key {
+		case "title":
+			rep.Title = val
+		case "machine":
+			rep.Machine = val
+		case "created":
+			rep.Created, _ = time.Parse(timeFormat, val)
+		case "expires":
+			rep.Expires, _ = time.Parse(timeFormat, val)
+		}
+	}
+}
+
+func parse(path string, raw []byte) Report {
+	ext := strings.ToLower(filepath.Ext(path))
+	id := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	rep := Report{ID: id, Path: path}
+
+	if ext == ".html" || ext == ".htm" {
+		parseHTMLMeta(raw, &rep)
+	} else {
+		parseFrontmatter(string(raw), &rep)
+	}
+
 	if rep.Title == "" {
-		rep.Title = rep.ID
+		rep.Title = titleFrom(raw, path)
+	}
+	if rep.Created.IsZero() {
+		if info, err := os.Stat(path); err == nil {
+			rep.Created = info.ModTime()
+		} else {
+			rep.Created = time.Now()
+		}
 	}
 	return rep
 }
 
-// List returns every report on this machine, newest first.
 func List(dataDir string) ([]Report, error) {
-	entries, err := os.ReadDir(Dir(dataDir))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to read the reports directory: %w", err)
-	}
+	seen := map[string]bool{}
 	var out []Report
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".html") {
-			continue
-		}
-		path := filepath.Join(Dir(dataDir), e.Name())
-		raw, readErr := os.ReadFile(path)
-		if readErr != nil {
-			continue
-		}
-		out = append(out, parse(path, raw))
+
+	for _, root := range allDirs(dataDir) {
+		_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil || d == nil || d.IsDir() {
+				return nil
+			}
+			ext := strings.ToLower(filepath.Ext(d.Name()))
+			if ext != ".md" && ext != ".html" && ext != ".htm" {
+				return nil
+			}
+			id := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
+			if seen[id] {
+				return nil
+			}
+			raw, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return nil
+			}
+			seen[id] = true
+			out = append(out, parse(path, raw))
+			return nil
+		})
 	}
+
 	sort.Slice(out, func(i, j int) bool { return out[i].Created.After(out[j].Created) })
 	return out, nil
 }
 
-// Find resolves one report by its identifier.
-func Find(dataDir, id string) (Report, error) {
-	path := filepath.Join(Dir(dataDir), Slug(id)+".html")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return Report{}, fmt.Errorf("no report named %q", id)
+var hashSuffix = regexp.MustCompile(`-[a-f0-9]{6}$`)
+
+func matchesID(base, target, cleanSlug string) bool {
+	if strings.EqualFold(base, target) || strings.EqualFold(base, cleanSlug) {
+		return true
 	}
-	return parse(path, raw), nil
+	if strings.HasSuffix(base, "-"+cleanSlug) || strings.HasPrefix(base, cleanSlug+"-") {
+		return true
+	}
+	strippedDate := datePrefix.ReplaceAllString(base, "")
+	strippedAll := hashSuffix.ReplaceAllString(strippedDate, "")
+	if strings.EqualFold(strippedAll, cleanSlug) || strings.EqualFold(strippedDate, cleanSlug) {
+		return true
+	}
+	return strings.Contains(base, "-"+cleanSlug+"-") || strings.Contains(base, "-"+cleanSlug)
 }
 
-// Remove deletes one report by its identifier.
+func findInRoot(root, target, cleanSlug string) (string, []byte) {
+	var matchedPath string
+	var matchedRaw []byte
+
+	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d == nil || d.IsDir() || matchedPath != "" {
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(d.Name()))
+		if ext != ".md" && ext != ".html" && ext != ".htm" {
+			return nil
+		}
+		base := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
+		if !matchesID(base, target, cleanSlug) {
+			return nil
+		}
+		raw, readErr := os.ReadFile(path)
+		if readErr == nil {
+			matchedPath = path
+			matchedRaw = raw
+		}
+		return nil
+	})
+
+	return matchedPath, matchedRaw
+}
+
+func Find(dataDir, id string) (Report, error) {
+	target := strings.TrimSpace(id)
+	cleanSlug := Slug(target)
+
+	for _, root := range allDirs(dataDir) {
+		path, raw := findInRoot(root, target, cleanSlug)
+		if path != "" {
+			return parse(path, raw), nil
+		}
+	}
+
+	return Report{}, fmt.Errorf("no report named %q", id)
+}
+
 func Remove(dataDir, id string) error {
 	rep, err := Find(dataDir, id)
 	if err != nil {
@@ -118,8 +192,6 @@ func Remove(dataDir, id string) error {
 	return nil
 }
 
-// Sweep deletes every expired report and returns what it took, so the caller
-// can say so rather than quietly shrinking the list somebody was reading.
 func Sweep(dataDir string, now time.Time) ([]string, error) {
 	all, err := List(dataDir)
 	if err != nil {
@@ -138,26 +210,4 @@ func Sweep(dataDir string, now time.Time) ([]string, error) {
 	return swept, nil
 }
 
-var (
-	assetRef  = regexp.MustCompile(`(?i)(?:src|href)="([^"]+)"`)
-	schemeRef = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*:`)
-)
 
-// ExternalRefs returns the relative asset paths a page depends on.
-//
-// A page opened from disk cannot fetch its siblings, so every one of these is a
-// missing stylesheet or a broken image that the reader sees and the author
-// never does. Absolute URLs and data: URIs are left alone: they resolve.
-func ExternalRefs(raw []byte) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, m := range assetRef.FindAllSubmatch(raw, -1) {
-		ref := strings.TrimSpace(string(m[1]))
-		if ref == "" || seen[ref] || strings.HasPrefix(ref, "#") || schemeRef.MatchString(ref) {
-			continue
-		}
-		seen[ref] = true
-		out = append(out, ref)
-	}
-	return out
-}

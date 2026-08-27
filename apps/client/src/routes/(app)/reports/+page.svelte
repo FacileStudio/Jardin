@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Alert, Badge, Card, EmptyState, Input, Spinner, icons, toast } from '@facile/muse';
+	import { Alert, Badge, EmptyState, Input, Spinner, icons } from '@facile/muse';
 	import { backend, type ReportSummary } from '$lib/backend';
 
 	let reports: ReportSummary[] = $state([]);
@@ -12,7 +12,7 @@
 		backend
 			.reportsList()
 			.then((r) => (reports = r))
-			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load reports.'))
+			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load artifacts.'))
 			.finally(() => (loading = false));
 	});
 
@@ -55,37 +55,37 @@
 
 <div class="flex flex-col gap-8">
 	<div class="flex flex-col gap-2">
-		<h1 class="text-fc-2xl font-bold text-fc-fg">Reports</h1>
+		<h1 class="text-fc-2xl font-bold text-fc-fg">Artifacts & Reports</h1>
 		<p class="text-fc-sm text-fc-fg-muted">
-			Rendered pages and documents generated across your fleet, synced for browser viewing.
+			Rendered markdown documents, reports, and architecture blueprints generated across your fleet.
 		</p>
 	</div>
 
 	{#if loading}
 		<div class="flex items-center gap-3 text-fc-sm text-fc-fg-muted">
-			<Spinner size="sm" /> Loading reports…
+			<Spinner size="sm" /> Loading artifacts…
 		</div>
 	{:else if error}
-		<Alert tone="danger" title="Could not load reports">{error}</Alert>
+		<Alert tone="danger" title="Could not load artifacts">{error}</Alert>
 	{:else if reports.length === 0}
 		<EmptyState
 			icon={icons.card}
-			title="No reports yet"
-			description="Publish one with `mycelium report add <file>` or the `publish_report` tool."
+			title="No artifacts yet"
+			description="Publish one with `mycelium artifact add <file>` or the `publish_report` tool."
 		/>
 	{:else}
 		<div class="flex flex-col gap-4">
 			<div class="max-w-md">
 				<Input
 					type="search"
-					placeholder="Filter reports by title, machine…"
+					placeholder="Filter artifacts by title, machine…"
 					bind:value={query}
 				/>
 			</div>
 
 			{#if filtered.length === 0}
 				<p class="py-8 text-center text-fc-sm text-fc-fg-muted">
-					No reports match “{query}”.
+					No artifacts match “{query}”.
 				</p>
 			{:else}
 				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -99,12 +99,17 @@
 									<h2 class="truncate text-fc-base font-semibold text-fc-fg transition-colors group-hover:text-fc-primary">
 										{rep.title}
 									</h2>
-									<Badge tone={rep.expired ? 'danger' : rep.expires ? 'neutral' : 'success'}>
-										{formatExpiry(rep)}
-									</Badge>
+									<div class="flex items-center gap-1.5 shrink-0">
+										<Badge tone={rep.expired ? 'danger' : rep.expires ? 'neutral' : 'success'}>
+											{formatExpiry(rep)}
+										</Badge>
+										<Badge tone="neutral">
+											{rep.format === 'html' ? 'HTML' : 'MD'}
+										</Badge>
+									</div>
 								</div>
 								<p class="font-fc-mono text-fc-xs text-fc-fg-muted truncate">
-									reports/{rep.id}.html
+									artifacts/{rep.id}.{rep.format === 'html' ? 'html' : 'md'}
 								</p>
 							</div>
 
@@ -122,3 +127,4 @@
 		</div>
 	{/if}
 </div>
+

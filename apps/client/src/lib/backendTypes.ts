@@ -23,6 +23,7 @@ export interface ReportSummary {
 	id: string;
 	title: string;
 	machine: string;
+	format?: 'markdown' | 'html';
 	created: string;
 	expires?: string;
 	expired: boolean;

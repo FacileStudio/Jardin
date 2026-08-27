@@ -21,27 +21,22 @@ var (
 )
 
 var reportCmd = &cobra.Command{
-	Use:   "report",
-	Short: "Manage rendered pages that travel between your machines",
+	Use:     "artifact",
+	Aliases: []string{"artifacts", "report", "reports"},
+	Short:   "Manage rendered artifacts and reports that travel between your machines",
 }
 
 var reportAddCmd = &cobra.Command{
 	Use:   "add <file>",
-	Short: "Record a self-contained HTML page and open it",
-	Long: "Record a self-contained HTML page and open it.\n\n" +
-		"The page is copied into ~/.mycelium/reports/ and synced, so one written on a headless " +
-		"machine opens on the machine you are sitting at. It is never hosted: a file opened from " +
-		"disk gets its own opaque origin, which is what keeps a generated page away from the " +
-		"credentials the web UI holds.\n\n" +
-		"A report is derived output, not memory. Findings go in the wiki as text with " +
-		"'mycelium memory add'; a report is the picture of one, and it expires.\n\n" +
-		"The identifier comes from the document's <title>, so recording the same page twice " +
-		"replaces it rather than piling up copies:\n\n" +
-		"  mycelium report add /tmp/drift.html\n" +
-		"  mycelium report add /tmp/drift.html --expires 7d\n" +
-		"  mycelium report add /tmp/drift.html --title 'Suite drift' --expires never\n\n" +
-		"The page must carry everything it needs. A relative src or href cannot resolve from " +
-		"disk, so 'add' names any it finds rather than letting the reader discover them.",
+	Short: "Record a markdown or HTML artifact and open it",
+	Long: "Record a markdown or HTML artifact and open it.\n\n" +
+		"The document is copied into ~/.mycelium/artifacts/ and synced across machines. " +
+		"Markdown files (.md) are formatted with YAML frontmatter, and HTML files (.html) " +
+		"are preserved for standalone viewing.\n\n" +
+		"The identifier comes from the title with a date prefix to prevent collisions:\n\n" +
+		"  mycelium artifact add spec.md\n" +
+		"  mycelium artifact add audit.html --expires 7d\n" +
+		"  mycelium artifact add plan.md --title 'Migration plan' --expires never",
 	Args:         cobra.ExactArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -67,7 +62,7 @@ var reportAddCmd = &cobra.Command{
 
 var reportListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List the reports on this machine, newest first",
+	Short: "List the artifacts on this machine, newest first",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		reports.Sweep(config.DataDir(), time.Now())
 		all, err := reports.List(config.DataDir())
@@ -78,7 +73,7 @@ var reportListCmd = &cobra.Command{
 			return printJSON(all)
 		}
 		if len(all) == 0 {
-			fmt.Println("No reports")
+			fmt.Println("No artifacts")
 			return nil
 		}
 		width := reportIDWidth(all)
@@ -91,7 +86,7 @@ var reportListCmd = &cobra.Command{
 
 var reportOpenCmd = &cobra.Command{
 	Use:   "open <id>",
-	Short: "Open a report in this machine's browser",
+	Short: "Open an artifact in this machine's browser",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		rep, err := reports.Find(config.DataDir(), args[0])
@@ -108,7 +103,7 @@ var reportOpenCmd = &cobra.Command{
 
 var reportRmCmd = &cobra.Command{
 	Use:   "rm <id>",
-	Short: "Delete a report",
+	Short: "Delete an artifact",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := reports.Remove(config.DataDir(), args[0]); err != nil {
@@ -121,7 +116,7 @@ var reportRmCmd = &cobra.Command{
 
 var reportSweepCmd = &cobra.Command{
 	Use:   "sweep",
-	Short: "Delete every report whose expiry has passed",
+	Short: "Delete every artifact whose expiry has passed",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		swept, err := reports.Sweep(config.DataDir(), time.Now())
 		if err != nil {
@@ -131,14 +126,11 @@ var reportSweepCmd = &cobra.Command{
 			fmt.Println("Nothing to sweep")
 			return nil
 		}
-		ui.Success("Swept %d expired report(s): %s", len(swept), strings.Join(swept, ", "))
+		ui.Success("Swept %d expired artifact(s): %s", len(swept), strings.Join(swept, ", "))
 		return nil
 	},
 }
 
-// parseExpiry reads --expires. Days are spelled the way a human writes them,
-// which time.ParseDuration refuses to, and "never" pins the report instead of
-// dating it.
 func parseExpiry(raw string) (time.Time, bool, error) {
 	value := strings.ToLower(strings.TrimSpace(raw))
 	switch {
@@ -160,9 +152,6 @@ func parseExpiry(raw string) (time.Time, bool, error) {
 	return time.Now().Add(d), false, nil
 }
 
-// warnExternalRefs names the assets the page will not find once it is opened
-// from disk. It warns rather than refuses: a broken image is the author's call
-// to make, and a page held hostage over a favicon helps nobody.
 func warnExternalRefs(source string) {
 	raw, err := os.ReadFile(source)
 	if err != nil {
@@ -173,11 +162,9 @@ func warnExternalRefs(source string) {
 		return
 	}
 	ui.Warn("%d reference(s) will not resolve from disk: %s", len(refs), strings.Join(refs, ", "))
-	ui.Hint("inline the CSS and JS, and use data: URIs for images")
+	ui.Hint("embed images as data: URIs or ensure paths are valid")
 }
 
-// reportRecorded says what landed and where, and opens the page when there is
-// somebody in front of this machine to see it.
 func reportRecorded(rep reports.Report) {
 	ui.Success("Recorded %s", rep.ID)
 	ui.Hint("%s", rep.Path)
@@ -201,3 +188,4 @@ func init() {
 	reportCmd.AddCommand(reportAddCmd, reportListCmd, reportOpenCmd, reportRmCmd, reportSweepCmd)
 	rootCmd.AddCommand(reportCmd)
 }
+

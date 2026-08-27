@@ -17,7 +17,7 @@ func writeSource(t *testing.T, dir, name, body string) string {
 	return path
 }
 
-func TestAddRoundTripsItsMetadata(t *testing.T) {
+func TestAddRoundTripsItsMetadataHTML(t *testing.T) {
 	dir := t.TempDir()
 	src := writeSource(t, dir, "in.html", "<html><head><title>Suite drift</title></head><body>hi</body></html>")
 	now := time.Date(2026, 8, 26, 10, 0, 0, 0, time.UTC)
@@ -26,8 +26,8 @@ func TestAddRoundTripsItsMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	if rep.ID != "suite-drift" {
-		t.Fatalf("id from <title>: got %q, want suite-drift", rep.ID)
+	if !strings.HasPrefix(rep.ID, "2026-08-26-suite-drift-") {
+		t.Fatalf("id from <title>: got %q, want prefix 2026-08-26-suite-drift-", rep.ID)
 	}
 
 	back, err := Find(dir, "suite-drift")
@@ -42,21 +42,52 @@ func TestAddRoundTripsItsMetadata(t *testing.T) {
 	}
 }
 
+func TestAddRoundTripsItsMetadataMarkdown(t *testing.T) {
+	dir := t.TempDir()
+	src := writeSource(t, dir, "spec.md", "# DMS Architecture\n\nSome body text.")
+	now := time.Date(2026, 8, 27, 10, 0, 0, 0, time.UTC)
+
+	rep, err := Add(dir, Request{Source: src, Machine: "lucy"}, now)
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	if !strings.HasPrefix(rep.ID, "2026-08-27-dms-architecture-") {
+		t.Fatalf("id from markdown heading: got %q, want prefix 2026-08-27-dms-architecture-", rep.ID)
+	}
+
+	back, err := Find(dir, rep.ID)
+	if err != nil {
+		t.Fatalf("find exact: %v", err)
+	}
+	if back.Title != "DMS Architecture" || back.Machine != "lucy" {
+		t.Fatalf("metadata lost: %+v", back)
+	}
+
+	raw, err := os.ReadFile(back.Path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	if !strings.Contains(string(raw), "type: artifact") {
+		t.Fatalf("frontmatter missing type: artifact in %s", string(raw))
+	}
+}
+
 func TestReAddingReplacesInPlaceWithoutStackingTags(t *testing.T) {
 	dir := t.TempDir()
 	page := "<html><head><title>Suite drift</title></head><body>%s</body></html>"
 	now := time.Date(2026, 8, 26, 10, 0, 0, 0, time.UTC)
 
 	src := writeSource(t, dir, "a.html", strings.Replace(page, "%s", "first", 1))
-	if _, err := Add(dir, Request{Source: src, Machine: "ruche"}, now); err != nil {
+	firstRep, err := Add(dir, Request{Source: src, Machine: "ruche"}, now)
+	if err != nil {
 		t.Fatalf("first add: %v", err)
 	}
-	stamped, err := os.ReadFile(filepath.Join(Dir(dir), "suite-drift.html"))
+	stamped, err := os.ReadFile(firstRep.Path)
 	if err != nil {
 		t.Fatalf("read stamped: %v", err)
 	}
 	again := writeSource(t, dir, "b.html", string(stamped))
-	if _, err := Add(dir, Request{Source: again, Machine: "lucy"}, now); err != nil {
+	if _, err := Add(dir, Request{Source: again, Title: firstRep.ID, Machine: "lucy"}, now); err != nil {
 		t.Fatalf("second add: %v", err)
 	}
 
@@ -82,10 +113,12 @@ func TestSweepTakesExpiredAndLeavesPinned(t *testing.T) {
 	stale := writeSource(t, dir, "stale.html", "<title>Stale</title>")
 	kept := writeSource(t, dir, "kept.html", "<title>Kept</title>")
 
-	if _, err := Add(dir, Request{Source: stale, Expires: now.Add(-time.Hour)}, now); err != nil {
+	staleRep, err := Add(dir, Request{Source: stale, Expires: now.Add(-time.Hour)}, now)
+	if err != nil {
 		t.Fatalf("add stale: %v", err)
 	}
-	if _, err := Add(dir, Request{Source: kept, Pinned: true}, now); err != nil {
+	keptRep, err := Add(dir, Request{Source: kept, Pinned: true}, now)
+	if err != nil {
 		t.Fatalf("add kept: %v", err)
 	}
 
@@ -93,11 +126,11 @@ func TestSweepTakesExpiredAndLeavesPinned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
-	if len(swept) != 1 || swept[0] != "stale" {
+	if len(swept) != 1 || swept[0] != staleRep.ID {
 		t.Fatalf("swept the wrong set: %v", swept)
 	}
 	all, _ := List(dir)
-	if len(all) != 1 || all[0].ID != "kept" {
+	if len(all) != 1 || all[0].ID != keptRep.ID {
 		t.Fatalf("pinned report did not survive: %+v", all)
 	}
 }
@@ -118,3 +151,4 @@ func TestExternalRefsNamesOnlyWhatCannotResolveFromDisk(t *testing.T) {
 		}
 	}
 }
+

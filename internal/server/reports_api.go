@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/FacileStudio/Mycelium/internal/reports"
@@ -11,25 +13,33 @@ import (
 	"github.com/FacileStudio/tronc/httpjson"
 )
 
-// ReportSummary represents report metadata returned in listings.
 type ReportSummary struct {
 	ID      string    `json:"id"`
 	Title   string    `json:"title"`
 	Machine string    `json:"machine"`
+	Format  string    `json:"format"`
 	Created time.Time `json:"created"`
 	Expires time.Time `json:"expires,omitempty"`
 	Expired bool      `json:"expired"`
 }
 
-// ReportDetail represents full report details including content.
 type ReportDetail struct {
 	ID      string    `json:"id"`
 	Title   string    `json:"title"`
 	Machine string    `json:"machine"`
+	Format  string    `json:"format"`
 	Created time.Time `json:"created"`
 	Expires time.Time `json:"expires,omitempty"`
 	Expired bool      `json:"expired"`
 	Content string    `json:"content"`
+}
+
+func reportFormat(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext == ".html" || ext == ".htm" {
+		return "html"
+	}
+	return "markdown"
 }
 
 func (s *Server) reportsList(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +60,7 @@ func (s *Server) reportsList(w http.ResponseWriter, r *http.Request) {
 			ID:      rep.ID,
 			Title:   rep.Title,
 			Machine: rep.Machine,
+			Format:  reportFormat(rep.Path),
 			Created: rep.Created,
 			Expires: rep.Expires,
 			Expired: rep.Expired(now),
@@ -86,6 +97,7 @@ func (s *Server) reportGet(w http.ResponseWriter, r *http.Request) {
 		ID:      rep.ID,
 		Title:   rep.Title,
 		Machine: rep.Machine,
+		Format:  reportFormat(rep.Path),
 		Created: rep.Created,
 		Expires: rep.Expires,
 		Expired: rep.Expired(now),
@@ -109,3 +121,4 @@ func (s *Server) reportDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+

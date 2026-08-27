@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { Alert, Badge, Button, Card, ConfirmModal, Spinner, icons, toast } from '@facile/muse';
 	import { backend, type ReportDetail } from '$lib/backend';
+	import MarkdownMuse from '$lib/components/MarkdownMuse.svelte';
 
 	const id = $derived(page.params.id ?? '');
 	let detail: ReportDetail | null = $state(null);
@@ -19,7 +20,7 @@
 		backend
 			.reportGet(reportId)
 			.then((d) => (detail = d))
-			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load report.'))
+			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load artifact.'))
 			.finally(() => (loading = false));
 	});
 
@@ -28,10 +29,10 @@
 		deleting = true;
 		try {
 			await backend.reportDelete(detail.id);
-			toast.success(`Deleted report “${detail.title}”.`);
+			toast.success(`Deleted artifact “${detail.title}”.`);
 			goto('/reports');
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Could not delete report.', {
+			toast.danger(e instanceof Error ? e.message : 'Could not delete artifact.', {
 				title: 'Delete failed'
 			});
 		} finally {
@@ -62,7 +63,7 @@
 			class="inline-flex w-fit items-center gap-1 text-fc-sm text-fc-fg-muted transition-colors hover:text-fc-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
 		>
 			<iconify-icon icon={icons.chevronLeft} width="16" height="16" class="block"></iconify-icon>
-			Reports
+			Artifacts
 		</a>
 
 		{#if detail}
@@ -73,9 +74,12 @@
 						<Badge tone={detail.expired ? 'danger' : detail.expires ? 'neutral' : 'success'}>
 							{detail.expires ? (detail.expired ? 'Expired' : 'Expires ' + new Date(detail.expires).toLocaleDateString()) : 'Pinned'}
 						</Badge>
+						<Badge tone="neutral">
+							{detail.format === 'html' ? 'HTML' : 'Markdown'}
+						</Badge>
 					</div>
 					<p class="flex items-center gap-3 font-fc-mono text-fc-xs text-fc-fg-muted">
-						<span>reports/{detail.id}.html</span>
+						<span>artifacts/{detail.id}.{detail.format === 'html' ? 'html' : 'md'}</span>
 						<span>•</span>
 						<span class="inline-flex items-center gap-1">
 							<iconify-icon icon={icons.server} width="12" height="12"></iconify-icon>
@@ -119,20 +123,26 @@
 
 	{#if loading}
 		<div class="flex items-center gap-3 text-fc-sm text-fc-fg-muted">
-			<Spinner size="sm" /> Loading report…
+			<Spinner size="sm" /> Loading artifact…
 		</div>
 	{:else if error}
-		<Alert tone="danger" title="Could not load report">{error}</Alert>
+		<Alert tone="danger" title="Could not load artifact">{error}</Alert>
 	{:else if detail}
 		{#if viewMode === 'preview'}
-			<Card class="overflow-hidden p-0">
-				<iframe
-					title={detail.title}
-					srcdoc={detail.content}
-					sandbox="allow-same-origin allow-scripts allow-popups"
-					class="h-[75dvh] w-full border-0 bg-fc-bg"
-				></iframe>
-			</Card>
+			{#if detail.format === 'html'}
+				<Card class="overflow-hidden p-0">
+					<iframe
+						title={detail.title}
+						srcdoc={detail.content}
+						sandbox="allow-same-origin allow-scripts allow-popups"
+						class="h-[75dvh] w-full border-0 bg-fc-bg"
+					></iframe>
+				</Card>
+			{:else}
+				<Card class="p-6 md:p-8">
+					<MarkdownMuse content={detail.content} />
+				</Card>
+			{/if}
 		{:else}
 			<Card class="overflow-hidden">
 				<pre class="max-h-[75dvh] overflow-auto whitespace-pre-wrap font-fc-mono text-fc-sm leading-relaxed text-fc-fg">{detail.content}</pre>
@@ -146,9 +156,10 @@
 		bind:open={confirmOpen}
 		tone="danger"
 		title="Delete “{detail.title}”?"
-		description="The report will be permanently deleted from this machine and from sync."
+		description="The artifact will be permanently deleted from this machine and from sync."
 		confirmLabel="Delete"
 		cancelLabel="Keep it"
 		onConfirm={remove}
 	/>
 {/if}
+
