@@ -13,6 +13,8 @@ import type {
 	MemoryIndexState,
 	MemorySearchResponse,
 	ModelInfo,
+	ReportDetail,
+	ReportSummary,
 	SessionBlock,
 	SessionStats,
 	SessionTimeline,
@@ -60,6 +62,10 @@ export const backend = {
 
 	modelsList: () => request<ModelInfo[]>('GET', `/models${spaceQuery()}`),
 	modelGet: (path: string) => request<string>('GET', `/models/${path}${spaceQuery()}`),
+
+	reportsList: () => request<ReportSummary[]>('GET', `/reports${spaceQuery()}`),
+	reportGet: (id: string) => request<ReportDetail>('GET', `/reports/${id}${spaceQuery()}`),
+	reportDelete: (id: string) => request<void>('DELETE', `/reports/${id}${spaceQuery()}`),
 
 	sessionsStats: (since: string, by: string) =>
 		request<SessionStats>('GET', `/sessions/stats?since=${since}&by=${by}${spaceQuery('&')}`),

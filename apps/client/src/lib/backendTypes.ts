@@ -19,6 +19,19 @@ export interface FileEntry {
 	mod_time: string;
 }
 
+export interface ReportSummary {
+	id: string;
+	title: string;
+	machine: string;
+	created: string;
+	expires?: string;
+	expired: boolean;
+}
+
+export interface ReportDetail extends ReportSummary {
+	content: string;
+}
+
 /*
  * `chunks_per_second` and `eta_seconds` are the server's own measurement of the run, never
  * timed by the client from two samples. `enabled: false` is the normal state of a wiki with

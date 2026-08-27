@@ -1,0 +1,154 @@
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { Alert, Badge, Button, Card, ConfirmModal, Spinner, icons, toast } from '@facile/muse';
+	import { backend, type ReportDetail } from '$lib/backend';
+
+	const id = $derived(page.params.id ?? '');
+	let detail: ReportDetail | null = $state(null);
+	let loading = $state(true);
+	let error = $state('');
+	let confirmOpen = $state(false);
+	let deleting = $state(false);
+	let viewMode: 'preview' | 'source' = $state('preview');
+
+	$effect(() => {
+		const reportId = id;
+		if (!reportId) return;
+		loading = true;
+		backend
+			.reportGet(reportId)
+			.then((d) => (detail = d))
+			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load report.'))
+			.finally(() => (loading = false));
+	});
+
+	async function remove() {
+		if (!detail) return;
+		deleting = true;
+		try {
+			await backend.reportDelete(detail.id);
+			toast.success(`Deleted report “${detail.title}”.`);
+			goto('/reports');
+		} catch (e) {
+			toast.danger(e instanceof Error ? e.message : 'Could not delete report.', {
+				title: 'Delete failed'
+			});
+		} finally {
+			deleting = false;
+		}
+	}
+
+	function formatDate(iso: string): string {
+		try {
+			const d = new Date(iso);
+			return d.toLocaleString(undefined, {
+				year: 'numeric',
+				month: 'short',
+				day: 'numeric',
+				hour: '2-digit',
+				minute: '2-digit'
+			});
+		} catch {
+			return iso;
+		}
+	}
+</script>
+
+<div class="flex flex-col gap-6">
+	<div class="flex flex-col gap-3">
+		<a
+			href="/reports"
+			class="inline-flex w-fit items-center gap-1 text-fc-sm text-fc-fg-muted transition-colors hover:text-fc-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
+		>
+			<iconify-icon icon={icons.chevronLeft} width="16" height="16" class="block"></iconify-icon>
+			Reports
+		</a>
+
+		{#if detail}
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div class="flex min-w-0 flex-col gap-1">
+					<div class="flex flex-wrap items-center gap-2">
+						<h1 class="truncate text-fc-2xl font-bold text-fc-fg">{detail.title}</h1>
+						<Badge tone={detail.expired ? 'danger' : detail.expires ? 'neutral' : 'success'}>
+							{detail.expires ? (detail.expired ? 'Expired' : 'Expires ' + new Date(detail.expires).toLocaleDateString()) : 'Pinned'}
+						</Badge>
+					</div>
+					<p class="flex items-center gap-3 font-fc-mono text-fc-xs text-fc-fg-muted">
+						<span>reports/{detail.id}.html</span>
+						<span>•</span>
+						<span class="inline-flex items-center gap-1">
+							<iconify-icon icon={icons.server} width="12" height="12"></iconify-icon>
+							{detail.machine}
+						</span>
+						<span>•</span>
+						<span>{formatDate(detail.created)}</span>
+					</p>
+				</div>
+
+				<div class="flex shrink-0 items-center gap-2">
+					<div class="flex rounded-fc-md border border-fc-border bg-fc-surface p-0.5">
+						<button
+							type="button"
+							class="rounded px-2.5 py-1 text-fc-xs font-medium transition-colors {viewMode === 'preview' ? 'bg-fc-primary text-fc-primary-fg' : 'text-fc-fg-muted hover:text-fc-fg'}"
+							onclick={() => (viewMode = 'preview')}
+						>
+							Preview
+						</button>
+						<button
+							type="button"
+							class="rounded px-2.5 py-1 text-fc-xs font-medium transition-colors {viewMode === 'source' ? 'bg-fc-primary text-fc-primary-fg' : 'text-fc-fg-muted hover:text-fc-fg'}"
+							onclick={() => (viewMode = 'source')}
+						>
+							Source
+						</button>
+					</div>
+
+					<Button
+						variant="ghost-danger"
+						icon={icons.remove}
+						onclick={() => (confirmOpen = true)}
+						disabled={deleting}
+					>
+						Delete
+					</Button>
+				</div>
+			</div>
+		{/if}
+	</div>
+
+	{#if loading}
+		<div class="flex items-center gap-3 text-fc-sm text-fc-fg-muted">
+			<Spinner size="sm" /> Loading report…
+		</div>
+	{:else if error}
+		<Alert tone="danger" title="Could not load report">{error}</Alert>
+	{:else if detail}
+		{#if viewMode === 'preview'}
+			<Card class="overflow-hidden p-0">
+				<iframe
+					title={detail.title}
+					srcdoc={detail.content}
+					sandbox="allow-same-origin allow-scripts allow-popups"
+					class="h-[75dvh] w-full border-0 bg-fc-bg"
+				></iframe>
+			</Card>
+		{:else}
+			<Card class="overflow-hidden">
+				<pre class="max-h-[75dvh] overflow-auto whitespace-pre-wrap font-fc-mono text-fc-sm leading-relaxed text-fc-fg">{detail.content}</pre>
+			</Card>
+		{/if}
+	{/if}
+</div>
+
+{#if detail}
+	<ConfirmModal
+		bind:open={confirmOpen}
+		tone="danger"
+		title="Delete “{detail.title}”?"
+		description="The report will be permanently deleted from this machine and from sync."
+		confirmLabel="Delete"
+		cancelLabel="Keep it"
+		onConfirm={remove}
+	/>
+{/if}

@@ -10,6 +10,12 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-08-27
+
+### Added
+
+- **Web dashboard reports viewer and API endpoints.** Added `/api/reports` and `/api/reports/{id}` in the Go server, plus a full Reports view (`/reports` and `/reports/[id]`) in the SvelteKit dashboard with `@facile/muse` components, preview/source toggle, and deletion support.
+
 ## [0.29.0] — 2026-08-27
 
 ### Added

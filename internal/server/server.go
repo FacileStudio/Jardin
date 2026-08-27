@@ -164,6 +164,10 @@ func (s *Server) mountContentRoutes(r chi.Router) {
 
 	r.Get("/models", s.auth(false, s.modelsList))
 	r.Get("/models/*", s.auth(false, s.modelGet))
+
+	r.Get("/reports", s.auth(false, s.reportsList))
+	r.Get("/reports/{id}", s.auth(false, s.reportGet))
+	r.Delete("/reports/{id}", s.auth(false, s.reportDelete))
 }
 
 func (s *Server) mountAccountRoutes(r chi.Router) {

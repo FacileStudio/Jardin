@@ -20,6 +20,7 @@ var claimProjectParam = Field{Name: "project", Type: "string", Description: "Pro
 var claimMachineParam = Field{Name: "machine", Type: "string", Description: "Machine that holds the claim."}
 var claimAgentParam = Field{Name: "agent", Type: "string", Description: "Agent that holds the claim."}
 var spaceParam = Field{Name: "id", Type: "string", Description: "Space ID."}
+var reportIdParam = Field{Name: "id", Type: "string", Description: "Report identifier."}
 var memberParam = Field{Name: "email", Type: "string", Description: "Member's email address."}
 
 // Registry is every route the server mounts under /api. A test walks the live
@@ -133,6 +134,15 @@ var Registry = Response{Modules: []Module{
 		Description: "Typed step extensions under extensions/models. The server has no bun and no shell, so a model is served as raw source, never executed. Reading one is a wildcard route (GET /models/{path}, where path may contain slashes) and is not listed here for the same reason /sync/files/* is not.",
 		Routes: []Route{
 			{Method: "GET", Path: "/models", Summary: "List models", Auth: "bearer", ResponseBody: "[]ModelInfo", Errors: anyToken},
+		},
+	},
+	{
+		Name:        "reports",
+		Description: "Rendered HTML and markdown reports synced across machines.",
+		Routes: []Route{
+			{Method: "GET", Path: "/reports", Summary: "List reports", Auth: "bearer", ResponseBody: "[]ReportSummary", Errors: anyToken},
+			{Method: "GET", Path: "/reports/{id}", Summary: "Read one report", Auth: "bearer", PathParams: []Field{reportIdParam}, ResponseBody: "ReportDetail", Errors: append(anyToken, notFound)},
+			{Method: "DELETE", Path: "/reports/{id}", Summary: "Delete a report", Auth: "bearer", PathParams: []Field{reportIdParam}, Errors: append(anyToken, notFound)},
 		},
 	},
 	{
