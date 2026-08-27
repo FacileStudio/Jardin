@@ -21,6 +21,13 @@ func installDaemonMarker(t *testing.T, home string) {
 	if err := os.WriteFile(filepath.Join(dir, "mycelium-sync.timer"), []byte("[Timer]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	plistDir := filepath.Join(home, "Library", "LaunchAgents")
+	if err := os.MkdirAll(plistDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plistDir, daemon.Label+".plist"), []byte("<plist/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // writeSyncBase plants a completed sync at the given age.

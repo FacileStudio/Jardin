@@ -50,7 +50,7 @@ memory/          the brain — durable, non-obvious knowledge
   overview.md    always-read summary
   index.md       one-line-per-page router
   log.md         append-only history
-  bugs/ tools/ projects/ conventions/ syntheses/
+  bugs/ tools/ projects/ conventions/ standards/ syntheses/ people/
 rules/           ordered policy files
 skills/          reusable agent skills
 machines/        per-machine context blocks

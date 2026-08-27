@@ -13,7 +13,8 @@ import (
 func Init() error {
 	dirs := []string{
 		"memory", "memory/bugs", "memory/tools", "memory/projects",
-		"memory/conventions", "memory/syntheses",
+		"memory/conventions", "memory/standards", "memory/syntheses",
+		"memory/people",
 		"rules", "skills", "machines", "sessions",
 		"events",
 	}

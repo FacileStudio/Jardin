@@ -156,17 +156,21 @@ func findBlock(lines []string, line int) (int, int, bool) {
 }
 
 // classifyDir picks the top-level wiki dir for a new page from the text's own
-// vocabulary: failures go to bugs/, tooling vocabulary to tools/, everything
-// else to projects/.
+// vocabulary: failures go to bugs/, tooling vocabulary to tools/, people words
+// to people/, everything else to projects/.
 func classifyDir(text string) string {
 	lowered := strings.ToLower(text)
 	failureWords := []string{"error", "fail", "bug", "crash", "panic", "refused", "the fix was", "gotcha"}
 	toolWords := []string{"cli", "command", "flag", ".go", ".ts", ".sh", "tool", "script", "binary"}
+	personWords := []string{"collaborator", "stakeholder", "contractor", "team member"}
 	if containsAny(lowered, failureWords) {
 		return "bugs"
 	}
 	if containsAny(lowered, toolWords) {
 		return "tools"
+	}
+	if containsAny(lowered, personWords) {
+		return "people"
 	}
 	return "projects"
 }

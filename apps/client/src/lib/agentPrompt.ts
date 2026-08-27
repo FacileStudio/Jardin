@@ -26,7 +26,7 @@ rest of the loop: memory is local-first. Keep reading, searching, and writing
 - \`mycelium memory search "<query>"\` — substring search over all memory; returns \`path:line\`.
 - \`mycelium memory index\` — print \`index.md\`, the router / table of contents.
 - Memory is plain markdown under \`~/.mycelium/memory/\`: topic dirs \`bugs/\`, \`tools/\`,
-  \`projects/\`, \`conventions/\`, \`syntheses/\`, plus \`overview.md\` (always-read summary),
+  \`projects/\`, \`conventions/\`, \`standards/\`, \`syntheses/\`, \`people/\`, plus \`overview.md\` (always-read summary),
   \`index.md\` (router), and \`log.md\` (append-only history). Read \`overview → index → the
   1-3 most relevant pages\`, never the whole tree.
 

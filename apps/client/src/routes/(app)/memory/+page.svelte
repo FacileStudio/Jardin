@@ -6,7 +6,7 @@
 	import MemorySearch from '$lib/components/MemorySearch.svelte';
 	import MemoryStats from '$lib/components/MemoryStats.svelte';
 
-	const FOLDERS = ['bugs', 'tools', 'projects', 'conventions', 'syntheses'];
+	const FOLDERS = ['bugs', 'tools', 'projects', 'conventions', 'standards', 'syntheses', 'people'];
 
 	let files: FileEntry[] = $state([]);
 

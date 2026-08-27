@@ -178,6 +178,7 @@ func TestClassifyDir(t *testing.T) {
 	tests := []struct{ name, in, want string }{
 		{name: "failure words go to bugs", in: "connection refused until the retry loop was fixed", want: "bugs"},
 		{name: "tool vocabulary goes to tools", in: "the CLI flag --all also cleans scripts", want: "tools"},
+		{name: "person words go to people", in: "Alex is an external collaborator on GFConseil", want: "people"},
 		{name: "everything else is projects", in: "the daemon seals session blocks hourly", want: "projects"},
 	}
 	for _, tt := range tests {

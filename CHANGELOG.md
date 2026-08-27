@@ -10,6 +10,10 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+### Added
+
+- **`people/` memory directory and person classification.** `mycelium init` scaffolds `memory/people/` alongside `standards/`, `classifyDir` routes person-related findings to `people/`, and the web dashboard displays `people` and `standards` folders.
+
 ## [0.28.0] — 2026-08-26
 
 ### Added

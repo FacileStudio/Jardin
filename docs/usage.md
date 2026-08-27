@@ -7,8 +7,8 @@ is both the CLI you run on each machine and the server you self-host.
 
 ### `mycelium init`
 
-Scaffolds `~/.mycelium` — `memory/` with its `bugs/`, `tools/`, `projects/`, `conventions/`
-and `syntheses/` subdirectories, plus `rules/`, `skills/`, `machines/` and `sessions/` — and
+Scaffolds `~/.mycelium` — `memory/` with its `bugs/`, `tools/`, `projects/`, `conventions/`,
+`standards/`, `syntheses/` and `people/` subdirectories, plus `rules/`, `skills/`, `machines/` and `sessions/` — and
 seeds `overview.md`, `index.md` and `log.md` when they do not exist. Safe to re-run.
 
 ```sh
