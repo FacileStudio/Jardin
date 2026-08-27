@@ -10,36 +10,21 @@
 		Topbar,
 		icons
 	} from '@facile/muse';
-	import { backend, TOKEN_KEY, type AuthUser, type MyceliumStatus } from '$lib/backend';
+	import { backend, TOKEN_KEY, type AuthUser, type MyceliumStatus, type Space } from '$lib/backend';
 	import { getActiveSpaceId, getSpaces, setActiveSpaceId, setSpaces } from '$lib/space.svelte';
 	import { setContext } from 'svelte';
 
 	let { children } = $props();
 	let status: MyceliumStatus | null = $state(null);
 	let me: AuthUser | null = $state(null);
+	let ready = $state(false);
 	let collapsed = $state(false);
 	let scroller: HTMLElement | null = $state(null);
 
 	const MOBILE_HIDDEN = ['/machines', '/spaces'];
 
-	/*
-	 * The unscoped tree is the *common* tree — that is what the API and its tests call it
-	 * (`internal/server/server.go`, `scopeRoot`), and it is the instance owner's own data
-	 * rather than a shared bucket. The switcher defaults to "Personal", which named the wrong
-	 * thing; until muse v0.3.1 the label was unreachable through SideBar at all.
-	 */
 	const COMMON_TREE_LABEL = 'Common';
 
-	/*
-	 * No Settings row: settings is reached from the user card at the bottom of the rail and
-	 * from the avatar in MobileNav. See CHARTE §14.
-	 */
-	/*
-	 * Two rail entries each cover a pair that is really one feature: rules and skills are
-	 * both installed into every agent config, and a model only exists to be a flow's
-	 * `type:` step. Each pair is one destination with two tabs — see the (instructions)
-	 * and (automation) layouts — rather than two rows competing for the mobile budget.
-	 */
 	const links = [
 		{ label: 'Memory', href: '/memory', icon: icons.folder },
 		{
@@ -61,29 +46,60 @@
 			goto('/login');
 			return;
 		}
-		backend
-			.status()
-			.then((s) => (status = s))
-			.catch(() => {
-				if (getActiveSpaceId() !== null) {
-					setActiveSpaceId(null);
-					window.location.reload();
-					return;
-				}
+
+		(async () => {
+			try {
+				me = await backend.authMe();
+			} catch {
 				goto('/login');
-			});
-		backend
-			.authMe()
-			.then((u) => (me = u))
-			.catch(() => (me = null));
-		backend
-			.spacesList()
-			.then((s) => setSpaces(s))
-			.catch(() => setSpaces([]));
+				return;
+			}
+
+			let spaces: Space[] = [];
+			try {
+				spaces = await backend.spacesList();
+				setSpaces(spaces);
+			} catch {
+				setSpaces([]);
+			}
+
+			if (!me.admin) {
+				const currentSpace = getActiveSpaceId();
+				if (!currentSpace || !spaces.some((s) => s.id === currentSpace)) {
+					if (spaces.length > 0) {
+						setActiveSpaceId(spaces[0].id);
+					} else {
+						setActiveSpaceId(null);
+						if (
+							!page.url.pathname.startsWith('/spaces') &&
+							!page.url.pathname.startsWith('/settings')
+						) {
+							goto('/spaces');
+						}
+					}
+				}
+			} else {
+				const currentSpace = getActiveSpaceId();
+				if (currentSpace && !spaces.some((s) => s.id === currentSpace)) {
+					setActiveSpaceId(null);
+				}
+			}
+
+			if (me.admin || getActiveSpaceId() !== null) {
+				try {
+					status = await backend.status();
+				} catch {
+					if (getActiveSpaceId() !== null) {
+						setActiveSpaceId(null);
+					}
+					status = null;
+				}
+			}
+
+			ready = true;
+		})();
 	});
 
-	/* <main> is the scroll container and sits outside PageTransition, so its scrollTop
-	   survives a route change unless someone puts it back. */
 	$effect(() => {
 		if (page.url.pathname) scroller?.scrollTo({ top: 0 });
 	});
@@ -96,39 +112,23 @@
 	);
 	const onSettings = $derived(page.url.pathname.startsWith('/settings'));
 
-	/*
-	 * Every settings section collapses to one key: the sections have their own PageTransition
-	 * inside the settings layout, and keying this one on the full path made both replay on
-	 * every tab change — the page fading in behind the section fading in.
-	 */
 	const routeKey = $derived(onSettings ? '/settings' : page.url.pathname);
-	/* $derived.by, not $derived: `me` is annotated `AuthUser | null` but initialised to null,
-	   so an expression evaluated at declaration position is control-flow-narrowed to null.
-	   A closure body reads the declared type instead. */
 	const user = $derived.by(() => ({ name: me?.name || me?.email || 'admin' }));
 	const switcherSpaces = $derived(getSpaces().map((s) => ({ id: s.id, name: s.name })));
 
-	/*
-	 * MobileNav is a fixed-width pill: six icons plus the avatar need 412px and the floor is
-	 * 360px. The two merges above keep the rail at four daily destinations plus the avatar,
-	 * which fits with room to spare. Spaces stays reachable through the switcher's "Manage
-	 * spaces" footer in the Topbar, and Machines from the Sessions page — those two are a
-	 * URL away on mobile, not a tap.
-	 */
 	const mobilePages = $derived(navPages.filter((p) => !MOBILE_HIDDEN.includes(p.href)));
 
 	function pickSpace(id: string | null) {
 		if (id === getActiveSpaceId()) return;
+		if (id === null && me && !me.admin) return;
 		setActiveSpaceId(id);
-		/* Every request is scoped by space_id, so the whole view is stale the moment it
-		   changes — a reload is cheaper and safer than re-fetching each page by hand. */
 		window.location.reload();
 	}
 
 	setContext('status', () => status);
 </script>
 
-{#if status}
+{#if ready}
 	<div class="flex h-dvh w-full overflow-hidden bg-fc-page">
 		<div class="hidden h-full shrink-0 p-3 md:block">
 			<SideBar
@@ -140,7 +140,7 @@
 				activeSpaceId={getActiveSpaceId()}
 				onSpaceSelect={pickSpace}
 				manageSpacesHref="/spaces"
-				personalSpaceLabel={COMMON_TREE_LABEL}
+				personalSpaceLabel={me?.admin ? COMMON_TREE_LABEL : undefined}
 				{user}
 				userHref="/settings"
 				userActive={onSettings}
@@ -148,14 +148,10 @@
 			/>
 		</div>
 
-		<!-- `min-w-0` so a wide table inside scrolls itself instead of pushing the shell
-		     sideways, and `overscroll-contain` because <main> is the only scroller. -->
 		<main
 			bind:this={scroller}
 			class="min-w-0 flex-1 overflow-auto overscroll-contain pb-28 md:pb-0"
 		>
-			<!-- Spaces live in the rail, and the rail is desktop-only — without this header
-			     there is no way to switch space on a phone at all. -->
 			<Topbar class="md:hidden">
 				<span class="text-fc-md font-semibold text-fc-fg">Mycelium</span>
 				{#if switcherSpaces.length > 0}
@@ -165,7 +161,7 @@
 							activeId={getActiveSpaceId()}
 							onSelect={pickSpace}
 							manageHref="/spaces"
-							personalLabel={COMMON_TREE_LABEL}
+							personalLabel={me?.admin ? COMMON_TREE_LABEL : (switcherSpaces[0]?.name ?? 'Space')}
 						/>
 					</div>
 				{/if}

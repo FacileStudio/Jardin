@@ -42,10 +42,10 @@ export const backend = {
 	memoryIndex: () => request<string>('GET', `/memory/index${spaceQuery()}`),
 	memoryIndexStatus: () => request<MemoryIndexState>('GET', `/memory/index/status${spaceQuery()}`),
 
-	syncTree: () => request<FileEntry[]>('GET', '/sync/tree'),
-	syncFile: (path: string) => request<string>('GET', `/sync/files/${path}`),
-	syncFilePut: (path: string, content: string) => request<void>('PUT', `/sync/files/${path}`, content),
-	syncFileDelete: (path: string) => request<void>('DELETE', `/sync/files/${path}`),
+	syncTree: () => request<FileEntry[]>('GET', `/sync/tree${spaceQuery()}`),
+	syncFile: (path: string) => request<string>('GET', `/sync/files/${path}${spaceQuery()}`),
+	syncFilePut: (path: string, content: string) => request<void>('PUT', `/sync/files/${path}${spaceQuery()}`, content),
+	syncFileDelete: (path: string) => request<void>('DELETE', `/sync/files/${path}${spaceQuery()}`),
 
 	rulesList: () => request<string[]>('GET', `/rules${spaceQuery()}`),
 	ruleGet: (name: string) => request<string>('GET', `/rules/${name}${spaceQuery()}`),
