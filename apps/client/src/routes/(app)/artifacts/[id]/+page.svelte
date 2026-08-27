@@ -130,23 +130,23 @@
 	{:else if detail}
 		{#if viewMode === 'preview'}
 			{#if detail.format === 'html'}
-				<Card class="overflow-hidden p-0">
+				<div class="overflow-hidden rounded-fc-lg border border-fc-border bg-fc-bg">
 					<iframe
 						title={detail.title}
 						srcdoc={detail.content}
 						sandbox="allow-same-origin allow-scripts allow-popups"
 						class="h-[75dvh] w-full border-0 bg-fc-bg"
 					></iframe>
-				</Card>
+				</div>
 			{:else}
-				<Card class="p-6 md:p-8">
+				<div class="py-2">
 					<MarkdownMuse content={detail.content} />
-				</Card>
+				</div>
 			{/if}
 		{:else}
-			<Card class="overflow-hidden">
-				<pre class="max-h-[75dvh] overflow-auto whitespace-pre-wrap font-fc-mono text-fc-sm leading-relaxed text-fc-fg">{detail.content}</pre>
-			</Card>
+			<div class="overflow-hidden rounded-fc-lg border border-fc-border bg-fc-surface">
+				<pre class="max-h-[75dvh] overflow-auto p-4 whitespace-pre-wrap font-fc-mono text-fc-sm leading-relaxed text-fc-fg">{detail.content}</pre>
+			</div>
 		{/if}
 	{/if}
 </div>
