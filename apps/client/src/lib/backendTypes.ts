@@ -220,6 +220,11 @@ export interface AuthConfig {
 	password_auth: boolean;
 	sso_only: boolean;
 	oidc_enabled: boolean;
+	device_enabled?: boolean;
+	journal?: {
+		url: string;
+		key: string;
+	};
 }
 
 export interface AuthUser {

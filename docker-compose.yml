@@ -30,6 +30,8 @@ services:
       # Mycelium is not on journal's docker network, so use https://journal.facile.studio/api)
       JOURNAL_URL: ${JOURNAL_URL:-}
       JOURNAL_TOKEN: ${JOURNAL_TOKEN:-}
+      JOURNAL_BROWSER_URL: ${JOURNAL_BROWSER_URL:-}
+      JOURNAL_BROWSER_KEY: ${JOURNAL_BROWSER_KEY:-}
       # Semantic memory search, wired to the shared sidecars by default so a
       # standard deploy needs no panel configuration at all.
       #

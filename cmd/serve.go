@@ -97,6 +97,8 @@ var serveCmd = &cobra.Command{
 		srv.SSOOnly = cfg.SSOOnly
 		srv.OIDC = cfg.OIDC
 		srv.CORSAllowedOrigins = cfg.CORSAllowedOrigins
+		srv.JournalBrowserURL = cfg.JournalBrowserURL
+		srv.JournalBrowserKey = cfg.JournalBrowserKey
 		srv.Log = appLogger
 
 		if err := attachSemantic(srv, cfg); err != nil {

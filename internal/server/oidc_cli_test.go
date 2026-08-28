@@ -234,14 +234,43 @@ func TestDiscoveryAdvertisesBothFlows(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	var config map[string]bool
+	var config map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := config["oidc_enabled"]; !ok {
 		t.Fatal("discovery does not say whether OIDC is enabled")
 	}
-	if !config["device_enabled"] {
+	if v, ok := config["device_enabled"].(bool); !ok || !v {
 		t.Fatal("discovery does not advertise the device flow")
+	}
+}
+
+func TestAuthConfigIncludesJournal(t *testing.T) {
+	srv := New(t.TempDir(), "secret")
+	srv.JournalBrowserURL = "https://journal.facile.studio/api"
+	srv.JournalBrowserKey = "journal_mycelium_public"
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	resp, err := http.Get(ts.URL + "/api/auth/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var config struct {
+		Journal *struct {
+			URL string `json:"url"`
+			Key string `json:"key"`
+		} `json:"journal"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
+		t.Fatal(err)
+	}
+	if config.Journal == nil {
+		t.Fatal("expected journal in auth config")
+	}
+	if config.Journal.URL != "https://journal.facile.studio/api" || config.Journal.Key != "journal_mycelium_public" {
+		t.Fatalf("unexpected journal config: %+v", config.Journal)
 	}
 }

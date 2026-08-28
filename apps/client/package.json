@@ -21,6 +21,7 @@
 		"vite": "^7.0.0"
 	},
 	"dependencies": {
+		"@facile/journal": "github:FacileStudio/Journal#ts",
 		"@facile/muse": "github:FacileStudio/muse#v0.5.0",
 		"iconify-icon": "^3.0.2",
 		"marked": "^18.0.11",

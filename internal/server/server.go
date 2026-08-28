@@ -38,6 +38,8 @@ type Server struct {
 	SSOOnly            bool
 	OIDC               *env.OIDC
 	CORSAllowedOrigins []string
+	JournalBrowserURL  string
+	JournalBrowserKey  string
 	Log                *slog.Logger
 	mu                 sync.RWMutex
 	tokens             map[string]TokenInfo

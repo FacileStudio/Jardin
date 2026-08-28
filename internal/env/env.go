@@ -5,6 +5,7 @@ package env
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/FacileStudio/Mycelium/internal/config"
 	troncenv "github.com/FacileStudio/tronc/env"
@@ -53,11 +54,13 @@ type OIDC struct {
 type Config struct {
 	troncenv.Core
 
-	DataDir   string
-	Password  string
-	SSOOnly   bool
-	OIDC      *OIDC
-	Embedding *Embedding
+	DataDir           string
+	Password          string
+	SSOOnly           bool
+	OIDC              *OIDC
+	Embedding         *Embedding
+	JournalBrowserURL string
+	JournalBrowserKey string
 }
 
 // Load reads and validates the configuration. Every error it returns is a
@@ -97,9 +100,11 @@ func Load() (Config, error) {
 			JournalURL:         troncenv.String("JOURNAL_URL", ""),
 			JournalToken:       troncenv.String("JOURNAL_TOKEN", ""),
 		},
-		DataDir:  config.DataDir(),
-		Password: troncenv.String("PASSWORD", ""),
-		SSOOnly:  ssoOnly,
+		DataDir:           config.DataDir(),
+		Password:          troncenv.String("PASSWORD", ""),
+		SSOOnly:           ssoOnly,
+		JournalBrowserURL: strings.TrimSuffix(troncenv.String("JOURNAL_BROWSER_URL", ""), "/"),
+		JournalBrowserKey: troncenv.String("JOURNAL_BROWSER_KEY", ""),
 	}
 
 	if issuer := troncenv.String("OIDC_ISSUER", ""); issuer != "" {
@@ -164,6 +169,12 @@ func (c Config) validate() error {
 	}
 	if c.IsProduction() && c.Password == "" && c.OIDC == nil {
 		return fmt.Errorf("env: APP_ENV=production requires PASSWORD or OIDC_ISSUER, otherwise every request is served as admin")
+	}
+	if c.JournalBrowserURL != "" && !strings.HasSuffix(c.JournalBrowserURL, "/api") {
+		return fmt.Errorf("env: JOURNAL_BROWSER_URL must end in /api (got %q), otherwise Journal's SPA catch-all answers every report with 200 and HTML and the reports are lost in silence", c.JournalBrowserURL)
+	}
+	if (c.JournalBrowserURL == "") != (c.JournalBrowserKey == "") {
+		return fmt.Errorf("env: JOURNAL_BROWSER_URL and JOURNAL_BROWSER_KEY must be set together: a URL without a key reports nothing and a key without a URL has nowhere to report")
 	}
 	return nil
 }

@@ -168,12 +168,19 @@ func (s *Server) scopeRoot(w http.ResponseWriter, r *http.Request) (string, bool
 }
 
 func (s *Server) authConfig(w http.ResponseWriter, r *http.Request) {
-	httpjson.WriteJSON(w, http.StatusOK, map[string]bool{
+	body := map[string]any{
 		"password_auth":  s.Password != "" && !s.SSOOnly,
 		"sso_only":       s.SSOOnly,
 		"oidc_enabled":   s.OIDC != nil,
 		"device_enabled": true,
-	})
+	}
+	if s.JournalBrowserURL != "" && s.JournalBrowserKey != "" {
+		body["journal"] = map[string]string{
+			"url": s.JournalBrowserURL,
+			"key": s.JournalBrowserKey,
+		}
+	}
+	httpjson.WriteJSON(w, http.StatusOK, body)
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
