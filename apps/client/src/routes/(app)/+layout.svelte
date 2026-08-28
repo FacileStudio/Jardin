@@ -62,20 +62,23 @@
 			}
 
 			const currentSpace = getActiveSpaceId();
-			const hasValidSpace = currentSpace !== null && spaces.some((s) => s.id === currentSpace);
-
-			if (!hasValidSpace) {
-				if (spaces.length > 0) {
-					setActiveSpaceId(spaces[0].id);
-				} else {
-					setActiveSpaceId(null);
-					const isAllowed =
-						page.url.pathname.startsWith('/spaces') || page.url.pathname.startsWith('/settings');
-					if (!isAllowed) goto('/spaces');
+			if (!me.admin) {
+				const hasValidSpace = currentSpace !== null && spaces.some((s) => s.id === currentSpace);
+				if (!hasValidSpace) {
+					if (spaces.length > 0) {
+						setActiveSpaceId(spaces[0].id);
+					} else {
+						setActiveSpaceId(null);
+						const isAllowed =
+							page.url.pathname.startsWith('/spaces') || page.url.pathname.startsWith('/settings');
+						if (!isAllowed) goto('/spaces');
+					}
 				}
+			} else if (currentSpace !== null && !spaces.some((s) => s.id === currentSpace)) {
+				setActiveSpaceId(null);
 			}
 
-			if (getActiveSpaceId() !== null) {
+			if (me.admin || getActiveSpaceId() !== null) {
 				try {
 					status = await backend.status();
 				} catch {
@@ -106,7 +109,8 @@
 	const mobilePages = $derived(navPages.filter((p) => !MOBILE_HIDDEN.includes(p.href)));
 
 	function pickSpace(id: string | null) {
-		if (!id || id === getActiveSpaceId()) return;
+		if (id === getActiveSpaceId()) return;
+		if (id === null && (!me || !me.admin)) return;
 		setActiveSpaceId(id);
 		window.location.reload();
 	}
@@ -126,6 +130,7 @@
 				activeSpaceId={getActiveSpaceId()}
 				onSpaceSelect={pickSpace}
 				manageSpacesHref="/spaces"
+				personalSpaceLabel={me?.admin ? 'Personal' : undefined}
 				{user}
 				userHref="/settings"
 				userActive={onSettings}
@@ -139,13 +144,14 @@
 		>
 			<Topbar class="md:hidden">
 				<span class="text-fc-md font-semibold text-fc-fg">Mycelium</span>
-				{#if switcherSpaces.length > 0}
+				{#if switcherSpaces.length > 0 || me?.admin}
 					<div class="min-w-0 max-w-56 flex-1">
 						<SpaceSwitcher
 							spaces={switcherSpaces}
 							activeId={getActiveSpaceId()}
 							onSelect={pickSpace}
 							manageHref="/spaces"
+							personalLabel={me?.admin ? 'Personal' : undefined}
 						/>
 					</div>
 				{/if}
