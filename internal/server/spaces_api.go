@@ -24,8 +24,6 @@ func (s *Server) spacesList(w http.ResponseWriter, r *http.Request) {
 	for _, space := range spaces {
 		if role, ok := space.Members[id.Email]; ok && id.Email != "" {
 			out = append(out, spaceResponse(space, role))
-		} else if id.Scope == scopeAdmin {
-			out = append(out, spaceResponse(space, roleAdmin))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })

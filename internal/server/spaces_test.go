@@ -306,3 +306,30 @@ func TestUserUpdateAdminPromotion(t *testing.T) {
 		t.Fatalf("promoted user must immediately have admin scope: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestAdminCannotAccessUninvitedSpaces(t *testing.T) {
+	dir := t.TempDir()
+	srv := New(dir, "pw")
+	h := srv.Handler()
+
+	adminToken := sessionFor(t, srv, "admin@example.test", true)
+	userToken := sessionFor(t, srv, "user@example.test", false)
+
+	id := createSpace(t, h, userToken, "Private Space")
+	spReq(t, h, apiCall{Method: "PUT", Path: "/api/rules/secret?space_id=" + id, Token: userToken, Body: "super secret"})
+
+	rec := spReq(t, h, apiCall{Method: "GET", Path: "/api/spaces", Token: adminToken, Body: ""})
+	if strings.Contains(rec.Body.String(), id) {
+		t.Fatalf("admin must not see uninvited spaces: %s", rec.Body.String())
+	}
+
+	rec = spReq(t, h, apiCall{Method: "GET", Path: "/api/rules?space_id=" + id, Token: adminToken, Body: ""})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin must not read uninvited space: got %d", rec.Code)
+	}
+
+	rec = spReq(t, h, apiCall{Method: "GET", Path: "/api/sync/tree?space_id=" + id, Token: adminToken, Body: ""})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin must not sync uninvited space: got %d", rec.Code)
+	}
+}

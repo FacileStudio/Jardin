@@ -102,13 +102,6 @@ func (s *Server) spaceAccess(id Identity, spaceID string) (*Space, string, bool)
 	if !ok {
 		return nil, "", false
 	}
-	if id.Scope == scopeAdmin {
-		role := space.Members[id.Email]
-		if role == "" {
-			role = roleAdmin
-		}
-		return space, role, true
-	}
 	if id.Email == "" {
 		return nil, "", false
 	}
