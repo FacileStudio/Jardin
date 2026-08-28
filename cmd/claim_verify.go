@@ -41,8 +41,8 @@ func fetchServerClaims(cfg *config.MyceliumConfig) ([]sessions.ClaimEntry, error
 		return nil, errors.New("no server configured")
 	}
 	target := cfg.ServerURL() + "/api/claims"
-	if cfg.Space != "" {
-		target += "?space_id=" + url.QueryEscape(cfg.Space)
+	if space := cfg.SpaceID(); space != "" {
+		target += "?space_id=" + url.QueryEscape(space)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), claimVerifyTimeout)
 	defer cancel()

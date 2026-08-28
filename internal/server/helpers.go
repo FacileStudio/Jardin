@@ -81,7 +81,7 @@ func listNamesWithExt(dir, ext string) []string {
 	if err != nil {
 		return []string{}
 	}
-	var names []string
+	names := []string{}
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ext) {
 			names = append(names, strings.TrimSuffix(e.Name(), ext))

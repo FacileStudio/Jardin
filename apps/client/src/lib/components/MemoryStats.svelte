@@ -33,20 +33,20 @@
 	const dayLabels = $derived.by(() => dayWindow(WINDOW_DAYS));
 	const dailyPages = $derived(
 		bucketByDay(
-			files.map((f) => ({ iso: f.mod_time })),
+			(files ?? []).map((f) => ({ iso: f.mod_time })),
 			dayLabels
 		)
 	);
 	const dailyBytes = $derived(
 		bucketByDay(
-			files.map((f) => ({ iso: f.mod_time, weight: f.size })),
+			(files ?? []).map((f) => ({ iso: f.mod_time, weight: f.size })),
 			dayLabels
 		)
 	);
 	const dailyFolders = $derived.by(() => {
 		const seen = dayLabels.map(() => new Set<string>());
 		const index = new Map(dayLabels.map((l, i) => [l, i]));
-		for (const f of files) {
+		for (const f of files ?? []) {
 			const d = new Date(f.mod_time);
 			if (isNaN(d.getTime())) continue;
 			const i = index.get(dayKey(d));
@@ -57,9 +57,9 @@
 		return seen.map((s) => s.size);
 	});
 
-	const totalSize = $derived(sum(files.map((f) => f.size)));
+	const totalSize = $derived(sum((files ?? []).map((f) => f.size)));
 	const newest = $derived.by(() =>
-		files.reduce<FileEntry | null>(
+		(files ?? []).reduce<FileEntry | null>(
 			(best, f) =>
 				!best || new Date(f.mod_time).getTime() > new Date(best.mod_time).getTime() ? f : best,
 			null
@@ -67,9 +67,9 @@
 	);
 
 	const folderSlices = $derived(
-		grouped.map(([folder, entries]) => ({
+		(grouped ?? []).map(([folder, entries]) => ({
 			label: folder === '/' ? 'root' : folder,
-			value: entries.length
+			value: (entries ?? []).length
 		}))
 	);
 	const folderCounts = $derived(folderSlices.map((s) => s.value));

@@ -25,7 +25,6 @@ var (
 	loginPassword      bool
 	loginPasswordStdin bool
 	loginNoBrowser     bool
-	loginSpace         string
 )
 
 var loginCmd = &cobra.Command{
@@ -116,8 +115,8 @@ func finishLogin(cfg *config.MyceliumConfig, serverURL, token, machine string) e
 	color.Green("Logged in to %s as %s", serverURL, machine)
 	fmt.Printf("Config saved to %s\n", config.ConfigPath())
 
-	if loginSpace != "" {
-		if err := selectLoginSpace(cfg, loginSpace); err != nil {
+	if flagSpace != "" {
+		if err := selectLoginSpace(cfg, flagSpace); err != nil {
 			color.Yellow("Space not selected: %v", err)
 			fmt.Println("Select later with: mycelium spaces use <name-or-id>")
 		}
@@ -151,7 +150,7 @@ func selectLoginSpace(cfg *config.MyceliumConfig, arg string) error {
 }
 
 func validateToken(serverURL, token string) error {
-	req, err := http.NewRequest("GET", serverURL+"/api/status", nil)
+	req, err := http.NewRequest("GET", serverURL+"/api/auth/me", nil)
 	if err != nil {
 		return err
 	}
@@ -160,8 +159,8 @@ func validateToken(serverURL, token string) error {
 	if err != nil {
 		return fmt.Errorf("connection failed: %w", err)
 	}
-	resp.Body.Close()
-	if resp.StatusCode == http.StatusUnauthorized {
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return fmt.Errorf("token rejected by %s", serverURL)
 	}
 	if resp.StatusCode != http.StatusOK {
@@ -206,6 +205,5 @@ func init() {
 	loginCmd.Flags().BoolVar(&loginPassword, "password", false, "Authenticate with the server password instead of the browser")
 	loginCmd.Flags().BoolVar(&loginPasswordStdin, "password-stdin", false, "Read the server password from stdin")
 	loginCmd.Flags().BoolVar(&loginNoBrowser, "no-browser", false, "Print the authorization URL instead of opening a browser")
-	loginCmd.Flags().StringVar(&loginSpace, "space", "", "Select a space to sync after login (name or id)")
 	rootCmd.AddCommand(loginCmd)
 }

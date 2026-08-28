@@ -11,13 +11,13 @@
 		loading = true;
 		backend
 			.artifactsList()
-			.then((r) => (artifacts = r))
+			.then((r) => (artifacts = r ?? []))
 			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load artifacts.'))
 			.finally(() => (loading = false));
 	});
 
 	const filtered = $derived(
-		artifacts.filter((r) => {
+		(artifacts ?? []).filter((r) => {
 			const q = query.trim().toLowerCase();
 			if (!q) return true;
 			return r.title.toLowerCase().includes(q) || r.machine.toLowerCase().includes(q) || r.id.toLowerCase().includes(q);

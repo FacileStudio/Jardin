@@ -42,14 +42,26 @@ type ConsolidateConfig struct {
 // URLEnvAlt is the spelling CLI-STANDARD §6.3 gives the whole suite; MYCELIUM_URL
 // is the short form documented for Mycelium. Both are read, MYCELIUM_URL wins.
 const (
-	TokenEnv = "MYCELIUM_TOKEN"
-	// VectorSearchEnv overrides the config file's vector_search, matching how
-	// the URL and token are overridable: a test, or a CI job with no config
-	// file, must be able to choose without one.
+	TokenEnv        = "MYCELIUM_TOKEN"
+	SpaceEnv        = "MYCELIUM_SPACE"
 	VectorSearchEnv = "MYCELIUM_VECTOR_SEARCH"
 	URLEnv          = "MYCELIUM_URL"
 	URLEnvAlt       = "MYCELIUM_SERVER_URL"
 )
+
+// SpaceID resolves the active space ID, environment first.
+func (c *MyceliumConfig) SpaceID() string {
+	if value := strings.TrimSpace(os.Getenv(SpaceEnv)); value != "" {
+		if value == "none" || value == "common" {
+			return ""
+		}
+		return value
+	}
+	if c.Space == "none" || c.Space == "common" {
+		return ""
+	}
+	return c.Space
+}
 
 // ServerURL resolves the instance to talk to, environment first.
 // SemanticEnabled reports whether this machine should ask the server for

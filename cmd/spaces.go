@@ -83,8 +83,9 @@ func setSpace(cfg *config.MyceliumConfig, spaceID string) error {
 }
 
 var spacesCmd = &cobra.Command{
-	Use:   "spaces",
-	Short: "Manage shared memory spaces",
+	Use:     "spaces",
+	Aliases: []string{"space"},
+	Short:   "Manage shared memory spaces",
 }
 
 var spacesListCmd = &cobra.Command{
@@ -103,11 +104,12 @@ var spacesListCmd = &cobra.Command{
 			fmt.Println("No spaces available.")
 			return nil
 		}
+		currentID := cfg.SpaceID()
 		for _, s := range spaces {
 			color.New(color.FgCyan).Printf("%s  ", s.ID)
 			color.New(color.Bold).Printf("%s", s.Name)
 			fmt.Printf("  (%s)", s.Role)
-			if cfg.Space == s.ID {
+			if currentID == s.ID {
 				color.Green("  [current]")
 			} else {
 				fmt.Println()
@@ -117,10 +119,38 @@ var spacesListCmd = &cobra.Command{
 	},
 }
 
+var spacesCurrentCmd = &cobra.Command{
+	Use:   "current",
+	Short: "Show the currently active space",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := config.LoadMyceliumConfig()
+		if err != nil {
+			return err
+		}
+		spaceID := cfg.SpaceID()
+		if spaceID == "" {
+			fmt.Println("common")
+			return nil
+		}
+		spaces, err := fetchSpaces(cfg)
+		if err == nil {
+			for _, s := range spaces {
+				if s.ID == spaceID {
+					fmt.Printf("%s (%s)\n", s.Name, s.ID)
+					return nil
+				}
+			}
+		}
+		fmt.Println(spaceID)
+		return nil
+	},
+}
+
 var spacesUseCmd = &cobra.Command{
-	Use:   "use <name-or-id>",
-	Short: "Select the space this machine syncs (or --none for common)",
-	Args:  cobra.MaximumNArgs(1),
+	Use:     "use <name-or-id>",
+	Aliases: []string{"switch", "select", "set"},
+	Short:   "Select the space this machine syncs (or --none for common)",
+	Args:    cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.LoadMyceliumConfig()
 		if err != nil {
@@ -157,6 +187,7 @@ var spacesUseCmd = &cobra.Command{
 func init() {
 	spacesUseCmd.Flags().BoolVar(&spacesUseNone, "none", false, "Clear the space and sync the common tree")
 	spacesCmd.AddCommand(spacesListCmd)
+	spacesCmd.AddCommand(spacesCurrentCmd)
 	spacesCmd.AddCommand(spacesUseCmd)
 	rootCmd.AddCommand(spacesCmd)
 }

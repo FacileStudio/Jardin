@@ -16,7 +16,7 @@
 	$effect(() => {
 		backend
 			.skillsList()
-			.then((s) => (skills = s))
+			.then((s) => (skills = s ?? []))
 			.catch((e) => (loadError = e instanceof Error ? e.message : 'Could not load skills'));
 	});
 

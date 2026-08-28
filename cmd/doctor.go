@@ -105,10 +105,10 @@ var doctorCmd = &cobra.Command{
 		})
 
 		check("space", func() (string, bool) {
-			if cfg.Space == "" {
+			if space := cfg.SpaceID(); space == "" {
 				return "common (personal)", true
 			}
-			return cfg.Space, true
+			return cfg.SpaceID(), true
 		})
 
 		rules, _ := cell.ListRules()

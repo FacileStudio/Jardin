@@ -144,8 +144,8 @@ func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteJSON(w, http.StatusOK, map[string]any{"email": id.Email, "name": "", "admin": id.Scope == scopeAdmin})
 		return
 	}
-	if id.Scope == scopeAdmin {
-		httpjson.WriteJSON(w, http.StatusOK, map[string]any{"email": "", "name": "admin", "admin": true})
+	if id.Scope == scopeAdmin || id.Scope == scopeSync {
+		httpjson.WriteJSON(w, http.StatusOK, map[string]any{"email": "", "name": "machine", "admin": id.Scope == scopeAdmin})
 		return
 	}
 	httpjson.WriteError(w, apierrors.Forbidden("forbidden"))

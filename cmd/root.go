@@ -9,6 +9,7 @@ import (
 )
 
 var version = "dev"
+var flagSpace string
 
 var rootCmd = &cobra.Command{
 	Use:   "mycelium",
@@ -20,9 +21,13 @@ func init() {
 	rootCmd.Version = version
 	rootCmd.SetVersionTemplate("{{.Name}} {{.Version}}\n")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable colored output")
+	rootCmd.PersistentFlags().StringVar(&flagSpace, "space", "", "Target memory space ID or name")
 	cobra.OnInitialize(func() {
 		if v, _ := rootCmd.PersistentFlags().GetBool("no-color"); v {
 			ui.DisableColor()
+		}
+		if flagSpace != "" {
+			_ = os.Setenv("MYCELIUM_SPACE", flagSpace)
 		}
 	})
 }

@@ -16,7 +16,7 @@
 	$effect(() => {
 		backend
 			.rulesList()
-			.then((r) => (rules = r))
+			.then((r) => (rules = r ?? []))
 			.catch((e) => (loadError = e instanceof Error ? e.message : 'Could not load rules'));
 	});
 

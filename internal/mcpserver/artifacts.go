@@ -61,7 +61,7 @@ func syncArtifact() string {
 		return ""
 	}
 	client := hsync.NewClient(cfg.ServerURL(), cfg.AuthToken())
-	client.Space = cfg.Space
+	client.Space = cfg.SpaceID()
 	_, _ = client.Sync(config.DataDir())
 	return cfg.ServerURL()
 }

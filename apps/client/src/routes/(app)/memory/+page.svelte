@@ -21,7 +21,7 @@
 			.syncTree()
 			.then(
 				(t) =>
-					(files = t
+					(files = (t ?? [])
 						.filter((f) => f.path.startsWith('memory/'))
 						.sort((a, b) => a.path.localeCompare(b.path)))
 			)
@@ -32,7 +32,7 @@
 
 	const grouped = $derived.by(() => {
 		const groups: Record<string, FileEntry[]> = {};
-		for (const f of files) {
+		for (const f of files ?? []) {
 			const parts = f.path.split('/');
 			const folder = parts.length > 2 ? parts[1] : '/';
 			(groups[folder] ??= []).push(f);

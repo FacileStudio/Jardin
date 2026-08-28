@@ -9,7 +9,7 @@
 	$effect(() => {
 		backend
 			.flowsList()
-			.then((f) => (flows = f))
+			.then((f) => (flows = f ?? []))
 			.catch((e) => (error = e instanceof Error ? e.message : 'Could not load flows.'));
 	});
 </script>

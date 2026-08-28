@@ -83,7 +83,7 @@ func searchServer(query string) ([]memory.SearchResult, error) {
 	results, degraded, err := memory.SearchRemote(ctx, memory.RemoteSearch{
 		BaseURL: cfg.ServerURL(),
 		Token:   cfg.AuthToken(),
-		SpaceID: cfg.Space,
+		SpaceID: cfg.SpaceID(),
 		Query:   query,
 		Limit:   memorySearchLimit,
 	})

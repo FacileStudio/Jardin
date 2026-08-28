@@ -35,8 +35,8 @@ var statusCmd = &cobra.Command{
 		}
 
 		color.New(color.Bold).Printf("Space:   ")
-		if cfg.Space != "" {
-			fmt.Println(cfg.Space)
+		if space := cfg.SpaceID(); space != "" {
+			fmt.Println(space)
 		} else {
 			fmt.Println("common")
 		}

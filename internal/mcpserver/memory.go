@@ -102,7 +102,7 @@ func searchServer(ctx context.Context, query string, limit int) ([]memory.Search
 	ctx, cancel := context.WithTimeout(ctx, searchTimeout)
 	defer cancel()
 	return memory.SearchRemote(ctx, memory.RemoteSearch{
-		BaseURL: cfg.ServerURL(), Token: cfg.AuthToken(), SpaceID: cfg.Space,
+		BaseURL: cfg.ServerURL(), Token: cfg.AuthToken(), SpaceID: cfg.SpaceID(),
 		Query: query, Limit: limit,
 	})
 }
