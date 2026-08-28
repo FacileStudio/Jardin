@@ -11,7 +11,7 @@
 	let showSource = $state(false);
 	let isFullscreen = $state(false);
 
-	let inlineZoom = $state(1);
+	let inlineZoom = $state(1.2);
 	let inlinePanX = $state(0);
 	let inlinePanY = $state(0);
 	let inlineDragging = $state(false);
@@ -19,6 +19,24 @@
 	let inlineStartY = 0;
 	let inlineStartPanX = 0;
 	let inlineStartPanY = 0;
+
+	function getSvgDimensions(): { width: number; height: number } {
+		const match = svgHtml.match(/viewBox=["']([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)["']/i);
+		if (match) {
+			const w = parseFloat(match[3]);
+			const h = parseFloat(match[4]);
+			if (w > 0 && h > 0) return { width: w, height: h };
+		}
+		return { width: 800, height: 600 };
+	}
+
+	function defaultInlineZoom(): number {
+		const { width } = getSvgDimensions();
+		if (width <= 350) return 1.5;
+		if (width <= 550) return 1.35;
+		if (width <= 800) return 1.2;
+		return 1.05;
+	}
 
 	async function renderDiagram(diagramCode: string) {
 		const trimmed = diagramCode.trim();
@@ -41,6 +59,9 @@
 			const id = `mermaid-svg-${Math.random().toString(36).slice(2, 9)}`;
 			const result = await mermaid.render(id, trimmed);
 			svgHtml = result.svg;
+			inlineZoom = defaultInlineZoom();
+			inlinePanX = 0;
+			inlinePanY = 0;
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : String(e);
 			error = msg;
@@ -67,7 +88,7 @@
 	}
 
 	function resetInlineZoom() {
-		inlineZoom = 1;
+		inlineZoom = defaultInlineZoom();
 		inlinePanX = 0;
 		inlinePanY = 0;
 	}

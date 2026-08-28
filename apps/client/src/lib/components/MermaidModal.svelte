@@ -25,11 +25,31 @@
 	let startPanX = 0;
 	let startPanY = 0;
 
+	function getSvgDimensions(): { width: number; height: number } {
+		const match = svgHtml.match(/viewBox=["']([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)["']/i);
+		if (match) {
+			const w = parseFloat(match[3]);
+			const h = parseFloat(match[4]);
+			if (w > 0 && h > 0) return { width: w, height: h };
+		}
+		return { width: 800, height: 600 };
+	}
+
+	function fitToScreen() {
+		panX = 0;
+		panY = 0;
+		const { width, height } = getSvgDimensions();
+		const availW = Math.max(window.innerWidth - 80, 200);
+		const availH = Math.max(window.innerHeight - 130, 200);
+		const scaleW = availW / width;
+		const scaleH = availH / height;
+		const best = Math.min(scaleW, scaleH);
+		zoom = Math.min(Math.max(Math.round(best * 100) / 100, 0.3), 5);
+	}
+
 	$effect(() => {
 		if (open) {
-			zoom = 1;
-			panX = 0;
-			panY = 0;
+			fitToScreen();
 			showSource = false;
 			const prevOverflow = document.body.style.overflow;
 			document.body.style.overflow = 'hidden';
@@ -50,7 +70,7 @@
 		} else if (e.key === '-' || e.key === '_') {
 			zoomOut();
 		} else if (e.key === '0') {
-			resetZoom();
+			fitToScreen();
 		}
 	}
 
@@ -60,12 +80,6 @@
 
 	function zoomOut() {
 		zoom = Math.max(zoom * 0.8, 0.2);
-	}
-
-	function resetZoom() {
-		zoom = 1;
-		panX = 0;
-		panY = 0;
 	}
 
 	function handleWheel(e: WheelEvent) {
@@ -132,8 +146,8 @@
 					<button
 						type="button"
 						class="px-2 font-fc-mono text-fc-xs text-fc-fg hover:text-fc-primary transition-colors"
-						onclick={resetZoom}
-						aria-label="Reset zoom"
+						onclick={fitToScreen}
+						aria-label="Fit to screen"
 					>
 						{Math.round(zoom * 100)}%
 					</button>
@@ -147,8 +161,8 @@
 					</button>
 				</div>
 
-				<Button variant="ghost" size="sm" icon={icons.refresh} onclick={resetZoom}>
-					Reset
+				<Button variant="ghost" size="sm" icon={icons.refresh} onclick={fitToScreen}>
+					Fit
 				</Button>
 
 				<Button variant="ghost" size="sm" onclick={() => (showSource = !showSource)}>
@@ -185,7 +199,7 @@
 				onpointerup={handlePointerUp}
 				onpointercancel={handlePointerUp}
 				onwheel={handleWheel}
-				ondblclick={resetZoom}
+				ondblclick={fitToScreen}
 				role="region"
 				aria-label="Fullscreen flowchart canvas"
 			>
