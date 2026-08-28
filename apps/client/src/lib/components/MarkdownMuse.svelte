@@ -237,6 +237,56 @@
 		return marked.parseInline(processed) as string;
 	}
 
+	function richBlock(rawText: string): string {
+		let processed = rawText;
+
+		processed = processed.replace(
+			/\[(badge|tag|chip):(success|danger|warning|info|primary|neutral)\s+([^\]]+)\]/gi,
+			(_, _type, tone, label) => {
+				const toneColors: Record<string, string> = {
+					success: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+					danger: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+					warning: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+					info: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+					primary: 'bg-fc-primary/15 text-fc-primary border-fc-primary/30',
+					neutral: 'bg-fc-surface text-fc-fg-muted border-fc-border'
+				};
+				const cls = toneColors[tone.toLowerCase()] || toneColors.neutral;
+				return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[0.7rem] font-semibold tracking-wide ${cls}">${label}</span>`;
+			}
+		);
+
+		processed = processed.replace(
+			/\[\+\s+([^\]]+)\]/g,
+			`<span class="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[0.7rem] font-semibold text-emerald-300"><span class="font-bold text-emerald-400">+</span> $1</span>`
+		);
+
+		processed = processed.replace(
+			/\[-\s+([^\]]+)\]/g,
+			`<span class="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/15 px-2 py-0.5 text-[0.7rem] font-semibold text-rose-300"><span class="font-bold text-rose-400">-</span> $1</span>`
+		);
+
+		processed = processed.replace(
+			/\[status:(active|done|ready|success)\]/gi,
+			`<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.68rem] font-semibold text-emerald-300"><span class="size-1.5 rounded-full bg-emerald-400 animate-pulse"></span>$1</span>`
+		);
+		processed = processed.replace(
+			/\[status:(pending|wip|running|loading)\]/gi,
+			`<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[0.68rem] font-semibold text-amber-300"><span class="size-1.5 rounded-full bg-amber-400"></span>$1</span>`
+		);
+		processed = processed.replace(
+			/\[status:(error|failed|stopped|dead)\]/gi,
+			`<span class="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[0.68rem] font-semibold text-rose-300"><span class="size-1.5 rounded-full bg-rose-400"></span>$1</span>`
+		);
+
+		processed = processed.replace(
+			/==([^=]+)==/g,
+			`<mark class="rounded bg-amber-400/20 px-1 py-0.5 font-medium text-amber-300">$1</mark>`
+		);
+
+		return marked.parse(processed) as string;
+	}
+
 	function copyToClipboard(text: string) {
 		navigator.clipboard.writeText(text);
 		toast.success('Code copied to clipboard');
@@ -281,8 +331,8 @@
 							<span class="inline-flex size-5 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold">+</span>
 							<span>{alert.title}</span>
 						</div>
-						<div class="text-fc-xs text-emerald-200/90 leading-relaxed pl-7">
-							{@html richInline(alert.body)}
+						<div class="text-fc-xs text-emerald-200/90 leading-relaxed pl-7 flex flex-col gap-1.5 [&>h1]:text-fc-base [&>h1]:font-bold [&>h2]:text-fc-sm [&>h2]:font-bold [&>h3]:text-fc-sm [&>h3]:font-semibold [&>h3]:text-emerald-300 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:space-y-1">
+							{@html richBlock(alert.body)}
 						</div>
 					</div>
 				{:else if alert.tone === 'cons' || alert.tone === 'caution'}
@@ -291,8 +341,8 @@
 							<span class="inline-flex size-5 items-center justify-center rounded-full bg-rose-500/20 text-xs font-bold">-</span>
 							<span>{alert.title}</span>
 						</div>
-						<div class="text-fc-xs text-rose-200/90 leading-relaxed pl-7">
-							{@html richInline(alert.body)}
+						<div class="text-fc-xs text-rose-200/90 leading-relaxed pl-7 flex flex-col gap-1.5 [&>h1]:text-fc-base [&>h1]:font-bold [&>h2]:text-fc-sm [&>h2]:font-bold [&>h3]:text-fc-sm [&>h3]:font-semibold [&>h3]:text-rose-300 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:space-y-1">
+							{@html richBlock(alert.body)}
 						</div>
 					</div>
 				{:else if alert.tone === 'warning'}
@@ -301,8 +351,8 @@
 							<span class="inline-flex size-5 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold">!</span>
 							<span>{alert.title}</span>
 						</div>
-						<div class="text-fc-xs text-amber-200/90 leading-relaxed pl-7">
-							{@html richInline(alert.body)}
+						<div class="text-fc-xs text-amber-200/90 leading-relaxed pl-7 flex flex-col gap-1.5 [&>h1]:text-fc-base [&>h1]:font-bold [&>h2]:text-fc-sm [&>h2]:font-bold [&>h3]:text-fc-sm [&>h3]:font-semibold [&>h3]:text-amber-300 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:space-y-1">
+							{@html richBlock(alert.body)}
 						</div>
 					</div>
 				{:else if alert.tone === 'important'}
@@ -311,8 +361,8 @@
 							<span class="inline-flex size-5 items-center justify-center rounded-full bg-purple-500/20 text-xs font-bold">★</span>
 							<span>{alert.title}</span>
 						</div>
-						<div class="text-fc-xs text-purple-200/90 leading-relaxed pl-7">
-							{@html richInline(alert.body)}
+						<div class="text-fc-xs text-purple-200/90 leading-relaxed pl-7 flex flex-col gap-1.5 [&>h1]:text-fc-base [&>h1]:font-bold [&>h2]:text-fc-sm [&>h2]:font-bold [&>h3]:text-fc-sm [&>h3]:font-semibold [&>h3]:text-purple-300 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:space-y-1">
+							{@html richBlock(alert.body)}
 						</div>
 					</div>
 				{:else}
@@ -321,8 +371,8 @@
 							<span class="inline-flex size-5 items-center justify-center rounded-full bg-sky-500/20 text-xs font-bold">i</span>
 							<span>{alert.title}</span>
 						</div>
-						<div class="text-fc-xs text-sky-200/90 leading-relaxed pl-7">
-							{@html richInline(alert.body)}
+						<div class="text-fc-xs text-sky-200/90 leading-relaxed pl-7 flex flex-col gap-1.5 [&>h1]:text-fc-base [&>h1]:font-bold [&>h2]:text-fc-sm [&>h2]:font-bold [&>h3]:text-fc-sm [&>h3]:font-semibold [&>h3]:text-sky-300 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:space-y-1">
+							{@html richBlock(alert.body)}
 						</div>
 					</div>
 				{/if}

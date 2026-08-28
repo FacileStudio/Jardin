@@ -58,7 +58,7 @@
 			});
 			const id = `mermaid-svg-${Math.random().toString(36).slice(2, 9)}`;
 			const result = await mermaid.render(id, trimmed);
-			svgHtml = result.svg;
+			svgHtml = result.svg.replace(/style="([^"]*?)max-width:\s*[^;"]+;?([^"]*?)"/gi, 'style="$1$2"');
 			inlineZoom = defaultInlineZoom();
 			inlinePanX = 0;
 			inlinePanY = 0;
