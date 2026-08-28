@@ -24,7 +24,9 @@ export function getSpaces(): Space[] {
 
 export function setSpaces(list: Space[]) {
 	spaces = list;
-	if (activeSpaceId !== null && !list.some((s) => s.id === activeSpaceId)) {
-		setActiveSpaceId(null);
+	if (activeSpaceId === null && list.length > 0) {
+		setActiveSpaceId(list[0].id);
+	} else if (activeSpaceId !== null && !list.some((s) => s.id === activeSpaceId)) {
+		setActiveSpaceId(list.length > 0 ? list[0].id : null);
 	}
 }

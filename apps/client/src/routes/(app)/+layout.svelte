@@ -23,8 +23,6 @@
 
 	const MOBILE_HIDDEN = ['/machines', '/spaces'];
 
-	const COMMON_TREE_LABEL = 'Common';
-
 	const links = [
 		{ label: 'Memory', href: '/memory', icon: icons.folder },
 		{
@@ -66,7 +64,7 @@
 			const currentSpace = getActiveSpaceId();
 			const hasValidSpace = currentSpace !== null && spaces.some((s) => s.id === currentSpace);
 
-			if (!me.admin && !hasValidSpace) {
+			if (!hasValidSpace) {
 				if (spaces.length > 0) {
 					setActiveSpaceId(spaces[0].id);
 				} else {
@@ -75,11 +73,9 @@
 						page.url.pathname.startsWith('/spaces') || page.url.pathname.startsWith('/settings');
 					if (!isAllowed) goto('/spaces');
 				}
-			} else if (me.admin && currentSpace && !spaces.some((s) => s.id === currentSpace)) {
-				setActiveSpaceId(null);
 			}
 
-			if (me.admin || getActiveSpaceId() !== null) {
+			if (getActiveSpaceId() !== null) {
 				try {
 					status = await backend.status();
 				} catch {
@@ -104,14 +100,13 @@
 	const onSettings = $derived(page.url.pathname.startsWith('/settings'));
 
 	const routeKey = $derived(onSettings ? '/settings' : page.url.pathname);
-	const user = $derived.by(() => ({ name: me?.name || me?.email || 'admin' }));
+	const user = $derived.by(() => ({ name: me?.name || me?.email || 'user' }));
 	const switcherSpaces = $derived(getSpaces().map((s) => ({ id: s.id, name: s.name })));
 
 	const mobilePages = $derived(navPages.filter((p) => !MOBILE_HIDDEN.includes(p.href)));
 
 	function pickSpace(id: string | null) {
-		if (id === getActiveSpaceId()) return;
-		if (id === null && me && !me.admin) return;
+		if (!id || id === getActiveSpaceId()) return;
 		setActiveSpaceId(id);
 		window.location.reload();
 	}
@@ -131,7 +126,6 @@
 				activeSpaceId={getActiveSpaceId()}
 				onSpaceSelect={pickSpace}
 				manageSpacesHref="/spaces"
-				personalSpaceLabel={me?.admin ? COMMON_TREE_LABEL : undefined}
 				{user}
 				userHref="/settings"
 				userActive={onSettings}
@@ -152,7 +146,6 @@
 							activeId={getActiveSpaceId()}
 							onSelect={pickSpace}
 							manageHref="/spaces"
-							personalLabel={me?.admin ? COMMON_TREE_LABEL : (switcherSpaces[0]?.name ?? 'Space')}
 						/>
 					</div>
 				{/if}
