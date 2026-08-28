@@ -282,3 +282,27 @@ func TestFirstUserBecomesAdmin(t *testing.T) {
 		t.Fatalf("first user admin bootstrap broken: first=%v second=%v", first.Admin, second.Admin)
 	}
 }
+
+func TestUserUpdateAdminPromotion(t *testing.T) {
+	dir := t.TempDir()
+	srv := New(dir, "pw")
+	h := srv.Handler()
+
+	adminToken := sessionFor(t, srv, "yann@facile.studio", true)
+	userToken := sessionFor(t, srv, "noah@facile.studio", false)
+
+	rec := spReq(t, h, apiCall{Method: "PUT", Path: "/api/users/noah@facile.studio", Token: userToken, Body: `{"admin":true}`})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("non-admin must not promote users: got %d", rec.Code)
+	}
+
+	rec = spReq(t, h, apiCall{Method: "PUT", Path: "/api/users/noah@facile.studio", Token: adminToken, Body: `{"admin":true}`})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin promotion failed: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = spReq(t, h, apiCall{Method: "GET", Path: "/api/auth/me", Token: userToken, Body: ""})
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"admin":true`) {
+		t.Fatalf("promoted user must immediately have admin scope: %d %s", rec.Code, rec.Body.String())
+	}
+}

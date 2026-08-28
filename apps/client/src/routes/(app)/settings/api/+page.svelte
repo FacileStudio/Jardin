@@ -14,10 +14,11 @@
 		icons,
 		toast
 	} from '@facile/muse';
-	import { backend, type TokenInfo } from '$lib/backend';
+	import { backend, ApiError, type TokenInfo } from '$lib/backend';
 	import { AGENT_PROMPT } from '$lib/agentPrompt';
 
 	let tokens: TokenInfo[] = $state([]);
+	let forbidden = $state(false);
 
 	let createOpen = $state(false);
 	let creating = $state(false);
@@ -37,8 +38,14 @@
 
 	async function refresh() {
 		try {
+			forbidden = false;
 			tokens = await backend.tokensList();
 		} catch (e) {
+			if (e instanceof ApiError && e.status === 403) {
+				forbidden = true;
+				tokens = [];
+				return;
+			}
 			toast.danger(e instanceof Error ? e.message : 'Could not load tokens.');
 		}
 	}
@@ -125,10 +132,16 @@
 		bare
 	>
 		{#snippet actions()}
-			<Button icon={icons.plus} onclick={openCreate}>New token</Button>
+			{#if !forbidden}
+				<Button icon={icons.plus} onclick={openCreate}>New token</Button>
+			{/if}
 		{/snippet}
 
-		{#if tokens.length === 0}
+		{#if forbidden}
+			<Alert tone="info">
+				Only instance administrators can view and issue sync tokens.
+			</Alert>
+		{:else if tokens.length === 0}
 			<Alert tone="info">
 				No tokens yet. The CLI needs one before a machine can sync with this brain.
 			</Alert>

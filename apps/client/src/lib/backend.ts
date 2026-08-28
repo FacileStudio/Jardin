@@ -124,6 +124,8 @@ export const backend = {
 		request<void>('DELETE', `/spaces/${id}/members/${encodeURIComponent(email)}`),
 	spaceLeave: (id: string) => request<void>('POST', `/spaces/${id}/leave`),
 	usersList: () => request<UserInfo[]>('GET', '/users'),
+	userUpdate: (email: string, payload: { name?: string; admin?: boolean }) =>
+		request<UserInfo>('PUT', `/users/${encodeURIComponent(email)}`, payload),
 
 	deviceInfo: (code: string) =>
 		request<{ user_code: string; machine: string; ip: string; status: string }>(

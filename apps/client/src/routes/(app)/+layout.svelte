@@ -63,35 +63,26 @@
 				setSpaces([]);
 			}
 
-			if (!me.admin) {
-				const currentSpace = getActiveSpaceId();
-				if (!currentSpace || !spaces.some((s) => s.id === currentSpace)) {
-					if (spaces.length > 0) {
-						setActiveSpaceId(spaces[0].id);
-					} else {
-						setActiveSpaceId(null);
-						if (
-							!page.url.pathname.startsWith('/spaces') &&
-							!page.url.pathname.startsWith('/settings')
-						) {
-							goto('/spaces');
-						}
-					}
-				}
-			} else {
-				const currentSpace = getActiveSpaceId();
-				if (currentSpace && !spaces.some((s) => s.id === currentSpace)) {
+			const currentSpace = getActiveSpaceId();
+			const hasValidSpace = currentSpace !== null && spaces.some((s) => s.id === currentSpace);
+
+			if (!me.admin && !hasValidSpace) {
+				if (spaces.length > 0) {
+					setActiveSpaceId(spaces[0].id);
+				} else {
 					setActiveSpaceId(null);
+					const isAllowed =
+						page.url.pathname.startsWith('/spaces') || page.url.pathname.startsWith('/settings');
+					if (!isAllowed) goto('/spaces');
 				}
+			} else if (me.admin && currentSpace && !spaces.some((s) => s.id === currentSpace)) {
+				setActiveSpaceId(null);
 			}
 
 			if (me.admin || getActiveSpaceId() !== null) {
 				try {
 					status = await backend.status();
 				} catch {
-					if (getActiveSpaceId() !== null) {
-						setActiveSpaceId(null);
-					}
 					status = null;
 				}
 			}

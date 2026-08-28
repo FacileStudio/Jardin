@@ -90,6 +90,47 @@ func (s *Server) usersList(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, out)
 }
 
+func (s *Server) userUpdate(w http.ResponseWriter, r *http.Request) {
+	email := pathParam(r, "email")
+	if email == "" {
+		httpjson.WriteError(w, apierrors.Invalid("email required"))
+		return
+	}
+
+	var req struct {
+		Name  *string `json:"name"`
+		Admin *bool   `json:"admin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpjson.WriteError(w, apierrors.Invalid("bad request"))
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	users := s.loadUsers()
+	user, ok := users[email]
+	if !ok {
+		httpjson.WriteError(w, apierrors.NotFound("user not found"))
+		return
+	}
+
+	if req.Name != nil {
+		user.Name = *req.Name
+	}
+	if req.Admin != nil {
+		user.Admin = *req.Admin
+	}
+	users[email] = user
+	if err := s.saveUsers(users); err != nil {
+		s.Log.Error("users: save failed", slog.Any("error", err))
+		httpjson.WriteError(w, apierrors.Internal("could not save user", err))
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusOK, user)
+}
+
 func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
 	if id.Email != "" {

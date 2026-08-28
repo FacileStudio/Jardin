@@ -174,6 +174,7 @@ func (s *Server) mountContentRoutes(r chi.Router) {
 
 func (s *Server) mountAccountRoutes(r chi.Router) {
 	r.Get("/users", s.auth(false, s.usersList))
+	r.Put("/users/{email}", s.auth(true, s.userUpdate))
 
 	r.Get("/spaces", s.auth(false, s.spacesList))
 	r.Post("/spaces", s.auth(false, s.spacesCreate))

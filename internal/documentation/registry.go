@@ -150,6 +150,7 @@ var Registry = Response{Modules: []Module{
 		Description: "Who can sign in to this instance.",
 		Routes: []Route{
 			{Method: "GET", Path: "/users", Summary: "List users", Auth: "bearer", ResponseBody: "[]User", Errors: anyToken},
+			{Method: "PUT", Path: "/users/{email}", Summary: "Update a user account", Auth: "bearer (admin)", PathParams: []Field{memberParam}, RequestBody: "UpdateUserRequest", ResponseBody: "User", Errors: append(adminToken, notFound)},
 		},
 	},
 	{
