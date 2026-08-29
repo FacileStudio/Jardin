@@ -6,6 +6,7 @@ require (
 	github.com/FacileStudio/Journal/sdk/journal v0.0.0-20260805204822-d5d1dc94d458
 	github.com/FacileStudio/antenne-client/go v0.0.0-20260810113516-0458a301c709
 	github.com/FacileStudio/enveloppe/go v0.0.0-20260824150156-c6a22ad287ee
+	github.com/FacileStudio/porte v0.5.2
 	github.com/FacileStudio/tronc v0.12.0
 	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/fatih/color v1.19.0
@@ -14,7 +15,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/oauth2 v0.36.0
-	golang.org/x/term v0.44.0
+	golang.org/x/term v0.45.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -45,10 +46,10 @@ require (
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	golang.org/x/crypto v0.53.0 // indirect
+	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )

@@ -10,6 +10,33 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+### Added
+
+- **`mycelium login --no-listener`, for the terminal whose browser is on another
+  machine.** The server has shown a paste code since 0.32.3 when a CLI login
+  arrives with no loopback port, but the CLI always opened a listener and always
+  put `port=` in the URL it printed, so there was no way to reach that page. A
+  URL copied to a laptop sent the code to the laptop's own loopback, and the
+  terminal that started the login waited out its timeout for a callback that was
+  never addressed to it. With the flag the login URL carries no port, the server
+  renders the code on the hand-off page, and the command reads it from stdin.
+
+### Changed
+
+- **The SSO loopback listener is now `porte/loopback`.** `cmd/login_sso.go`
+  hand-rolled its own, which is the architecture gap the suite CLI standard
+  already records. The shared listener keeps the ephemeral port, the exact
+  comparison of the echoed nonce, the two second shutdown grace and the three
+  minute timeout, and it renders the suite's hand-off page on `127.0.0.1` rather
+  than one line of `text/plain` in the browser's default serif. Refusals render
+  that same page instead of `http.Error`.
+- A callback carrying the wrong nonce no longer ends the login. It is refused,
+  the page says so, and the listener keeps waiting. Ending it let any page the
+  user has open close a login it did not start, which is the same class of
+  problem as a browser's unprompted `/favicon.ico` request.
+- `porte/loopback` is standard library only, so the module adds nothing to the
+  binary beyond itself and the page it renders.
+
 ## [0.32.3] — 2026-08-29
 
 ### Fixed

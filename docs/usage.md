@@ -25,6 +25,12 @@ tool completes the login without a second prompt. A server with no identity prov
 machine with no browser, falls back to device authorization: a user code, `/authorize`, and
 polling until an admin approves. On success it also installs the background sync service.
 
+`--no-listener` is for the terminal whose browser is on another machine. The default flow
+redirects the code back to a port on *this* machine, so a URL copied to a laptop hands the
+code to the laptop and this terminal waits out its timeout for a callback that was never
+addressed to it. With the flag the login URL carries no port, the server shows the code on
+the sign-in page, and the command reads it from stdin.
+
 The URL may be omitted once `MYCELIUM_URL` or a previous login has set one.
 
 ```sh
@@ -40,6 +46,7 @@ printf '%s' "$TOKEN" | mycelium login https://mycelium.facile.studio --token-std
 | `--password` | Authenticate with the server password instead |
 | `--password-stdin` | Read the password from stdin |
 | `--no-browser` | Print the authorization URL instead of opening a browser, and use device authorization |
+| `--no-listener` | Sign in from a browser on another machine, pasting the code back into this terminal |
 | `--no-daemon` | Do not install the background sync service |
 | `--space` | Select a space to sync right after login, by name or id |
 

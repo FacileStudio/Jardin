@@ -23,6 +23,7 @@ var (
 	loginPassword      bool
 	loginPasswordStdin bool
 	loginNoBrowser     bool
+	loginNoListener    bool
 )
 
 var loginCmd = &cobra.Command{
@@ -39,6 +40,13 @@ no browser, falls back to approving the machine from a logged-in Mycelium sessio
   mycelium login <url> --token <token>     use a token from the dashboard
   mycelium login <url> --token-stdin       read the token from stdin
   mycelium login <url> --password          authenticate with the server password
+  mycelium login <url> --no-listener       sign in from a browser on another machine
+
+--no-listener is for the terminal whose browser is somewhere else. The default
+browser sign-in redirects back to a port on this machine, so a URL copied to a
+laptop sends the login code to the laptop and this terminal waits for a callback
+that was never addressed to it. With the flag the server shows the code on the
+page instead, and this command reads it from stdin.
 
 The URL may be omitted once MYCELIUM_URL or a previous login has set one.`,
 	Args: cobra.MaximumNArgs(1),
@@ -88,7 +96,7 @@ The URL may be omitted once MYCELIUM_URL or a previous login has set one.`,
 				return err
 			}
 		default:
-			if browserAvailable() && serverOffersSSO(serverURL) {
+			if (loginNoListener || browserAvailable()) && serverOffersSSO(serverURL) {
 				token, err = ssoLogin(serverURL)
 			} else {
 				token, err = deviceLogin(serverURL, machine)
@@ -189,5 +197,6 @@ func init() {
 	loginCmd.Flags().BoolVar(&loginPassword, "password", false, "Authenticate with the server password instead of the browser")
 	loginCmd.Flags().BoolVar(&loginPasswordStdin, "password-stdin", false, "Read the server password from stdin")
 	loginCmd.Flags().BoolVar(&loginNoBrowser, "no-browser", false, "Print the authorization URL instead of opening a browser")
+	loginCmd.Flags().BoolVar(&loginNoListener, "no-listener", false, "Sign in from a browser on another machine, pasting the code back")
 	rootCmd.AddCommand(loginCmd)
 }

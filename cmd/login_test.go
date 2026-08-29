@@ -1,115 +1,61 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
+
+	"github.com/FacileStudio/porte/loopback"
 
 	"github.com/FacileStudio/Mycelium/internal/config"
 )
 
-func loopbackListener(t *testing.T) (net.Listener, string) {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+// The default hand-off names the loopback port this CLI is listening on. The
+// mount point is the API's decision rather than porte's, and a login URL built
+// against the wrong one fails silently: the browser completes an ordinary web
+// login, the person lands on the dashboard, and the listener waits out its
+// timeout for a redirect nobody sends.
+func TestTheLoopbackLoginURLNamesTheMountAndThePort(t *testing.T) {
+	listener, err := loopback.Listen()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Listen: %v", err)
 	}
-	return listener, fmt.Sprintf("http://127.0.0.1:%d/", listener.Addr().(*net.TCPAddr).Port)
-}
+	t.Cleanup(func() { _ = listener.Close() })
 
-// TestTheListenerTakesTheCodeFromItsOwnCallback proves the callback carries
-// its nonce and that stray browser traffic does not kill the login: a browser
-// asks for /favicon.ico unprompted, and the exchange must survive it rather
-// than fail on the first stray request.
-func TestTheListenerTakesTheCodeFromItsOwnCallback(t *testing.T) {
-	listener, base := loopbackListener(t)
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		if resp, err := http.Get(base + "favicon.ico"); err == nil {
-			resp.Body.Close()
-		}
-		if resp, err := http.Get(base + "?code=goodcode&state=nonce"); err == nil {
-			resp.Body.Close()
-		}
-	}()
-
-	code, err := awaitLoginCode(listener, "nonce")
-	<-done
+	target, err := url.Parse(listener.LoginURL("https://mycelium.facile.studio", porteMount, "nonce"))
 	if err != nil {
-		t.Fatalf("the login failed: %v", err)
+		t.Fatalf("LoginURL did not produce a URL: %v", err)
 	}
-	if code != "goodcode" {
-		t.Fatalf("code is %q, want the one from the redirect", code)
+	if target.Path != "/api/auth/oidc" {
+		t.Fatalf("path is %q, want /api/auth/oidc", target.Path)
+	}
+	if got := target.Query().Get("port"); got != strconv.Itoa(listener.Port()) {
+		t.Fatalf("port is %q, want the bound port %d", got, listener.Port())
 	}
 }
 
-// A callback carrying a code under the wrong nonce is not noise, it is somebody
-// else's. Accepting it is the vulnerability this flow exists to avoid.
-func TestTheListenerRefusesACallbackWithTheWrongNonce(t *testing.T) {
-	listener, base := loopbackListener(t)
-
-	status := make(chan int, 1)
-	go func() {
-		resp, err := http.Get(base + "?code=stolen&state=notthenonce")
-		if err != nil {
-			status <- 0
-			return
-		}
-		resp.Body.Close()
-		status <- resp.StatusCode
-	}()
-
-	code, err := awaitLoginCode(listener, "nonce")
-	if !errors.Is(err, errCallbackMismatch) {
-		t.Fatalf("error is %v, want a hard abort", err)
-	}
-	if code != "" {
-		t.Fatalf("a code came back from a mismatched callback: %q", code)
-	}
-	if got := <-status; got != http.StatusBadRequest {
-		t.Fatalf("the callback answered %d, want 400", got)
-	}
-}
-
-// A CLI that sent no nonce could be handed any callback at all, so the client
-// half always sends one.
-func TestTheListenerRefusesACallbackWithNoNonceAtAll(t *testing.T) {
-	listener, base := loopbackListener(t)
-
-	go func() {
-		if resp, err := http.Get(base + "?code=stolen"); err == nil {
-			resp.Body.Close()
-		}
-	}()
-
-	if _, err := awaitLoginCode(listener, "nonce"); !errors.Is(err, errCallbackMismatch) {
-		t.Fatalf("error is %v, want a hard abort", err)
-	}
-}
-
-func TestALoginNonceIsRandomAndReflectable(t *testing.T) {
-	first, err := loginNonce()
+// --no-listener exists for the terminal whose browser is on another machine,
+// and the port is the whole of the difference. With one the server redirects
+// the code to 127.0.0.1, which on a copied URL is the wrong machine's loopback;
+// without one it shows the code on the page for the person to carry back.
+func TestThePasteLoginURLCarriesNoPort(t *testing.T) {
+	target, err := url.Parse(pasteLoginURL("https://mycelium.facile.studio/"))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("pasteLoginURL did not produce a URL: %v", err)
 	}
-	second, err := loginNonce()
-	if err != nil {
-		t.Fatal(err)
+	if target.Path != "/api/auth/oidc" {
+		t.Fatalf("path is %q, want /api/auth/oidc", target.Path)
 	}
-	if first == second {
-		t.Fatal("two nonces came out the same")
+	if target.Query().Get("flow") != "cli" {
+		t.Fatalf("flow is %q, want cli", target.Query().Get("flow"))
 	}
-	for _, r := range first {
-		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f') {
-			t.Fatalf("the nonce contains %q, which the server will reject", r)
-		}
+	if target.Query().Has("port") {
+		t.Fatal("the paste URL names a port, so the server will redirect the code to a machine that is not listening")
 	}
 }
 
