@@ -138,7 +138,7 @@
 	<Alert tone="danger" title="Could not load the bus settings">{loadError}</Alert>
 {:else if !loaded}
 	<div class="flex items-center gap-3 text-fc-sm text-fc-fg-muted">
-		<Spinner size="sm" /> Loading…
+		<Spinner size="sm" label="Loading" /> Loading…
 	</div>
 {:else}
 	<div class="flex flex-col gap-10">

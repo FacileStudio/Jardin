@@ -185,7 +185,7 @@
 					class="overflow-x-auto rounded-fc-lg border border-fc-border bg-fc-surface p-6 font-fc-mono text-fc-sm leading-relaxed text-fc-fg"><code>{code}</code></pre>
 				{#if error}
 					<div
-						class="mt-4 rounded-fc-lg border border-red-500/30 bg-red-500/10 p-4 font-fc-mono text-fc-sm text-red-400"
+						class="mt-4 rounded-fc-lg border border-fc-danger/30 bg-fc-danger/10 p-4 font-fc-mono text-fc-sm text-fc-danger"
 					>
 						{error}
 					</div>
@@ -205,7 +205,7 @@
 			>
 				{#if loading}
 					<div class="flex items-center gap-2 text-fc-sm text-fc-fg-muted">
-						<Spinner size="sm" /> Rendering diagram…
+						<Spinner size="sm" label="Loading" /> Rendering diagram…
 					</div>
 				{:else if svgHtml}
 					<div

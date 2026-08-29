@@ -123,7 +123,7 @@
 
 	{#if loading}
 		<div class="flex items-center gap-3 text-fc-sm text-fc-fg-muted">
-			<Spinner size="sm" /> Loading artifact…
+			<Spinner size="sm" label="Loading" /> Loading artifact…
 		</div>
 	{:else if error}
 		<Alert tone="danger" title="Could not load artifact">{error}</Alert>

@@ -119,7 +119,7 @@
 
 	{#if loading}
 		<div class="flex items-center gap-3 text-fc-sm text-fc-fg-muted">
-			<Spinner size="sm" /> Loading…
+			<Spinner size="sm" label="Loading" /> Loading…
 		</div>
 	{:else if editing}
 		<Textarea

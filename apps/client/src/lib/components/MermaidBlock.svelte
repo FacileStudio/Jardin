@@ -132,7 +132,7 @@
 			<span class="font-semibold uppercase tracking-wider">Flowchart</span>
 			{#if error}
 				<span
-					class="rounded bg-red-500/10 px-1.5 py-0.5 text-[0.65rem] font-medium text-red-400"
+					class="rounded bg-fc-danger/10 px-1.5 py-0.5 text-[0.65rem] font-medium text-fc-danger"
 				>
 					Syntax Error
 				</span>
@@ -186,7 +186,7 @@
 		<pre
 			class="overflow-x-auto p-4 font-fc-mono text-fc-xs leading-relaxed text-fc-fg"><code>{code}</code></pre>
 		{#if error}
-			<div class="border-t border-fc-border bg-red-500/5 p-3 font-fc-mono text-fc-xs text-red-400">
+			<div class="border-t border-fc-border bg-fc-danger/5 p-3 font-fc-mono text-fc-xs text-fc-danger">
 				{error}
 			</div>
 		{/if}
@@ -204,7 +204,7 @@
 		>
 			{#if loading}
 				<div class="flex items-center gap-2 text-fc-xs text-fc-fg-muted">
-					<Spinner size="sm" /> Rendering diagram…
+					<Spinner size="sm" label="Loading" /> Rendering diagram…
 				</div>
 			{:else if svgHtml}
 				<div
