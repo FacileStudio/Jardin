@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { Button, Card, WordReveal, icons } from '@facile/muse';
+	import { Button, Card, icons } from '@facile/muse';
+	import WordReveal from '$lib/components/motion/WordReveal.svelte';
 	import { TOKEN_KEY } from '$lib/backend';
 
 	let visible = $state(false);

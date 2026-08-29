@@ -130,7 +130,7 @@
 				activeSpaceId={getActiveSpaceId()}
 				onSpaceSelect={pickSpace}
 				manageSpacesHref="/spaces"
-				personalSpaceLabel={me?.admin ? 'Personal' : undefined}
+				personalSpaceLabel={me?.admin ? 'Personal' : null}
 				{user}
 				userHref="/settings"
 				userActive={onSettings}
@@ -151,7 +151,7 @@
 							activeId={getActiveSpaceId()}
 							onSelect={pickSpace}
 							manageHref="/spaces"
-							personalLabel={me?.admin ? 'Personal' : undefined}
+							personalLabel={me?.admin ? 'Personal' : null}
 						/>
 					</div>
 				{/if}
