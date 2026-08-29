@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/FacileStudio/Mycelium/internal/artifacts"
+	"github.com/FacileStudio/Mycelium/internal/browser"
 	"github.com/FacileStudio/Mycelium/internal/config"
 	"github.com/FacileStudio/Mycelium/internal/ui"
 	"github.com/spf13/cobra"
@@ -119,11 +120,9 @@ var artifactOpenCmd = &cobra.Command{
 			return err
 		}
 		target := artifactTarget(art)
-		if !artifacts.HasDisplay() {
-			fmt.Println(target)
-			return nil
-		}
-		return artifacts.Open(target)
+		fmt.Println(target)
+		showInBrowser(target)
+		return nil
 	},
 }
 
@@ -206,10 +205,22 @@ func artifactRecorded(art artifacts.Artifact) {
 	if err := pushAfterWrite(); err != nil {
 		ui.Warn("Recorded here but not synced (%v)", err)
 	}
-	if artifactNoOpen || !artifacts.HasDisplay() {
+	if artifactNoOpen {
 		return
 	}
-	if err := artifacts.Open(target); err != nil {
+	showInBrowser(target)
+}
+
+// showInBrowser opens what was just printed, and says why it did not when this
+// machine has no browser. The link is already on stdout by then, so nothing has
+// failed: a headless box gets the link and one line explaining the silence,
+// never an error and never an exit code.
+func showInBrowser(target string) {
+	if !browser.Available() {
+		ui.Hint("no browser on this machine")
+		return
+	}
+	if err := browser.Open(target); err != nil {
 		ui.Warn("Could not open a browser (%v)", err)
 	}
 }

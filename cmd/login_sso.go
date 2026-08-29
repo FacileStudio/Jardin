@@ -11,10 +11,10 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
+	"github.com/FacileStudio/Mycelium/internal/browser"
 	"github.com/fatih/color"
 	"golang.org/x/term"
 )
@@ -30,16 +30,14 @@ var errCallbackMismatch = errors.New("the sign-in callback did not match this lo
 
 // browserAvailable reports whether opening a URL can plausibly reach a human.
 // A CI job or an SSH session on a headless box has no browser to redirect back
-// from, which is exactly the case the device flow exists for.
+// from, which is exactly the case the device flow exists for. The terminal
+// check is this command's own: a flow that ends in "waiting for the browser"
+// has nobody to wait for when nothing is interactive.
 func browserAvailable() bool {
 	if loginNoBrowser || !term.IsTerminal(int(os.Stdout.Fd())) {
 		return false
 	}
-	switch runtime.GOOS {
-	case "darwin", "windows":
-		return true
-	}
-	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
+	return browser.Available()
 }
 
 // serverOffersSSO asks discovery rather than making the user find out by
@@ -91,7 +89,7 @@ func ssoLogin(serverURL string) (string, error) {
 	fmt.Println("To sign in, open this URL in your browser:")
 	color.Cyan("  %s", authURL)
 	fmt.Println()
-	openBrowser(authURL)
+	_ = browser.Open(authURL)
 	fmt.Print("Waiting for the browser")
 
 	code, err := awaitLoginCode(listener, nonce)

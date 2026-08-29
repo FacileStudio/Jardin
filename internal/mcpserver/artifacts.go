@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/FacileStudio/Mycelium/internal/artifacts"
+	"github.com/FacileStudio/Mycelium/internal/browser"
 	"github.com/FacileStudio/Mycelium/internal/config"
 	hsync "github.com/FacileStudio/Mycelium/internal/sync"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -25,7 +26,7 @@ type publishArtifactOutput struct {
 	Path     string   `json:"path" jsonschema:"where the page was written on this machine"`
 	URL      string   `json:"url,omitempty" jsonschema:"the canonical web URL of the artifact on the Mycelium server"`
 	Expires  string   `json:"expires,omitempty" jsonschema:"when it will be swept; absent when pinned"`
-	Opened   bool     `json:"opened" jsonschema:"true when a browser was opened here, false when this machine has no display"`
+	Opened   bool     `json:"opened" jsonschema:"true when a browser was opened here, false when this machine has no browser to open"`
 	Unusable []string `json:"unresolved_refs,omitempty" jsonschema:"relative src or href values that cannot load from disk"`
 }
 
@@ -80,12 +81,12 @@ func publishArtifact(_ context.Context, _ *mcp.CallToolRequest, in publishArtifa
 	if len(raw) > 0 {
 		out.Unusable = artifacts.ExternalRefs(raw)
 	}
-	if artifacts.HasDisplay() {
+	if browser.Available() {
 		target := art.Path
 		if artURL != "" {
 			target = artURL
 		}
-		out.Opened = artifacts.Open(target) == nil
+		out.Opened = browser.Open(target) == nil
 	}
 	return nil, out, nil
 }

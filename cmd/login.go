@@ -7,8 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/FacileStudio/Mycelium/internal/config"
@@ -181,20 +179,6 @@ func postJSON(url string, payload any) (int, []byte, error) {
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, body, nil
-}
-
-func openBrowser(url string) {
-	var cmd string
-	var args []string
-	switch runtime.GOOS {
-	case "darwin":
-		cmd, args = "open", []string{url}
-	case "windows":
-		cmd, args = "cmd", []string{"/c", "start", url}
-	default:
-		cmd, args = "xdg-open", []string{url}
-	}
-	_ = exec.Command(cmd, args...).Start()
 }
 
 func init() {

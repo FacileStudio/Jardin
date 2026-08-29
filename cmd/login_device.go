@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/FacileStudio/Mycelium/internal/browser"
 	"github.com/fatih/color"
-	"golang.org/x/term"
 )
 
 // deviceLogin runs the RFC 8628 device-authorization flow against an API
@@ -45,8 +44,8 @@ func deviceLogin(serverURL, machine string) (string, error) {
 	color.Cyan("  %s", start.VerifyURL)
 	fmt.Printf("\n  and confirm the code: ")
 	color.New(color.Bold).Printf("%s\n\n", start.UserCode)
-	if !loginNoBrowser && term.IsTerminal(int(os.Stdout.Fd())) {
-		openBrowser(start.VerifyURL)
+	if browserAvailable() {
+		_ = browser.Open(start.VerifyURL)
 	}
 	fmt.Print("Waiting for approval")
 
