@@ -10,6 +10,24 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.32.1] — 2026-08-29
+
+### Fixed
+
+- **A machine with no browser gets the link, not an error.** `mycelium artifact open` shelled out
+  to `xdg-open` whenever `DISPLAY` was set, so a container that inherits a display from its host
+  without inheriting an opener died with a raw `exec: "xdg-open": executable file not found`, a
+  usage dump, and a non-zero exit. The artifact was recorded and the link was never printed. Both
+  `open` and `add` now print the link first and treat the browser as the optional part: a machine
+  that has none says so on one dim line and exits `0`.
+
+- **"Can this machine show a page" is one predicate, not two.** `internal/browser` answers it for
+  the artifact commands and for `login`, which each carried their own version and each got a
+  different half right. It now requires a display *and* an opener on `PATH`, so an SSH session
+  into a Mac and a container without `xdg-open` both fall back the way a headless Linux box
+  already did: `login` goes to the device flow rather than waiting three minutes for a browser
+  that was never going to open.
+
 ## [0.32.0] — 2026-08-29
 
 ### Added
