@@ -110,12 +110,13 @@ func TestLoopbackPortRejectsAnythingButAPort(t *testing.T) {
 	}
 }
 
-// A port that is not a port is refused before the browser leaves for the IdP,
-// and is never allowed to become the host of the redirect back.
-// A CLI flow without a usable port is refused up front: with one, the request
-// gets past validation and only then finds that this test server has no
-// identity provider configured.
-func TestStartRefusesACLIFlowWithoutAUsablePort(t *testing.T) {
+// A port that is not a port is dropped, never carried: the login goes on and
+// ends on the paste page rather than being refused, because a CLI with nowhere
+// to listen is a machine whose browser lives elsewhere and not a mistake.
+// Every case here must get past validation, which on this provider-less test
+// server means reaching the 503 the missing IdP answers with. What the value
+// must never do is reach the redirect, and loopbackPort is what stops it.
+func TestStartCarriesOnWhenTheCLIHasNoUsablePort(t *testing.T) {
 	srv := New(t.TempDir(), "secret")
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
@@ -127,24 +128,16 @@ func TestStartRefusesACLIFlowWithoutAUsablePort(t *testing.T) {
 		"a host":  "?flow=cli&port=evil.example.com:80",
 		"missing": "?flow=cli",
 		"zero":    "?flow=cli&port=0",
+		"usable":  "?flow=cli&port=51234",
 	} {
 		resp, err := client.Get(ts.URL + "/api/auth/oidc" + query)
 		if err != nil {
 			t.Fatal(err)
 		}
 		resp.Body.Close()
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Errorf("%s: answered %d, want 400", name, resp.StatusCode)
+		if resp.StatusCode != http.StatusServiceUnavailable {
+			t.Errorf("%s: answered %d, want the 503 of a missing provider", name, resp.StatusCode)
 		}
-	}
-
-	resp, err := client.Get(ts.URL + "/api/auth/oidc?flow=cli&port=51234")
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusServiceUnavailable {
-		t.Fatalf("a valid port answered %d, want 503 from the missing provider", resp.StatusCode)
 	}
 }
 

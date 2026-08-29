@@ -42,7 +42,7 @@ prefix the platform assumes.
 | GET | `/api/auth/config` | none | — | `{password_auth, sso_only, oidc_enabled, device_enabled}` |
 | POST | `/api/auth/login` | none | `{password, machine}` | `{token}` |
 | GET | `/api/auth/oidc` | none | optional `flow=cli`, `port`, `cli_state` | 302 to the IdP, sets an `oidc_state` cookie |
-| GET | `/api/auth/oidc/callback` | none | `code`, `state` | 302 to the success URL with `#token=…`, or to the loopback listener |
+| GET | `/api/auth/oidc/callback` | none | `code`, `state` | 302 to the success URL with `#token=…`, or to the loopback listener, or 200 and the paste page |
 | POST | `/api/auth/oidc/exchange` | none | `{code}` | `{token}` |
 | GET | `/api/auth/me` | any | — | `{email, name, admin}` |
 | POST | `/api/auth/logout` | any | — | 204, deletes the calling token |
@@ -63,15 +63,24 @@ that is already open: `flow=cli`, `port` and `cli_state`. They ride to the callb
 
 - `port` is a number between 1024 and 65535 and nothing else. The host of the redirect is
   hardcoded to `127.0.0.1`, which is what keeps this parameter from becoming an open
-  redirect. `flow=cli` without a usable port is refused with 400 before the browser leaves.
+  redirect. A value that is not a port is dropped rather than refused, and the login ends on
+  the paste page below.
 - `cli_state` is the CLI's own nonce, at most 128 characters of `[A-Za-z0-9-_]`. It is
   **optional** and echoed back only when it was sent, so a binary installed before this flow
   existed keeps working.
 - On success the browser is sent to `http://127.0.0.1:{port}/?code=…&state={cli_state}`. The
   code is single-use, expires after 60 seconds, and is stored sha256-hashed like any other
   token. Presenting it twice is logged and answered 401.
+- **With no usable port** the same code is stored the same way and rendered on a page for the
+  user to paste into their terminal, rather than the login having nowhere to go. This is the
+  machine whose browser lives elsewhere: an SSH session, a container, a box with no desktop.
+  The page answers `Cache-Control: no-store`, because it carries a credential.
 - `POST /api/auth/oidc/exchange` trades the code for a session token with the same scope and
-  TTL a browser login gets, under its own name so the two do not evict each other.
+  TTL a browser login gets, under its own name so the two do not evict each other. It is the
+  only part of this flow that answers JSON, because it is the only part a program calls.
+- **The callback never answers JSON.** It is reached by a top-level browser navigation
+  whichever flow started it, so every failure is a 302 to `/login?error=sso`, exactly as a
+  success is a 302. A CLI hears about a failed login by timing out on its listener.
 
 ## Device authorization
 
@@ -85,8 +94,16 @@ The flow `mycelium login` uses by default.
 | POST | `/api/auth/device/approve` | admin | `{user_code}` | `{machine}` |
 | POST | `/api/auth/device/deny` | admin | `{user_code}` | 204 |
 
-Codes expire after 10 minutes, `interval` is 5 seconds, and at most 256 requests may be
-pending at once. `start` is limited to 20 per minute per IP and `poll` to 120. A denied
+User codes are eight characters of `23456789BCDFGHJKMNPQRSTVWXYZ` with a dash after the
+fourth (`F28H-2J4K`): no vowels, so a draw cannot spell a word, and no `0`, `1`, `I`, `L`,
+`O` or `U`, so nothing is ambiguous read off one screen and typed into another. `info`,
+`approve` and `deny` uppercase the code and strip everything outside `A-Z0-9` before looking
+it up, so entry is forgiving of separators and case.
+
+**Pending requests live in the API process's memory, not in `DATA_DIR`.** A restart, a
+redeploy or a crash drops every code that had not been approved yet, and the browser then
+answers 404 for a code the terminal is still showing. Codes expire after 10 minutes,
+`interval` is 5 seconds, and at most 256 requests may be pending at once. `start` is limited to 20 per minute per IP and `poll` to 120. A denied
 request polls as 403; an approved one returns the token exactly once and is then consumed.
 Approving mints a `sync` token for the requested machine name, tied to the approving admin's
 email.

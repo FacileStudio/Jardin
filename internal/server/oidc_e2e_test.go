@@ -6,9 +6,12 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -184,4 +187,104 @@ func TestTheCLIFlowEndToEndWithoutANonce(t *testing.T) {
 	if _, present := loopback.Query()["state"]; present {
 		t.Fatal("no nonce was sent, so none may be echoed")
 	}
+}
+
+// callbackResponse replays the provider's redirect into the callback without
+// asserting what comes back. completeOIDC insists on a 302 and a Location,
+// which is exactly what the two cases below are here to question.
+func callbackResponse(t *testing.T, ts *httptest.Server, client *http.Client, start *http.Response, state string) (*http.Response, string) {
+	t.Helper()
+	callback, err := http.NewRequest("GET", ts.URL+"/api/auth/oidc/callback?code=provider-code&state="+state, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cookie := range start.Cookies() {
+		callback.AddCookie(cookie)
+	}
+	done, err := client.Do(callback)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done.Body.Close()
+	body, err := io.ReadAll(done.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return done, string(body)
+}
+
+// A CLI login that fails on the identity is still a browser sitting on a
+// top-level navigation, so it is redirected exactly as a browser login is. It
+// used to read the flow marker as "the caller is a program" and answer the API
+// error envelope, which left a failed `mycelium login` staring at
+// {"error":{"code":"unauthenticated"}} rendered as a web page. The CLI hears
+// about the failure by timing out on its listener, not by reading JSON here.
+func TestACLILoginFailureRedirectsInsteadOfAnsweringJSON(t *testing.T) {
+	_, ts, client := oidcTestServerAs(t, "")
+
+	start, state := startOIDC(t, ts, client, "?flow=cli&port=51234&cli_state=deadbeef")
+	done, body := callbackResponse(t, ts, client, start, state)
+
+	if done.StatusCode != http.StatusFound {
+		t.Fatalf("a refused CLI login answered %d, want 302", done.StatusCode)
+	}
+	if !strings.HasSuffix(done.Header.Get("Location"), "/login?error=sso") {
+		t.Fatalf("a refused CLI login ended at %q", done.Header.Get("Location"))
+	}
+	if ct := done.Header.Get("Content-Type"); strings.Contains(ct, "json") {
+		t.Fatalf("a refused CLI login answered %s", ct)
+	}
+	if strings.Contains(body, "unauthenticated") {
+		t.Fatalf("the error envelope reached the browser: %q", body)
+	}
+}
+
+// A CLI with no loopback listener is the ordinary case on a machine whose
+// browser lives elsewhere, and refusing it left `mycelium login` with no route
+// through at all. The callback hands back the same one-time code on a page
+// instead of a redirect, and that code exchanges for a working token.
+func TestACLIFlowWithNoPortHandsBackAPasteCode(t *testing.T) {
+	_, ts, client := oidcTestServer(t)
+
+	start, state := startOIDC(t, ts, client, "?flow=cli")
+	done, body := callbackResponse(t, ts, client, start, state)
+
+	if done.StatusCode != http.StatusOK {
+		t.Fatalf("the paste hand-off answered %d, want 200", done.StatusCode)
+	}
+	if ct := done.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Fatalf("the paste hand-off is %s, want html", ct)
+	}
+	if cache := done.Header.Get("Cache-Control"); cache != "no-store" {
+		t.Fatalf("a page carrying a credential answered Cache-Control %q", cache)
+	}
+	if strings.Contains(body, "127.0.0.1") {
+		t.Fatal("a login with no port still built a loopback redirect")
+	}
+	if !strings.Contains(body, "60 seconds") {
+		t.Fatalf("the page does not say how long the code lasts: %q", body)
+	}
+
+	code := pasteCode(t, body)
+	status, exchanged := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/oidc/exchange", Token: "", Payload: map[string]string{"code": code}})
+	if status != http.StatusOK || exchanged["token"] == "" {
+		t.Fatalf("exchanging the pasted code: %d %v", status, exchanged)
+	}
+	if status, _ := doJSON(t, ts, jsonCall{Method: "GET", Path: "/api/auth/me", Token: exchanged["token"], Payload: nil}); status != http.StatusOK {
+		t.Fatalf("the pasted code's token does not authenticate: %d", status)
+	}
+	if replay, _ := doJSON(t, ts, jsonCall{Method: "POST", Path: "/api/auth/oidc/exchange", Token: "", Payload: map[string]string{"code": code}}); replay != http.StatusUnauthorized {
+		t.Fatalf("replaying a pasted code answered %d, want 401", replay)
+	}
+}
+
+// pasteCode reads the code out of the rendered page the way the person does,
+// which is also what catches the template silently dropping the field.
+func pasteCode(t *testing.T, body string) string {
+	t.Helper()
+	found := regexp.MustCompile(`<output id="c">([^<]+)</output>`).FindStringSubmatch(body)
+	if found == nil {
+		t.Fatalf("the hand-off page shows no code: %q", body)
+	}
+	return found[1]
 }

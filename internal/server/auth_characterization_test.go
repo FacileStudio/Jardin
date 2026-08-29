@@ -115,8 +115,17 @@ func TestSpacesMemberAddRoleGate(t *testing.T) {
 
 func oidcTestServer(t *testing.T) (*Server, *httptest.Server, *http.Client) {
 	t.Helper()
+	return oidcTestServerAs(t, "yann@facile.studio")
+}
+
+// oidcTestServerAs is oidcTestServer with the identity the provider will
+// assert. An empty email is a provider that has named nobody, which is the
+// cheapest way to drive a callback into its refusal path without breaking
+// the crypto underneath it.
+func oidcTestServerAs(t *testing.T, email string) (*Server, *httptest.Server, *http.Client) {
+	t.Helper()
 	const clientID = "mycelium"
-	idp := stubIdP(t, clientID, "yann@facile.studio")
+	idp := stubIdP(t, clientID, email)
 	srv := New(t.TempDir(), "secret")
 	srv.Log = slog.Default()
 	ts := httptest.NewServer(srv.Handler())

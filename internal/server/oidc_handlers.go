@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,19 +16,18 @@ import (
 	"github.com/FacileStudio/tronc/httpjson"
 )
 
-// oidcStart begins the browser flow. The CLI parameters are checked before
-// anything else happens, so a caller that cannot be redirected back is told
-// now rather than after a round trip through the identity provider.
+// oidcStart begins the browser flow. A CLI states the loopback port it is
+// listening on, and a value that is not a port is dropped here rather than
+// refused: a CLI with nowhere to redirect back to is the ordinary case on a
+// machine whose browser lives elsewhere, and the callback hands that login a
+// code to paste instead. Only the number survives loopbackPort, so nothing
+// from the query string can become the host of the redirect home.
 func (s *Server) oidcStart(w http.ResponseWriter, r *http.Request) {
 	var pending oidcFlow
 	if r.URL.Query().Get(flowParam) == flowCLI {
 		pending.CLI = true
 		pending.Port = loopbackPort(r.URL.Query().Get(portParam))
 		pending.CLIState = cliState(r.URL.Query().Get(cliStateParam))
-		if pending.Port == "" {
-			httpjson.WriteError(w, apierrors.Invalid("flow=cli requires a loopback port between 1024 and 65535"))
-			return
-		}
 	}
 
 	rt, cfg, err := s.ensureOIDC()
@@ -65,16 +63,12 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	user, scope, ok := s.oidcIdentity(w, r, rt, pending.CLI)
+	user, scope, ok := s.oidcIdentity(w, r, rt)
 	if !ok {
 		return
 	}
 
 	if pending.CLI {
-		if pending.Port == "" {
-			httpjson.WriteError(w, apierrors.Invalid("the cli login lost its loopback port, start again"))
-			return
-		}
 		s.issueLoginCode(w, r, loginCodeGrant{
 			Email: user.Email, Scope: scope, Port: pending.Port, Nonce: pending.CLIState,
 		})
@@ -113,40 +107,35 @@ func (s *Server) pendingOIDCFlow(w http.ResponseWriter, r *http.Request) (oidcFl
 }
 
 // oidcIdentity exchanges the authorization code, verifies the id_token it
-// carries, and resolves the account it names — upserting so a first login
+// carries, and resolves the account it names, upserting so a first login
 // creates one. The email claim is required: it is the identity, and a provider
 // that omits it has told us nothing to key an account on.
 //
-// A failed identity never answers with the API's JSON envelope: that endpoint
-// is reached by a top-level browser redirect, so a refusal arrives as a
-// redirect to the login page with an error parameter, exactly as a success
-// is a redirect to the app. The one exception is the CLI half, which is not a
-// browser and still reads a JSON error. A refusal must cost what the
-// acceptance costs, and neither the reason nor the status may reveal which
-// step failed.
-func (s *Server) oidcIdentity(w http.ResponseWriter, r *http.Request, rt *oidcRuntime, cli bool) (User, string, bool) {
-	refuse := func() {
-		if cli {
-			httpjson.WriteError(w, apierrors.Unauthorized("unauthorized"))
-			return
-		}
-		s.oidcFailureRedirect(w, r)
-	}
+// A failed identity never answers with the API's JSON envelope. This runs only
+// under oidcCallback, which is a top-level browser navigation whichever flow
+// started it, so a refusal arrives as a redirect to the login page with an
+// error parameter, exactly as a success is a redirect to the app. The CLI flow
+// is no exception: the browser is the same browser, and answering it in JSON
+// dead-ended a failed `mycelium login` on an error object rendered as a web
+// page. JSON belongs to POST /api/auth/oidc/exchange, where the caller really
+// is a program. A refusal must cost what the acceptance costs, and neither the
+// reason nor the status may reveal which step failed.
+func (s *Server) oidcIdentity(w http.ResponseWriter, r *http.Request, rt *oidcRuntime) (User, string, bool) {
 	token, err := rt.config.Exchange(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
 		s.Log.Error("oidc: exchange failed", slog.Any("error", err))
-		refuse()
+		s.oidcFailureRedirect(w, r)
 		return User{}, "", false
 	}
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		refuse()
+		s.oidcFailureRedirect(w, r)
 		return User{}, "", false
 	}
 	idToken, err := rt.verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
 		s.Log.Error("oidc: id_token verify failed", slog.Any("error", err))
-		refuse()
+		s.oidcFailureRedirect(w, r)
 		return User{}, "", false
 	}
 	var claims struct {
@@ -155,7 +144,7 @@ func (s *Server) oidcIdentity(w http.ResponseWriter, r *http.Request, rt *oidcRu
 		PreferredUsername string `json:"preferred_username"`
 	}
 	if err := idToken.Claims(&claims); err != nil || claims.Email == "" {
-		refuse()
+		s.oidcFailureRedirect(w, r)
 		return User{}, "", false
 	}
 	name := claims.Name
@@ -180,47 +169,6 @@ func (s *Server) oidcFailureRedirect(w http.ResponseWriter, r *http.Request) {
 	dest := s.baseURL(r) + "/login?error=" + url.QueryEscape("sso")
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, dest, http.StatusFound)
-}
-
-// issueLoginCode ends the CLI half of the flow: a one-time code goes to the
-// listener the CLI opened, never a token. The host is ours and only the port
-// came from the request, so this redirect cannot be pointed off the machine.
-// The state is echoed only when the CLI sent one: a binary installed before
-// this flow existed sends nothing, and must still complete its login.
-// loginCodeGrant is everything a completed CLI login has to hand back to the
-// listener the CLI opened: who logged in, what they may do, and where to
-// answer. Nonce is empty for a binary installed before the flow echoed one.
-type loginCodeGrant struct {
-	Email string
-	Scope string
-	Port  string
-	Nonce string
-}
-
-func (s *Server) issueLoginCode(w http.ResponseWriter, r *http.Request, grant loginCodeGrant) {
-	code, err := generateToken()
-	if err != nil {
-		s.Log.Error("oidc: failed to issue a login code", slog.Any("error", err))
-		httpjson.WriteError(w, apierrors.Internal("internal error", err))
-		return
-	}
-	if !s.loginCodes.create(hashToken(code), grant.Email, grant.Scope, time.Now().UTC()) {
-		httpjson.WriteError(w, apierrors.RateLimited("too many pending logins"))
-		return
-	}
-
-	query := url.Values{"code": {code}}
-	if grant.Nonce != "" {
-		query.Set("state", grant.Nonce)
-	}
-	target := url.URL{
-		Scheme:   "http",
-		Host:     net.JoinHostPort("127.0.0.1", grant.Port),
-		Path:     "/",
-		RawQuery: query.Encode(),
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	http.Redirect(w, r, target.String(), http.StatusFound)
 }
 
 // oidcExchange is the CLI's half: one-time code in, session token out. It is a
