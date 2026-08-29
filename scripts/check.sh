@@ -82,6 +82,10 @@ if [ "$mode" = "all" ]; then
       exit 0
     fi
     [ -d node_modules ] || bun install --frozen-lockfile >/dev/null
+    # Ahead of the type-check because it is the faster of the two and its
+    # failures are the more specific: a canonicaliser that has stopped agreeing
+    # with the server's alphabet says so in one line.
+    bun src/lib/deviceCode.check.ts
     bun run check
   ) || status=1
 fi

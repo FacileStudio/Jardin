@@ -10,6 +10,40 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A failed `mycelium login` no longer dead-ends the browser on a JSON error object.** The OIDC
+  callback read the `flow=cli` marker as "the caller is a program" and answered a refusal with
+  the API envelope, so a browser sitting on a top-level navigation rendered
+  `{"error":{"code":"unauthenticated","message":"unauthorized"}}` as a web page. The callback is
+  a browser navigation whichever flow started it, so every failure now redirects to
+  `/login?error=sso`, which is the rule the browser half was already fixed to on 2026-08-26.
+  JSON stays on `POST /api/auth/oidc/exchange`, where the caller really is a program, and the
+  `cli` flag `oidcIdentity` took for this is gone rather than left dead.
+
+- **The approve button on `/authorize` is never missing without a reason.** It only existed once
+  a lookup had succeeded, so a code that could not be found left the entry form on screen with
+  no button and no explanation, which reads exactly as "the approve button is disabled". The
+  page now runs on an explicit state and says which of the four things happened: nothing looked
+  up yet, looking, refused and why, or found and here is the machine. A refusal separates an
+  account that may not approve machines (403) from a code this server is not holding, and an
+  expired dashboard session (401) returns to the login page carrying the code.
+
+- **The device code field shows what it will send.** Entry is canonicalised on every keystroke
+  and paste, to upper case, alphabet characters only, eight at most, with a dash after the
+  fourth. Characters outside the alphabet are named rather than silently swallowed. An unfinished code
+  is answered in a sentence instead of a greyed-out button. The alphabet and the shape live in
+  `apps/client/src/lib/deviceCode.ts` alone, checked against the server's by
+  `deviceCode.check.ts` in the repository gate.
+
+### Added
+
+- **`flow=cli` with no loopback port ends on a page showing a code to paste.** It used to be
+  refused twice, at `/api/auth/oidc` and again at the callback, which left `mycelium login` from
+  a machine whose browser lives elsewhere with no route through at all. The code is stored
+  exactly as the loopback case stores it, same TTL and same single use, and the page is the
+  markup every porte-based app in the suite renders at the end of a CLI login.
+
 ## [0.32.2] — 2026-08-29
 
 ### Fixed
