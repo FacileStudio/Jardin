@@ -10,6 +10,66 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.32.0] — 2026-08-29
+
+### Added
+
+- **`mycelium artifact add` reads from stdin, and `open` goes to the hosted URL.** A page
+  generated in a pipeline never has to touch a temp file, and an artifact recorded against a
+  configured server opens at `https://<server>/artifacts/<id>` rather than at a local path
+  nobody else can reach. `publish_artifact` returns the rendered content inline, so the model
+  that recorded it can read back what it filed.
+
+- **Journal logging in the backend and the dashboard.** The server ships its logs to Journal
+  when `JOURNAL_URL` and `JOURNAL_TOKEN` are set, and the web UI connects through
+  `@facile/journal` with credentials fetched from `GET /api/auth/config`, so a browser session
+  never carries the service token.
+
+- **An admin can promote another user to admin.** Bootstrapping a second administrator
+  previously meant editing the database by hand.
+
+- **Zoom and fullscreen for Mermaid diagrams in the artifact viewer.** A flowchart wider than
+  the column was unreadable and had no way out of it. Fullscreen opens over a blurred backdrop
+  and fits the diagram to the viewport on entry.
+
+### Changed
+
+- **A space is always explicit.** The unscoped common tree is gone from the client, and every
+  request carries the space it belongs to. The switcher no longer offers a bucket whose
+  contents depended on who was asking.
+
+- **Artifacts wear `solar:file-smile-linear`** in the sidebar and on the empty state, instead
+  of the generic card glyph shared with every other list.
+
+- **muse pinned at v0.7.0, with `WordReveal` vendored into the client.** muse dropped the
+  component as its only GSAP-plugin consumer and names Mycelium as the sole user, so it moves
+  here with `gsap` as a direct dependency.
+
+### Fixed
+
+- **Space access is restricted to members, and the admin bypass is removed.** An admin could
+  read every space on the instance regardless of membership. Membership is now the only thing
+  the server checks.
+
+- **The markdown palette maps onto muse tokens.** muse v0.7.0 sets `--color-*: initial`, which
+  unsets Tailwind's stock palette, so 57 utilities in `MarkdownMuse.svelte` emitted no CSS at
+  all: callouts, diff badges, status pills and highlights rendered as unstyled text. Nothing
+  errored and the build stayed green, which is how it nearly shipped.
+
+- **An admin can select their personal space again.** The switcher suppressed the row by
+  passing `undefined`, which Svelte resolves to the prop's default, so the row rendered for a
+  non-admin and `pickSpace` then refused the click. `null` is the suppression signal.
+
+- **`publish_artifact` syncs the artifact to the server.** It wrote the file locally and left
+  it there until the next sync tick, so the URL it returned 404ed for the first minute.
+
+- **Alerts parse full markdown, and a Mermaid SVG is no longer capped.** Alert bodies rendered
+  their markup as literal text, and the diagram was clamped to a width narrower than its own
+  viewBox.
+
+- **Null lists no longer break space switching in the CLI.** An empty response decoded to a nil
+  slice and every caller assumed a list.
+
 ## [0.31.0] — 2026-08-27
 
 ### Added
