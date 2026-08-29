@@ -69,7 +69,7 @@
 		<Alert tone="danger" title="Could not load artifacts">{error}</Alert>
 	{:else if artifacts.length === 0}
 		<EmptyState
-			icon={icons.card}
+			icon="solar:file-smile-linear"
 			title="No artifacts yet"
 			description="Publish one with `mycelium artifact add <file>` or the `publish_artifact` tool."
 		/>
