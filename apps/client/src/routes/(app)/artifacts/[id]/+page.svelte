@@ -69,8 +69,8 @@
 		{#if detail}
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="flex min-w-0 flex-col gap-1">
-					<div class="flex flex-wrap items-center gap-2">
-						<h1 class="truncate text-fc-2xl font-bold text-fc-fg">{detail.title}</h1>
+					<div class="flex min-w-0 flex-wrap items-center gap-2">
+						<h1 class="min-w-0 truncate text-fc-2xl font-bold text-fc-fg">{detail.title}</h1>
 						<Badge tone={detail.expired ? 'danger' : detail.expires ? 'neutral' : 'success'}>
 							{detail.expires ? (detail.expired ? 'Expired' : 'Expires ' + new Date(detail.expires).toLocaleDateString()) : 'Pinned'}
 						</Badge>
@@ -78,15 +78,24 @@
 							{detail.format === 'html' ? 'HTML' : 'Markdown'}
 						</Badge>
 					</div>
-					<p class="flex items-center gap-3 font-fc-mono text-fc-xs text-fc-fg-muted">
-						<span>artifacts/{detail.id}.{detail.format === 'html' ? 'html' : 'md'}</span>
-						<span>•</span>
-						<span class="inline-flex items-center gap-1">
-							<iconify-icon icon={icons.server} width="12" height="12"></iconify-icon>
-							{detail.machine}
+					<p
+						class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-fc-mono text-fc-xs text-fc-fg-muted"
+					>
+						<span class="break-all">
+							artifacts/{detail.id}.{detail.format === 'html' ? 'html' : 'md'}
 						</span>
-						<span>•</span>
-						<span>{formatDate(detail.created)}</span>
+						<span class="shrink-0" aria-hidden="true">•</span>
+						<span class="inline-flex min-w-0 items-center gap-1">
+							<iconify-icon
+								icon={icons.server}
+								width="14"
+								height="14"
+								class="block shrink-0"
+							></iconify-icon>
+							<span class="truncate">{detail.machine}</span>
+						</span>
+						<span class="shrink-0" aria-hidden="true">•</span>
+						<span class="shrink-0">{formatDate(detail.created)}</span>
 					</p>
 				</div>
 
@@ -94,14 +103,14 @@
 					<div class="flex rounded-fc-md border border-fc-border bg-fc-surface p-0.5">
 						<button
 							type="button"
-							class="rounded px-2.5 py-1 text-fc-xs font-medium transition-colors {viewMode === 'preview' ? 'bg-fc-primary text-fc-primary-fg' : 'text-fc-fg-muted hover:text-fc-fg'}"
+							class="rounded px-2.5 py-1 text-fc-xs font-medium transition-colors {viewMode === 'preview' ? 'bg-fc-accent text-fc-accent-fg' : 'text-fc-fg-muted hover:text-fc-fg'}"
 							onclick={() => (viewMode = 'preview')}
 						>
 							Preview
 						</button>
 						<button
 							type="button"
-							class="rounded px-2.5 py-1 text-fc-xs font-medium transition-colors {viewMode === 'source' ? 'bg-fc-primary text-fc-primary-fg' : 'text-fc-fg-muted hover:text-fc-fg'}"
+							class="rounded px-2.5 py-1 text-fc-xs font-medium transition-colors {viewMode === 'source' ? 'bg-fc-accent text-fc-accent-fg' : 'text-fc-fg-muted hover:text-fc-fg'}"
 							onclick={() => (viewMode = 'source')}
 						>
 							Source

@@ -7,13 +7,20 @@
 	 * strings — paths, ids, endpoints. A memory file's path is one; a space's description is
 	 * prose and must not wear it.
 	 */
+	/*
+	 * `footer` is where provenance goes — the machine a thing came from, when it was made.
+	 * It sits under a 1px rule, which CHARTE §5 allows *inside* a container even though the
+	 * container itself carries none: the rule separates two blocks that belong to the same
+	 * card, the way ProfileCard's meta rows do.
+	 */
 	let {
 		href,
 		icon,
 		title,
 		meta,
 		mono = true,
-		trailing
+		trailing,
+		footer
 	}: {
 		href: string;
 		icon: string;
@@ -21,6 +28,7 @@
 		meta?: string;
 		mono?: boolean;
 		trailing?: Snippet;
+		footer?: Snippet;
 	} = $props();
 </script>
 
@@ -48,4 +56,11 @@
 			<p class="truncate text-fc-xs text-fc-fg-muted {mono ? 'font-fc-mono' : ''}">{meta}</p>
 		{/if}
 	</div>
+	{#if footer}
+		<div
+			class="flex min-w-0 items-center justify-between gap-3 border-t border-fc-border pt-3 text-fc-xs text-fc-fg-muted"
+		>
+			{@render footer()}
+		</div>
+	{/if}
 </Card>

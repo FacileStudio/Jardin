@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Alert, Badge, EmptyState, Input, Spinner, icons } from '@facile/muse';
+	import EntityCard from '$lib/components/EntityCard.svelte';
 	import { backend, type ArtifactSummary } from '$lib/backend';
 
 	let artifacts: ArtifactSummary[] = $state([]);
@@ -88,39 +89,37 @@
 					No artifacts match “{query}”.
 				</p>
 			{:else}
-				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 [&>*]:min-w-0">
 					{#each filtered as art (art.id)}
-						<a
+						<EntityCard
 							href="/artifacts/{art.id}"
-							class="group flex flex-col justify-between rounded-fc-lg border border-fc-border bg-fc-surface p-5 transition-all hover:border-fc-ring/40 hover:bg-fc-surface-hover hover:shadow-fc-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
+							icon="solar:file-smile-linear"
+							title={art.title}
+							meta="artifacts/{art.id}.{art.format === 'html' ? 'html' : 'md'}"
 						>
-							<div class="flex flex-col gap-3">
-								<div class="flex items-start justify-between gap-2">
-									<h2 class="truncate text-fc-base font-semibold text-fc-fg transition-colors group-hover:text-fc-primary">
-										{art.title}
-									</h2>
-									<div class="flex items-center gap-1.5 shrink-0">
-										<Badge tone={art.expired ? 'danger' : art.expires ? 'neutral' : 'success'}>
-											{formatExpiry(art)}
-										</Badge>
-										<Badge tone="neutral">
-											{art.format === 'html' ? 'HTML' : 'MD'}
-										</Badge>
-									</div>
+							{#snippet trailing()}
+								<div class="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+									<Badge tone={art.expired ? 'danger' : art.expires ? 'neutral' : 'success'}>
+										{formatExpiry(art)}
+									</Badge>
+									<Badge tone="neutral">
+										{art.format === 'html' ? 'HTML' : 'MD'}
+									</Badge>
 								</div>
-								<p class="font-fc-mono text-fc-xs text-fc-fg-muted truncate">
-									artifacts/{art.id}.{art.format === 'html' ? 'html' : 'md'}
-								</p>
-							</div>
-
-							<div class="mt-4 flex items-center justify-between border-t border-fc-border/60 pt-3 text-fc-xs text-fc-fg-muted">
-								<span class="inline-flex items-center gap-1 font-fc-mono">
-									<iconify-icon icon={icons.server} width="12" height="12"></iconify-icon>
+							{/snippet}
+							{#snippet footer()}
+								<span class="inline-flex min-w-0 items-center gap-1 truncate font-fc-mono">
+									<iconify-icon
+										icon={icons.server}
+										width="14"
+										height="14"
+										class="block shrink-0"
+									></iconify-icon>
 									{art.machine || 'unknown'}
 								</span>
-								<span>{formatDate(art.created)}</span>
-							</div>
-						</a>
+								<span class="shrink-0">{formatDate(art.created)}</span>
+							{/snippet}
+						</EntityCard>
 					{/each}
 				</div>
 			{/if}
