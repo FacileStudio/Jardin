@@ -10,6 +10,8 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.32.3] — 2026-08-29
+
 ### Fixed
 
 - **A failed `mycelium login` no longer dead-ends the browser on a JSON error object.** The OIDC
@@ -35,6 +37,27 @@ records what shipped rather than what was written down at the time.
   is answered in a sentence instead of a greyed-out button. The alphabet and the shape live in
   `apps/client/src/lib/deviceCode.ts` alone, checked against the server's by
   `deviceCode.check.ts` in the repository gate.
+
+- **The artifact cards no longer push the page sideways on a phone, and no longer carry a
+  border.** Each card was a hand-rolled `<a>` with `border border-fc-border`, which CHARTE §5
+  forbids on a container surface: a card separates itself from the page with its fill. Nothing
+  in the card set `min-w-0`, so a 70-character artifact id in a grid item that defaults to
+  `min-width: auto` widened its own track and the whole grid with it, and the `truncate` meant to
+  prevent exactly that could never take effect. The card is now the `EntityCard` the other six
+  list pages already use, with the badges in its `trailing` snippet and the machine and date in a
+  new optional `footer`.
+
+- **Two states on the artifact page rendered nothing at all.** `hover:bg-fc-surface-hover`,
+  `hover:shadow-fc-sm` and `bg-fc-primary text-fc-primary-fg` name tokens that do not exist, so
+  Tailwind emitted no CSS for them: cards had no hover step and the Preview/Source toggle had no
+  visible selection. The selected tab is now the inverted `bg-fc-accent text-fc-accent-fg` the
+  charte specifies for an active state, and the card hover comes from `Card` itself. Twenty-three
+  more of these dead utilities remain in `MarkdownMuse.svelte`, `MermaidBlock.svelte` and
+  `MermaidModal.svelte`; replacing `fc-primary` there is a palette decision, not a rename.
+
+- **An artifact's own page fits a phone now.** The metadata line under the title was a `flex` row
+  with no wrap holding a full artifact path, so it ran off the side of a phone. It wraps now,
+  the path breaks rather than overflowing, and the machine name truncates.
 
 ### Added
 
