@@ -199,12 +199,12 @@ func artifactTarget(art artifacts.Artifact) string {
 }
 
 func artifactRecorded(art artifacts.Artifact) {
-	target := artifactTarget(art)
 	ui.Success("Recorded %s", art.ID)
-	ui.Hint("%s", target)
 	if err := pushAfterWrite(); err != nil {
 		ui.Warn("Recorded here but not synced (%v)", err)
 	}
+	target := artifactTarget(art)
+	ui.Hint("%s", target)
 	if artifactNoOpen {
 		return
 	}
@@ -215,9 +215,12 @@ func artifactRecorded(art artifacts.Artifact) {
 // machine has no browser. The link is already on stdout by then, so nothing has
 // failed: a headless box gets the link and one line explaining the silence,
 // never an error and never an exit code.
+//
+// That line goes to stderr because the link is the only thing `artifact open`
+// owes a pipe, and a note about this machine's hardware is not data.
 func showInBrowser(target string) {
 	if !browser.Available() {
-		ui.Hint("no browser on this machine")
+		ui.ErrorHint("no browser on this machine")
 		return
 	}
 	if err := browser.Open(target); err != nil {

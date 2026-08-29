@@ -123,10 +123,17 @@ func TestEveryToolAdvertisesAnObjectInputAndOutputSchema(t *testing.T) {
 	}
 }
 
+// TestPublishArtifactWithInlineContent points MYCELIUM_URL at a port nothing
+// listens on, and that is the point: publish_artifact syncs what it records,
+// and LoadMyceliumConfig reads ~/.mycelium.yml rather than DATA_DIR, so the
+// token is the developer's own. Naming a real server here published a "# Test"
+// artifact into the production store on every `go test ./...`, three of them
+// on 2026-08-29 before anyone noticed. The URL is built from the configured
+// server whether the sync reaches it or not, so the assertion holds offline.
 func TestPublishArtifactWithInlineContent(t *testing.T) {
 	client := connect(t)
 	t.Setenv("DATA_DIR", t.TempDir())
-	t.Setenv("MYCELIUM_URL", "https://mycelium.facile.studio")
+	t.Setenv("MYCELIUM_URL", "http://127.0.0.1:1")
 	res, err := client.CallTool(context.Background(), &mcp.CallToolParams{
 		Name: "publish_artifact",
 		Arguments: map[string]any{
@@ -142,7 +149,7 @@ func TestPublishArtifactWithInlineContent(t *testing.T) {
 	if out.ID == "" {
 		t.Fatal("empty artifact ID")
 	}
-	if !strings.HasPrefix(out.URL, "https://mycelium.facile.studio/artifacts/") {
-		t.Fatalf("artifact URL: got %q, want prefix https://mycelium.facile.studio/artifacts/", out.URL)
+	if !strings.HasPrefix(out.URL, "http://127.0.0.1:1/artifacts/") {
+		t.Fatalf("artifact URL: got %q, want prefix http://127.0.0.1:1/artifacts/", out.URL)
 	}
 }

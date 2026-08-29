@@ -41,7 +41,7 @@ func Open(target string) error {
 		return errNoOpener
 	}
 	if runtime.GOOS == "windows" {
-		return exec.Command(path, "/c", "start", target).Start()
+		return exec.Command(path, "/c", "start", "", target).Start()
 	}
 	return exec.Command(path, target).Start()
 }

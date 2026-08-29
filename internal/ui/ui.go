@@ -46,9 +46,11 @@ func Hint(format string, a ...any) {
 	fmt.Fprintf(os.Stdout, "  %s\n", faint.Sprint(fmt.Sprintf(format, a...)))
 }
 
-// ErrorHint prints the same indented, faint line to stderr, for the detail that
-// belongs under an Error. Reaching for Hint there splits one message across two
-// streams, so a `2>log` keeps the headline and loses the explanation.
+// ErrorHint prints the same indented, faint line to stderr. It carries the
+// detail that belongs under an Error — reaching for Hint there splits one
+// message across two streams, so a `2>log` keeps the headline and loses the
+// explanation — and any other aside that must stay out of stdout, which
+// CLI-STANDARD §7.3 reserves for data a pipe is entitled to read alone.
 func ErrorHint(format string, a ...any) {
 	fmt.Fprintf(os.Stderr, "  %s\n", faint.Sprint(fmt.Sprintf(format, a...)))
 }

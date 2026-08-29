@@ -10,6 +10,31 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.32.2] — 2026-08-29
+
+### Fixed
+
+- **`go test ./...` published a real artifact to the production server.** The MCP publish test
+  pointed `MYCELIUM_URL` at `mycelium.facile.studio`, and `publish_artifact` syncs what it
+  records. `DATA_DIR` was a temp dir but the credential was not: `LoadMyceliumConfig` reads
+  `~/.mycelium.yml`, so the test authenticated as the developer's own machine and pushed a
+  document titled "Inline Artifact" into the real store, which then synced everywhere. Three of
+  them landed on 2026-08-29 before anyone noticed. The test now names a port nothing listens on,
+  which exercises the same code and reaches nothing.
+
+- **`artifact open` no longer puts prose on stdout.** The "no browser on this machine" note moved
+  to stderr, so `mycelium artifact open <id> | pbcopy` copies the link and nothing else, as
+  CLI-STANDARD §7.3 requires. A terminal still shows both lines.
+
+- **`artifact add` syncs before it hands you the link.** It printed the server URL and opened a
+  browser at it while the file was still on its way up, so a fast machine could race the upload
+  and land on a 404. With no server configured it now prints the local path, which is the only
+  thing that resolves there.
+
+- **`cmd /c start <url>` reads a lone quoted argument as the window title.** Windows is not a
+  release target today, but the opener now passes the empty title `start "" <url>` the way the
+  documented invocation does.
+
 ## [0.32.1] — 2026-08-29
 
 ### Fixed
