@@ -10,6 +10,8 @@ records what shipped rather than what was written down at the time.
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-08-30
+
 ### Added
 
 - **`mycelium login --no-listener`, for the terminal whose browser is on another
@@ -870,7 +872,14 @@ through, and the on-disk vocabulary settled on `memory`.
 - Traefik gives API routes priority over the client, and the Docker build uses
   `golang:alpine`.
 
-[Unreleased]: https://github.com/FacileStudio/Mycelium/compare/v0.28.0...HEAD
+[Unreleased]: https://github.com/FacileStudio/Mycelium/compare/v0.33.0...HEAD
+[0.33.0]: https://github.com/FacileStudio/Mycelium/compare/v0.32.3...v0.33.0
+[0.32.3]: https://github.com/FacileStudio/Mycelium/compare/v0.32.2...v0.32.3
+[0.32.2]: https://github.com/FacileStudio/Mycelium/compare/v0.32.1...v0.32.2
+[0.32.1]: https://github.com/FacileStudio/Mycelium/compare/v0.32.0...v0.32.1
+[0.32.0]: https://github.com/FacileStudio/Mycelium/compare/v0.31.0...v0.32.0
+[0.31.0]: https://github.com/FacileStudio/Mycelium/compare/v0.29.0...v0.31.0
+[0.29.0]: https://github.com/FacileStudio/Mycelium/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/FacileStudio/Mycelium/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/FacileStudio/Mycelium/compare/v0.26.0...v0.27.0
 [0.23.0]: https://github.com/FacileStudio/Mycelium/compare/v0.22.0...v0.23.0
