@@ -9,11 +9,14 @@ import (
 
 	"github.com/FacileStudio/Mycelium/internal/config"
 	hsync "github.com/FacileStudio/Mycelium/internal/sync"
-	"github.com/fatih/color"
+	"github.com/FacileStudio/Mycelium/internal/ui"
 	"github.com/spf13/cobra"
 )
 
-var spacesUseNone bool
+var (
+	spacesUseNone bool
+	spacesJSON    bool
+)
 
 type spaceInfo struct {
 	ID          string `json:"id"`
@@ -56,12 +59,30 @@ func fetchSpaces(cfg *config.MyceliumConfig) ([]spaceInfo, error) {
 	return out.Spaces, nil
 }
 
-// resolveSpace matches by exact id first, then case-insensitively by name.
+func shortID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
 func resolveSpace(spaces []spaceInfo, arg string) (*spaceInfo, error) {
 	for i := range spaces {
 		if spaces[i].ID == arg {
 			return &spaces[i], nil
 		}
+	}
+	var prefixMatches []*spaceInfo
+	for i := range spaces {
+		if strings.HasPrefix(spaces[i].ID, arg) {
+			prefixMatches = append(prefixMatches, &spaces[i])
+		}
+	}
+	if len(prefixMatches) == 1 {
+		return prefixMatches[0], nil
+	}
+	if len(prefixMatches) > 1 {
+		return nil, fmt.Errorf("ambiguous space prefix %q", arg)
 	}
 	for i := range spaces {
 		if strings.EqualFold(spaces[i].Name, arg) {
@@ -100,20 +121,41 @@ var spacesListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if len(spaces) == 0 {
-			fmt.Println("No spaces available.")
+		if spaces == nil {
+			spaces = []spaceInfo{}
+		}
+
+		currentID := cfg.SpaceID()
+
+		if spacesJSON {
+			var selected any = nil
+			if currentID != "" {
+				selected = currentID
+			}
+			out := map[string]any{
+				"selected": selected,
+				"spaces":   spaces,
+			}
+			data, err := json.Marshal(out)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(data))
 			return nil
 		}
-		currentID := cfg.SpaceID()
+
+		marker := " "
+		if currentID == "" {
+			marker = "*"
+		}
+		fmt.Printf("%s %-8s %-24s %s\n", marker, "-", "common", ui.Dim("the common tree"))
+
 		for _, s := range spaces {
-			color.New(color.FgCyan).Printf("%s  ", s.ID)
-			color.New(color.Bold).Printf("%s", s.Name)
-			fmt.Printf("  (%s)", s.Role)
+			m := " "
 			if currentID == s.ID {
-				color.Green("  [current]")
-			} else {
-				fmt.Println()
+				m = "*"
 			}
+			fmt.Printf("%s %-8s %-24s %s\n", m, shortID(s.ID), s.Name, ui.Dim(s.Role))
 		}
 		return nil
 	},
@@ -129,6 +171,12 @@ var spacesCurrentCmd = &cobra.Command{
 		}
 		spaceID := cfg.SpaceID()
 		if spaceID == "" {
+			if spacesJSON {
+				out := map[string]any{"selected": nil}
+				data, _ := json.Marshal(out)
+				fmt.Println(string(data))
+				return nil
+			}
 			fmt.Println("common")
 			return nil
 		}
@@ -136,12 +184,24 @@ var spacesCurrentCmd = &cobra.Command{
 		if err == nil {
 			for _, s := range spaces {
 				if s.ID == spaceID {
-					fmt.Printf("%s (%s)\n", s.Name, s.ID)
+					if spacesJSON {
+						out := map[string]any{"selected": s.ID, "name": s.Name}
+						data, _ := json.Marshal(out)
+						fmt.Println(string(data))
+						return nil
+					}
+					fmt.Printf("%s (%s)\n", s.Name, shortID(s.ID))
 					return nil
 				}
 			}
 		}
-		fmt.Println(spaceID)
+		if spacesJSON {
+			out := map[string]any{"selected": spaceID}
+			data, _ := json.Marshal(out)
+			fmt.Println(string(data))
+			return nil
+		}
+		fmt.Println(shortID(spaceID))
 		return nil
 	},
 }
@@ -157,11 +217,17 @@ var spacesUseCmd = &cobra.Command{
 			return err
 		}
 
-		if spacesUseNone || (len(args) == 1 && args[0] == "common") {
+		if spacesUseNone || (len(args) == 1 && (args[0] == "common" || args[0] == "personal")) {
 			if err := setSpace(cfg, ""); err != nil {
 				return err
 			}
-			color.Green("Now syncing the common tree.")
+			if spacesJSON {
+				out := map[string]any{"selected": nil}
+				data, _ := json.Marshal(out)
+				fmt.Println(string(data))
+				return nil
+			}
+			ui.Success("Now syncing the common tree")
 			return nil
 		}
 		if len(args) == 0 {
@@ -179,12 +245,20 @@ var spacesUseCmd = &cobra.Command{
 		if err := setSpace(cfg, space.ID); err != nil {
 			return err
 		}
-		color.Green("Now syncing space %s (%s).", space.Name, space.ID)
+		if spacesJSON {
+			out := map[string]any{"selected": space.ID}
+			data, _ := json.Marshal(out)
+			fmt.Println(string(data))
+			return nil
+		}
+		ui.Success("Now syncing space %s (%s)", space.Name, shortID(space.ID))
+		ui.Hint("`mycelium spaces use common` goes back to the common tree")
 		return nil
 	},
 }
 
 func init() {
+	spacesCmd.PersistentFlags().BoolVar(&spacesJSON, "json", false, "Output as JSON")
 	spacesUseCmd.Flags().BoolVar(&spacesUseNone, "none", false, "Clear the space and sync the common tree")
 	spacesCmd.AddCommand(spacesListCmd)
 	spacesCmd.AddCommand(spacesCurrentCmd)
