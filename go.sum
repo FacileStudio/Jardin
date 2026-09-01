@@ -10,6 +10,8 @@ github.com/FacileStudio/porte v0.5.2 h1:uB/KeI38IjOoJJz6Fm/wfkmfHW1Q/SjsOE+KQh0d
 github.com/FacileStudio/porte v0.5.2/go.mod h1:dXC79PY1VUB8mpirq2IBA0/8/hpEAWH4+ZhsJ1D57h0=
 github.com/FacileStudio/tronc v0.12.0 h1:KJB/Z2Y6BeCNMT7vSmr0nX8C+cRJAjzVjxKL9WJQ7fw=
 github.com/FacileStudio/tronc v0.12.0/go.mod h1:n+msHH6RQLvhcIQfFzeWaAgwqL8UkNuLPTqbu+C02so=
+github.com/FacileStudio/tronc v0.16.0 h1:vfZIBTKrKMTx3hOFxSc2jO4LCZcOBI2sB7XVAjL4b60=
+github.com/FacileStudio/tronc v0.16.0/go.mod h1:n+msHH6RQLvhcIQfFzeWaAgwqL8UkNuLPTqbu+C02so=
 github.com/Microsoft/go-winio v0.5.2/go.mod h1:WpS1mjBmmwHBEWmogvA2mj8546UReBk4v8QkMxJ6pZY=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
