@@ -18,6 +18,7 @@ package mcpserver
 import (
 	"context"
 
+	"github.com/FacileStudio/Mycelium/internal/flow"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -39,6 +40,11 @@ func New(version string) *mcp.Server {
 	mcp.AddTool(s, runFlowTool(), runFlow)
 	mcp.AddTool(s, publishArtifactTool(), publishArtifact)
 	mcp.AddTool(s, publishReportTool(), publishArtifact)
+
+	flows, _ := flow.List()
+	for _, f := range flows {
+		mcp.AddTool(s, flowToTool(f), runFlowByName(f.Name))
+	}
 	return s
 }
 

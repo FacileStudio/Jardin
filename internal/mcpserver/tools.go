@@ -1,6 +1,11 @@
 package mcpserver
 
-import "github.com/modelcontextprotocol/go-sdk/mcp"
+import (
+	"strings"
+
+	"github.com/FacileStudio/Mycelium/internal/flow"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
 
 // searchMemoryTool declares the wiki search.
 //
@@ -101,4 +106,18 @@ func publishReportTool() *mcp.Tool {
 	t.Name = "publish_report"
 	t.Title = "Publish a report"
 	return t
+}
+
+// flowToTool converts a recorded flow into an MCP tool that runs it. The
+// wrapper is thin: the name is "run_flow_<name>" (snake_case), the description
+// comes from the flow file, and the annotations match the generic run_flow
+// tool because a flow's steps are arbitrary shell commands.
+func flowToTool(f *flow.Flow) *mcp.Tool {
+	name := "run_flow_" + strings.ReplaceAll(f.Name, "-", "_")
+	return &mcp.Tool{
+		Name:        name,
+		Title:       "Run flow: " + f.Name,
+		Description: f.Description,
+		Annotations: runFlowTool().Annotations,
+	}
 }

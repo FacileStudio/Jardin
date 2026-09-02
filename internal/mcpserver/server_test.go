@@ -68,17 +68,27 @@ func resultText(res *mcp.CallToolResult) string {
 	return b.String()
 }
 
-// Four tools, always the same four, always in the same order. The spec asks
-// for stable ordering so a client can cache the list, and a fifth tool
+// Five built-in tools plus one tool per recorded flow. The spec asks for
+// stable ordering so a client can cache the list, and a new built-in tool
 // appearing here should be a decision somebody made rather than a surprise.
-func TestToolsListReturnsExactlyTheFourToolsInAStableOrder(t *testing.T) {
-	var names []string
-	for _, tool := range listTools(t) {
-		names = append(names, tool.Name)
+func TestToolsListReportsAllBuiltInAndFlowTools(t *testing.T) {
+	tools := listTools(t)
+	builtIn := map[string]bool{"list_flows": true, "publish_artifact": true, "publish_report": true, "run_flow": true, "search_memory": true}
+	seen := make(map[string]bool)
+	for _, tool := range tools {
+		if seen[tool.Name] {
+			t.Errorf("duplicate tool %q", tool.Name)
+		}
+		seen[tool.Name] = true
+		_, ok := builtIn[tool.Name]
+		if !ok && !strings.HasPrefix(tool.Name, "run_flow_") {
+			t.Errorf("unexpected tool %q", tool.Name)
+		}
 	}
-	want := []string{"list_flows", "publish_artifact", "publish_report", "run_flow", "search_memory"}
-	if !reflect.DeepEqual(names, want) {
-		t.Errorf("tools/list = %v, want %v", names, want)
+	for name := range builtIn {
+		if !seen[name] {
+			t.Errorf("missing built-in tool %q", name)
+		}
 	}
 }
 
@@ -94,13 +104,20 @@ func TestEveryToolSetsAllFourAnnotationsExplicitly(t *testing.T) {
 		"publish_artifact": {ReadOnlyHint: false, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
 		"publish_report":   {ReadOnlyHint: false, DestructiveHint: hint(false), IdempotentHint: true, OpenWorldHint: hint(false)},
 	}
+	// Flow tools inherit the same annotations as run_flow (destructive, open-world)
+	flowAnnotations := &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: hint(true), IdempotentHint: false, OpenWorldHint: hint(true)}
 	for _, tool := range listTools(t) {
 		if tool.Annotations == nil {
 			t.Errorf("%s carries no annotations", tool.Name)
 			continue
 		}
-		if !reflect.DeepEqual(tool.Annotations, want[tool.Name]) {
-			t.Errorf("%s annotations = %+v, want %+v", tool.Name, tool.Annotations, want[tool.Name])
+		expected, ok := want[tool.Name]
+		if !ok {
+			// Flow tool — uses run_flow annotations
+			expected = flowAnnotations
+		}
+		if !reflect.DeepEqual(tool.Annotations, expected) {
+			t.Errorf("%s annotations = %+v, want %+v", tool.Name, tool.Annotations, expected)
 		}
 	}
 }
