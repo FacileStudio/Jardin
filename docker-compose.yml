@@ -49,15 +49,11 @@ services:
       traefik.http.routers.mycelium-secure.service: mycelium-svc
       traefik.http.services.mycelium-svc.loadbalancer.server.port: '8420'
     healthcheck:
-      test:
-      - CMD
-      - nc
-      - -z
-      - localhost
-      - '8420'
-      interval: 30s
+      test: ["CMD", "/mycelium", "healthcheck"]
+      interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 10s
     deploy:
       update_config:
         order: start-first
