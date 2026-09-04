@@ -1,6 +1,6 @@
 module github.com/FacileStudio/Mycelium
 
-go 1.26
+go 1.26.1
 
 require (
 	github.com/FacileStudio/Journal/sdk/journal v0.0.0-20260805204822-d5d1dc94d458
