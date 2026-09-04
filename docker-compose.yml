@@ -5,11 +5,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     expose:
-      - "8420"
+    - '8420'
     environment:
       APP_ENV: ${APP_ENV:-production}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
-      PORT: "8420"
+      PORT: '8420'
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DATA_DIR: /data
       PASSWORD: ${PASSWORD}
@@ -19,75 +19,55 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
       OIDC_SUCCESS_URL: ${OIDC_SUCCESS_URL:-}
-      # Bus configuration. Setting ANTENNE_URL is enough to turn emitting on;
-      # these override whatever is in the data dir, so a container is
-      # reproducible from this file and does not depend on somebody having
-      # opened the dashboard. Leave them unset to configure it from the UI.
       ANTENNE_URL: ${ANTENNE_URL:-}
       ANTENNE_SECRET: ${ANTENNE_SECRET:-}
       ANTENNE_USER_EMAIL: ${ANTENNE_USER_EMAIL:-}
-      # Journal log shipping (optional — per-app key from Journal's Keys page;
-      # Mycelium is not on journal's docker network, so use https://journal.facile.studio/api)
       JOURNAL_URL: ${JOURNAL_URL:-}
       JOURNAL_TOKEN: ${JOURNAL_TOKEN:-}
       JOURNAL_BROWSER_URL: ${JOURNAL_BROWSER_URL:-}
       JOURNAL_BROWSER_KEY: ${JOURNAL_BROWSER_KEY:-}
-      # Semantic memory search, wired to the shared sidecars by default so a
-      # standard deploy needs no panel configuration at all.
-      #
-      # Note the expansion is ${VAR-default}, NOT ${VAR:-default}: the colonless
-      # form substitutes only when the variable is UNSET, so all three intents
-      # are expressible.
-      #   unset            -> the sidecars below, semantic search on
-      #   set to a URL     -> somebody else's ollama, anywhere
-      #   set to empty     -> dormant, memory search stays lexical-only
-      # A colon here would make the last row impossible, since empty and unset
-      # would both mean "use the default".
-      #
-      # ollama and qdrant are NOT services of this stack — see the facile-ai
-      # network below and docs/deployment.md.
       OLLAMA_URL: ${OLLAMA_URL-http://ollama:11434}
       EMBED_MODEL: ${EMBED_MODEL-all-minilm}
       VECTOR_STORE: ${VECTOR_STORE-flat}
       QDRANT_URL: ${QDRANT_URL-http://qdrant:6333}
     volumes:
-      - mycelium-data:/data
+    - mycelium-data:/data
     networks:
-      - default
-      - dokploy-network
-      - facile-ai
+    - default
+    - dokploy-network
+    - facile-ai
     labels:
-      traefik.enable: "true"
+      traefik.enable: 'true'
       traefik.docker.network: dokploy-network
-      traefik.http.routers.mycelium-web.rule: "Host(`mycelium.facile.studio`)"
+      traefik.http.routers.mycelium-web.rule: Host(`mycelium.facile.studio`)
       traefik.http.routers.mycelium-web.entrypoints: web
       traefik.http.routers.mycelium-web.middlewares: redirect-to-https@file
       traefik.http.routers.mycelium-web.service: mycelium-svc
-      traefik.http.routers.mycelium-secure.rule: "Host(`mycelium.facile.studio`)"
+      traefik.http.routers.mycelium-secure.rule: Host(`mycelium.facile.studio`)
       traefik.http.routers.mycelium-secure.entrypoints: websecure
       traefik.http.routers.mycelium-secure.tls.certresolver: letsencrypt
       traefik.http.routers.mycelium-secure.service: mycelium-svc
-      traefik.http.services.mycelium-svc.loadbalancer.server.port: "8420"
+      traefik.http.services.mycelium-svc.loadbalancer.server.port: '8420'
     healthcheck:
-      test: ["CMD", "/mycelium", "healthcheck"]
-      interval: 10s
+      test:
+      - CMD
+      - nc
+      - -z
+      - localhost
+      - '8420'
+      interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
-
+    deploy:
+      update_config:
+        order: start-first
+        parallelism: 1
+      restart_policy:
+        condition: any
 volumes:
-  mycelium-data:
-
+  mycelium-data: null
 networks:
-  # Traefik reaches the container here.
   dokploy-network:
     external: true
-  # Shared inference sidecars — ollama (bge-m3) and qdrant — run as standalone
-  # containers on la ruche, outside every app's compose project, so their model
-  # and index volumes survive a redeploy of any one app. Joining this network is
-  # the whole dependency: no new service, no new router, no new hostname, and
-  # nothing new published. `scripts/ai-sidecars.sh` creates the network and the
-  # containers, and must have run once before the first deploy that needs them —
-  # compose refuses to start against a missing external network.
   facile-ai:
     external: true
